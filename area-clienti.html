@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Area personale · La Columbera</title>
+<meta name="description" content="Consulta le tue prenotazioni a La Columbera con l'email usata per prenotare e il codice prenotazione.">
+<meta name="theme-color" content="#7A2E39">
+<link rel="icon" href="img/Favion/1-03.png">
+<link rel="apple-touch-icon" href="img/Favion/1-03.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body data-p="clienti">
+
+<header class="site-header" data-solid data-testid="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="La Columbera, torna alla home" data-testid="brand-link">
+      <img src="img/brand/logo.png" alt="La Columbera · Abitazione in villa storica" class="brand-logo-color">
+      <img src="img/brand/logo-light.png" alt="" aria-hidden="true" class="brand-logo-light">
+      <span class="brand-word">La Columbera</span>
+    </a>
+    <nav class="nav-links" id="nav-links" data-testid="primary-nav">
+      <a href="index.html#dimora" data-testid="nav-dimora">La dimora</a>
+      <a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a>
+      <a href="index.html#ravina" data-testid="nav-ravina">Ravina</a>
+      <a href="index.html#contatti" data-testid="nav-contatti">Contatti</a>
+      <a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a>
+      <a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a>
+      <a href="area-clienti.html" class="only-mobile" data-testid="nav-area-personale">Area personale</a>
+      <a class="nav-cta" href="index.html#contatti" data-testid="nav-cta-prenota">Richiedi soggiorno</a>
+    </nav>
+    <button class="menu-toggle" aria-label="Apri il menu" aria-expanded="false" aria-controls="nav-links" data-testid="menu-toggle">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="auth-wrap">
+    <div class="auth-col">
+      <div class="auth-card" data-testid="area-clienti-card">
+        <span class="section-eyebrow">Area personale</span>
+        <h1>Le tue prenotazioni</h1>
+        <p class="sub">Inserisci l'email usata per prenotare e il codice prenotazione che hai ricevuto al momento della richiesta.</p>
+        <form id="f" data-testid="area-clienti-form">
+          <div class="field">
+            <label for="em">Email</label>
+            <input id="em" name="email" type="email" required data-testid="area-clienti-email">
+          </div>
+          <div class="field">
+            <label for="cd">Codice prenotazione</label>
+            <input id="cd" name="code" required data-testid="area-clienti-code">
+          </div>
+          <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="area-clienti-submit">Vedi prenotazioni</button>
+        </form>
+      </div>
+      <div id="r" style="margin-top:28px" data-testid="area-clienti-results"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer" data-testid="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <div class="footer-brand-mark">
+        <img src="img/brand/logo-light.png" alt="La Columbera">
+      </div>
+      <p class="footer-tag">Dimora storica del XV secolo a Ravina, alle porte di Trento. Due appartamenti indipendenti, Torre e Corte.</p>
+    </div>
+    <div class="footer-col">
+      <h4>La dimora</h4>
+      <a href="index.html#dimora">La Columbera</a>
+      <a href="torre.html">Appartamento Torre</a>
+      <a href="corte.html">Appartamento Corte</a>
+      <a href="index.html#ravina">Ravina e dintorni</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contatti</h4>
+      <a href="tel:+393517043594">+39 351 704 3594</a>
+      <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a>
+      <a href="area-clienti.html">Area clienti</a>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>© <span id="yr">2026</span> La Columbera · Ravina, Trento</span>
+    <span>Struttura ricettiva extra-alberghiera</span>
+  </div>
+</footer>
+
+<script src="js/site.js"></script>
+<script src="js/pages.js"></script>
+</body>
+</html>

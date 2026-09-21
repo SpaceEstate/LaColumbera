@@ -1,0 +1,7 @@
+{
+  "name": "la-columbera",
+  "private": true,
+  "dependencies": {
+    "@vercel/blob": "^1.1.1"
+  }
+}

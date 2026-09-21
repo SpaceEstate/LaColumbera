@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appartamento Corte · La Columbera, Ravina — Trento</title>
+<meta name="description" content="L'appartamento Corte de La Columbera a Ravina, Trento: piano terra con accesso indipendente, fino a 4 ospiti, cucina attrezzata e check-in autonomo. Verifica disponibilità e prezzi e invia la richiesta dal sito.">
+<meta name="theme-color" content="#7A2E39">
+<link rel="icon" href="img/Favion/1-03.png">
+<link rel="apple-touch-icon" href="img/Favion/1-03.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body data-p="apt" data-id="corte">
+
+<header class="site-header" data-testid="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html" aria-label="La Columbera, torna alla home" data-testid="brand-link">
+      <img src="img/brand/logo.png" alt="La Columbera · Abitazione in villa storica" class="brand-logo-color">
+      <img src="img/brand/logo-light.png" alt="" aria-hidden="true" class="brand-logo-light">
+      <span class="brand-word">La Columbera</span>
+    </a>
+    <nav class="nav-links" id="nav-links" data-testid="primary-nav">
+      <a href="index.html#dimora" data-testid="nav-dimora">La dimora</a>
+      <a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a>
+      <a href="index.html#ravina" data-testid="nav-ravina">Ravina</a>
+      <a href="index.html#contatti" data-testid="nav-contatti">Contatti</a>
+      <a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a>
+      <a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a>
+      <a href="area-clienti.html" class="only-mobile" data-testid="nav-area-personale">Area personale</a>
+      <a class="nav-cta" href="index.html#contatti" data-testid="nav-cta-prenota">Richiedi soggiorno</a>
+    </nav>
+    <button class="menu-toggle" aria-label="Apri il menu" aria-expanded="false" aria-controls="nav-links" data-testid="menu-toggle">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="page-hero" data-testid="apt-hero">
+    <div class="ph-media">
+      <img id="ph-img" src="img/corte/Copia%20di%20Soggiorno%201.jpg" alt="Appartamento Corte, La Columbera a Ravina">
+    </div>
+    <div class="wrap">
+      <span class="eyebrow" data-reveal>La Columbera · Ravina, Trento</span>
+      <h1 data-reveal data-reveal-delay="1">Appartamento <em id="apt-nome">Corte</em></h1>
+      <p class="sub" id="apt-sotto" data-reveal data-reveal-delay="2">Piano terra · fino a 4 ospiti</p>
+    </div>
+  </section>
+
+  <section class="apt-body" data-testid="apt-body">
+    <div class="wrap">
+      <div class="apt-layout">
+        <div>
+          <div class="gallery-main" data-reveal>
+            <img id="gm" src="img/corte/Copia%20di%20Soggiorno%201.jpg" alt="Appartamento Corte — foto principale" data-testid="gallery-main-img">
+          </div>
+          <div class="gallery-thumbs" id="th" data-reveal data-reveal-delay="1" data-testid="gallery-thumbs"></div>
+          <div class="chips" id="chips" data-reveal data-reveal-delay="2">
+            <span>fino a 4 ospiti</span><span>piano terra</span><span>2 ospiti inclusi</span><span>minimo 2 notti</span><span>check-in autonomo</span>
+          </div>
+          <div class="apt-desc" data-reveal data-reveal-delay="3">
+            <p id="desc">Al piano terra della dimora, con accesso indipendente, l'appartamento Corte accoglie coppie, famiglie e piccoli gruppi di amici in ambienti curati.
+
+Soggiorno accogliente, cucina attrezzata, camere rifinite e bagno privato. Biancheria, WiFi e check-in autonomo inclusi, per sentirsi subito a casa.
+
+Fuori, il borgo di Ravina con i suoi scorci storici; il centro di Trento è a pochi minuti.</p>
+          </div>
+        </div>
+        <div>
+          <div class="book-card" data-reveal data-reveal-delay="1" data-testid="booking-card">
+            <div class="price">da <span id="pr">€120</span> <small>a notte</small></div>
+            <p class="book-note" id="note">2 ospiti inclusi nel prezzo · ogni ospite extra +€20 a notte · soggiorno minimo 2 notti</p>
+            <div id="bk">
+              <p class="book-note">Carico il calendario…</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="contact" data-testid="apt-cross-cta">
+    <div class="wrap">
+      <div class="inner">
+        <span class="section-eyebrow" data-reveal>La Columbera</span>
+        <h2 data-reveal data-reveal-delay="1">C'è anche l'appartamento <span id="other-title">Torre</span></h2>
+        <p data-reveal data-reveal-delay="2" id="other-sub">Su due livelli · fino a 5 ospiti. Nella stessa dimora storica a Ravina, con lo stesso carattere e gli stessi comfort.</p>
+        <div class="cta-row" data-reveal data-reveal-delay="3">
+          <a class="btn btn-wine" id="other-link" href="torre.html" data-testid="cta-other-apt">Scopri <span id="other-name">Torre</span></a>
+          <a class="btn btn-line-light" href="mailto:info@lacolumbera.it" data-testid="cta-email">Scrivici una mail</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer" data-testid="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <div class="footer-brand-mark">
+        <img src="img/brand/logo-light.png" alt="La Columbera">
+      </div>
+      <p class="footer-tag">Dimora storica del XV secolo a Ravina, alle porte di Trento. Due appartamenti indipendenti, Torre e Corte.</p>
+    </div>
+    <div class="footer-col">
+      <h4>La dimora</h4>
+      <a href="index.html#dimora">La Columbera</a>
+      <a href="torre.html">Appartamento Torre</a>
+      <a href="corte.html">Appartamento Corte</a>
+      <a href="index.html#ravina">Ravina e dintorni</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contatti</h4>
+      <a href="tel:+393517043594">+39 351 704 3594</a>
+      <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a>
+      <a href="area-clienti.html">Area clienti</a>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>© <span id="yr">2026</span> La Columbera · Ravina, Trento</span>
+    <span>Struttura ricettiva extra-alberghiera</span>
+  </div>
+</footer>
+
+<script src="js/site.js"></script>
+<script src="js/pages.js"></script>
+</body>
+</html>
