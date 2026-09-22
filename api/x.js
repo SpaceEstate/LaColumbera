@@ -85,6 +85,7 @@ if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({er
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
 if(a==='adm'){const config=await cfg(req),bk=(await jg('bk'))||[],ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
 if(a==='stato'){const bk=(await jg('bk'))||[],x=bk.find(k=>k.code===b.code);if(x&&['richiesta','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
+if(a==='book_del'){let bk=(await jg('bk'))||[];const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
 if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)return res.status(400).json({err:'Titolo e data obbligatori'});
  list.push({id:c.randomBytes(4).toString('hex'),title:String(b.title).slice(0,200),date:String(b.date).slice(0,10),time:String(b.time||'').slice(0,20),location:String(b.location||'').slice(0,200),url:absUrl(b.url).slice(0,400),source:'La Columbera'});
  await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
