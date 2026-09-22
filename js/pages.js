@@ -90,20 +90,20 @@ async function apt(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
     if(!a){$('#e').textContent='Scegli le date sul calendario';return}
     try{const r=await api('book',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
-      box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Prenotazione ricevuta</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: insieme alla tua email ti serve per accedere alla tua <a href="area-clienti.html">area clienti</a> e per creare la tua Trentino Guest Card.</p></div>`}
+      box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Prenotazione ricevuta</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card.</p></div>`}
     catch(x){$('#e').textContent=x.message}};
   draw();
 }
 
 function clienti(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
-    try{const d=Object.fromEntries(new FormData(e.target));
-      const r=await api('mie',d);
-      sessionStorage.lc_email=d.email;sessionStorage.lc_code=d.code;
-      const notti=r.map(x=>days(x.da,x.a).length);
+    try{const d=Object.fromEntries(new FormData(e.target));const code=String(d.code||'').trim();
+      const r=await api('mie',{code});
+      sessionStorage.lc_code=code;
+      const totNotti=r.reduce((s,x)=>s+(+x.notti||0),0);
       $('#r').innerHTML=`
-      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${r.length}</b> prenotazion${r.length===1?'e':'i'} — totale <b>${notti.reduce((s,n)=>s+n,0)} notti</b>. Puoi consultare qui i dettagli e, per ogni prenotazione, generare la tua <b>Trentino Guest Card</b>.</p></div>
-      <div class="table-wrap"><table class="data" data-testid="mie-table"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Notti</th><th>Ospiti</th><th>Totale</th><th>Stato</th><th>Guest Card</th></tr></thead><tbody>${r.map((x,i)=>`<tr><td><b>${x.code}</b></td><td>${nomeA(c,x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${notti[i]}</td><td>${x.ospiti}</td><td>${eur(x.totale)}</td><td><span class="stato ${x.stato}">${x.stato}</span></td><td><a class="btn btn-line" style="padding:8px 16px;font-size:.85rem" href="guest-card.html?code=${x.code}&email=${encodeURIComponent(x.email)}" data-testid="gc-link-${x.code}">Crea</a></td></tr>`).join('')}</tbody></table></div>`;
+      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${r.length}</b> prenotazion${r.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli e puoi generare la tua <b>Trentino Guest Card</b>.</p></div>
+      <div class="table-wrap"><table class="data" data-testid="mie-table"><thead><tr><th>Codice</th><th>Appartamento</th><th>Check-in</th><th>Check-out</th><th>Notti</th><th>Ospiti</th><th>Stato</th><th>Guest Card</th></tr></thead><tbody>${r.map(x=>`<tr><td><b>${esc(x.code)}</b></td><td>${nomeA(c,x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.notti}</td><td>${x.ospiti||'—'}</td><td><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></td><td><a class="btn btn-line" style="padding:8px 16px;font-size:.85rem" href="guest-card.html?code=${encodeURIComponent(x.code)}" data-testid="gc-link-${esc(x.code)}">Crea</a></td></tr>`).join('')}</tbody></table></div>`;
     }
     catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}};
 }
@@ -111,7 +111,7 @@ function clienti(c){
 function admin(c){
   let t=sessionStorage.lc_t||'';
   const M=$('#m'),S=structuredClone(c),today=iso(new Date());
-  S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[]});S.ical=S.ical||{};
+  S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[]});S.ical=S.ical||{};S.closed=S.closed||{};
   const months=S.apts.map(()=>{const m=new Date();m.setDate(1);return m});
   const sels=S.apts.map(()=>new Set());
   let busyMap={};
@@ -163,6 +163,8 @@ function admin(c){
       <h3>Foto</h3><div class="pm-grid" data-pm="${i}"></div>
       <div class="upload-row"><label class="upload-btn">+ Aggiungi foto<input type="file" accept="image/*" multiple class="up" data-up="${i}"></label><span class="admin-msg" id="om${i}"></span></div>
       <div class="field" style="margin-top:14px"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input name="ical" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
+      <div class="field" style="margin-top:14px"><label class="closed-toggle" style="display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer"><input type="checkbox" name="closed" ${S.closed[p.id]?'checked':''} data-testid="admin-closed-${p.id}"> Chiudi appartamento — blocca tutte le prenotazioni dal sito</label></div>
+      <div class="field" style="margin-top:8px"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito)</label><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"></div>
     </div></div>`).join('')}
     <div class="admin-card save-bar"><button class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
     <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
@@ -226,7 +228,7 @@ function admin(c){
       document.querySelectorAll('[data-i]').forEach(z=>{const p=S.apts[+z.dataset.i],g=n=>z.querySelector(`[name=${n}]`).value;
         for(const k of['nome','sotto','testo'])p[k]=g(k);
         for(const k of['base','inclusi','extra','max','min'])p[k]=+g(k);
-        S.ical[p.id]=g('ical')});
+        S.ical[p.id]=g('ical');const ck=z.querySelector('[name=closed]');S.closed[p.id]=!!(ck&&ck.checked)});
       try{await api('save',S,t);$('#o').textContent='Salvato: le modifiche sono già online.';setTimeout(()=>$('#o').textContent='',4000)}
       catch(x){$('#o').textContent=x.message}};
 
@@ -239,7 +241,6 @@ function admin(c){
 async function guestcard(c){
   const q=new URLSearchParams(location.search);
   if(q.get('code'))$('#gc-code').value=q.get('code');
-  if(q.get('email'))$('#gc-email').value=q.get('email');
   $('#f').onsubmit=async e=>{e.preventDefault();
     try{const d=Object.fromEntries(new FormData(e.target));
       const r=await api('guestcard',d);
@@ -249,6 +250,7 @@ async function guestcard(c){
 
 async function eventi(c){
   const box=$('#events');
+  const safeUrl=u=>{u=String(u||'').trim();if(!u)return'';if(/^https?:\/\//i.test(u))return u;if(u[0]==='/')return'https://www.visittrentino.info'+u;return'https://'+u};
   const [feed,manual]=await Promise.all([get('a=events_feed'),get('a=events')]);
   const auto=Array.isArray(feed)?feed:[];
   const man=Array.isArray(manual)?manual:[];
@@ -261,7 +263,7 @@ async function eventi(c){
         <span class="section-kicker">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}${x.source?' · '+esc(x.source):''}</span>
         <h3>${esc(x.title)}</h3>
         <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
-        ${x.url?`<div class="cta"><a class="cta-link" href="${esc(x.url)}" target="_blank" rel="noopener">Info <span aria-hidden="true">→</span></a></div>`:''}
+        ${(()=>{const u=safeUrl(x.url);return u?`<div class="cta"><a class="cta-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer">Info <span aria-hidden="true">→</span></a></div>`:''})()}
       </div>
     </article>`).join('');
 }
