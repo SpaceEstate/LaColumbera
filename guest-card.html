@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trentino Guest Card · La Columbera</title>
+<meta name="theme-color" content="#7A2E39">
+<link rel="icon" href="img/Favion/1-03.png"><link rel="apple-touch-icon" href="img/Favion/1-03.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body data-p="guestcard">
+<header class="site-header" data-solid data-testid="site-header"><div class="wrap">
+<a class="brand" href="index.html" data-testid="brand-link"><img src="img/brand/logo.png" alt="La Columbera" class="brand-logo-color"><img src="img/brand/logo-light.png" alt="" aria-hidden="true" class="brand-logo-light"></a>
+<nav class="nav-links" id="nav-links" data-testid="primary-nav">
+<a href="index.html#dimora">La dimora</a><a href="index.html#appartamenti">Appartamenti</a>
+<a href="dintorni.html">Dintorni</a><a href="eventi.html">Eventi</a><a href="mappa.html">Mappa</a>
+<a href="torre.html" class="only-mobile">App. Torre</a><a href="corte.html" class="only-mobile">App. Corte</a>
+<a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a>
+</nav>
+<button class="menu-toggle" aria-label="Apri il menu" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
+</div></header>
+<main>
+<section class="page-intro"><div class="wrap">
+<span class="section-eyebrow" data-reveal>Vantaggi ospiti</span>
+<h1 data-reveal data-reveal-delay="1">Trentino <em>Guest Card</em></h1>
+<p class="lead" data-reveal data-reveal-delay="2">Compila il modulo per generare la tua Trentino Guest Card gratuita. Ti permette di viaggiare senza pensieri su bus e treni in tutta la provincia e di visitare musei e attrazioni convenzionate.</p>
+</div></section>
+<section style="padding:20px 0 100px"><div class="wrap" style="max-width:640px">
+<div class="auth-card" data-testid="gc-card">
+<form id="f" data-testid="gc-form">
+<div class="field"><label for="gc-code">Codice prenotazione</label><input id="gc-code" name="code" required data-testid="gc-code"></div>
+<div class="field"><label for="gc-email">Email della prenotazione</label><input id="gc-email" name="email" type="email" required data-testid="gc-email"></div>
+<div class="field"><label for="gc-nome">Nome completo intestatario</label><input id="gc-nome" name="nome" required data-testid="gc-nome"></div>
+<div class="field"><label for="gc-ospiti">Numero ospiti</label><input id="gc-ospiti" name="ospiti" type="number" min="1" max="10" value="2" required data-testid="gc-ospiti"></div>
+<button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="gc-submit">Genera Trentino Guest Card</button>
+<p class="form-err" id="e" data-testid="gc-error"></p>
+</form>
+</div>
+<div id="r" style="margin-top:28px" data-testid="gc-result"></div>
+</div></section>
+</main>
+<footer class="site-footer"><div class="wrap footer-grid">
+<div class="footer-brand"><div class="footer-brand-mark"><img src="img/brand/logo-light.png" alt=""></div><p class="footer-tag">Dimora storica del XV secolo a Ravina, alle porte di Trento.</p></div>
+<div class="footer-col"><h4>La dimora</h4><a href="index.html#dimora">La Columbera</a><a href="torre.html">Torre</a><a href="corte.html">Corte</a></div>
+<div class="footer-col"><h4>Contatti</h4><a href="tel:+393517043594">+39 351 704 3594</a><a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a><a href="area-clienti.html">Area clienti</a></div>
+</div><div class="wrap footer-bottom"><span>© <span id="yr">2026</span> La Columbera</span><span>Struttura ricettiva extra-alberghiera</span></div></footer>
+<script src="js/site.js"></script><script src="js/pages.js"></script>
+</body></html>
