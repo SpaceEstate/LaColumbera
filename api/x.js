@@ -73,9 +73,7 @@ if(a==='book'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=
  const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale:g.reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0),stato:'richiesta',creato:new Date().toISOString()};
  bk.push(r);await kv('SET','bk',JSON.stringify(bk));await sheetAppend({code:r.code,da:r.da,id:p.id,ospiti:n,notti:g.length});return res.json(r)}
 if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return res.status(400).json({err:'Inserisci il codice prenotazione'});
- const bk=(await jg('bk'))||[],sheet=await sheetBookings(),found=[];
- for(const x of bk)if(String(x.code).toUpperCase()===code)found.push({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:days(x.da,x.a).length,stato:x.stato});
- for(const x of sheet)if(String(x.code).toUpperCase()===code&&!found.some(f=>f.da===x.da&&f.id===x.id))found.push({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato});
+ const sheet=await sheetBookings(),found=sheet.filter(x=>String(x.code).toUpperCase()===code).map(x=>({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}));
  if(!found.length)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  return res.json(found)}
 if(a==='guestcard'){const code=String(b.code||'').trim().toUpperCase();const bk=(await jg('bk'))||[],sheet=await sheetBookings();
