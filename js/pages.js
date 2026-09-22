@@ -89,23 +89,42 @@ async function apt(c){
     draw()};
   $('#f').onsubmit=async e=>{e.preventDefault();
     if(!a){$('#e').textContent='Scegli le date sul calendario';return}
+    const btn=e.target.querySelector('[data-testid="booking-submit"]');
+    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Invio in corso…';$('#e').textContent='';
     try{const r=await api('book',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
       box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Prenotazione ricevuta</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card.</p></div>`}
-    catch(x){$('#e').textContent=x.message}};
+    catch(x){$('#e').textContent=x.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   draw();
 }
 
 function clienti(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
+    const btn=e.target.querySelector('[data-testid="area-clienti-submit"]');
+    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Cerco…';
     try{const d=Object.fromEntries(new FormData(e.target));const code=String(d.code||'').trim();
       const r=await api('mie',{code});
       sessionStorage.lc_code=code;
       const totNotti=r.reduce((s,x)=>s+(+x.notti||0),0);
       $('#r').innerHTML=`
       <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${r.length}</b> prenotazion${r.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli, puoi generare la tua <b>Trentino Guest Card</b> e fare il <b>check-in online</b>.</p></div>
-      <div class="table-wrap"><table class="data" data-testid="mie-table"><thead><tr><th>Codice</th><th>Appartamento</th><th>Check-in</th><th>Check-out</th><th>Notti</th><th>Ospiti</th><th>Stato</th><th>Guest Card</th><th>Check-in online</th></tr></thead><tbody>${r.map(x=>`<tr><td><b>${esc(x.code)}</b></td><td>${nomeA(c,x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.notti}</td><td>${x.ospiti||'—'}</td><td><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></td><td><a class="btn btn-line" style="padding:8px 16px;font-size:.85rem" href="guest-card.html?code=${encodeURIComponent(x.code)}" data-testid="gc-link-${esc(x.code)}">Crea</a></td><td><a class="btn btn-line" style="padding:8px 16px;font-size:.85rem" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener" data-testid="checkin-link-${esc(x.code)}">Check-in</a></td></tr>`).join('')}</tbody></table></div>`;
+      <div class="booking-cards" data-testid="mie-cards">${r.map(x=>`
+        <article class="booking-card" data-testid="mie-card-${esc(x.code)}">
+          <div class="bc-top"><span class="bc-code">${esc(x.code)}</span><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></div>
+          <h3 class="bc-title">${nomeA(c,x.id)}</h3>
+          <div class="bc-grid">
+            <div class="bc-cell"><span>Check-in</span><b>${fmtD(x.da)}</b></div>
+            <div class="bc-cell"><span>Check-out</span><b>${fmtD(x.a)}</b></div>
+            <div class="bc-cell"><span>Notti</span><b>${x.notti}</b></div>
+            <div class="bc-cell"><span>Ospiti</span><b>${x.ospiti||'—'}</b></div>
+          </div>
+          <div class="bc-actions">
+            <a class="btn btn-wine" href="guest-card.html?code=${encodeURIComponent(x.code)}" data-testid="gc-link-${esc(x.code)}">Crea Guest Card</a>
+            <a class="btn btn-line" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener" data-testid="checkin-link-${esc(x.code)}">Check-in online</a>
+          </div>
+        </article>`).join('')}</div>`;
     }
-    catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}};
+    catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
+    finally{btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
 }
 
 function admin(c){
@@ -167,7 +186,7 @@ function admin(c){
       <div class="field" style="margin-top:8px"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito)</label><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"></div>
     </div></div>`).join('')}
     <div class="admin-card save-bar"><button class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
-    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
+    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td><button class="stato-select btn-del-book" data-bookdel="${x.code}" data-testid="admin-book-del-${x.code}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
     <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali che verranno mostrati anch'essi sulla pagina Eventi.</p>
       <form id="evform" class="ev-form">
         <div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div>
@@ -201,6 +220,7 @@ function admin(c){
         if(T.closest('[data-pcover]')){move(i,+T.closest('[data-pcover]').dataset.pcover,0);return}
         if(T.closest('[data-pdel]')){S.apts[i].foto.splice(+T.closest('[data-pdel]').dataset.pdel,1);phRender(i);return}
       }
+      if(ds.bookdel){if(confirm('Rimuovere definitivamente questa prenotazione dallo storico?'))api('book_del',{code:ds.bookdel},t).then(panel);return}
       if(ds.del){if(confirm('Eliminare questo evento?'))api('event_del',{id:ds.del},t).then(panel)}
     });
 
