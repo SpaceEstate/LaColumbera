@@ -1,8 +1,8 @@
-// La Columbera · pagine appartamento, area clienti, gestione
+// La Columbera · pagine appartamento, area clienti, gestione, guest card, eventi
 const $=s=>document.querySelector(s),B=document.body.dataset;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const eur=n=>'€'+Math.round(n);
-const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.err||'Servizio non disponibile su questa versione del sito');return j});
+const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.err||'Servizio non disponibile');return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 const iso=d=>d.toISOString().slice(0,10);
 const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
@@ -30,17 +30,36 @@ async function apt(c){
     $('#other-link').href=other.id+'.html';
   }
 
-  // galleria
-  let cur=0;
-  const gm=$('#gm');gm.src=p.foto[0]||'';
-  const drawTh=()=>{$('#th').innerHTML=p.foto.map((u,i)=>`<button type="button" class="${i===cur?'on':''}" data-i="${i}" aria-label="Mostra foto ${i+1}"><img src="${u}" alt="" loading="lazy"></button>`).join('')};
-  drawTh();
-  $('#th').onclick=e=>{const b=e.target.closest('button');if(!b)return;cur=+b.dataset.i;gm.src=p.foto[cur];drawTh()};
+  // Galleria a slider (frecce + click destro/sinistro sull'immagine)
+  let cur=0;const N=p.foto.length;
+  const gm=$('#gm');
+  const th=$('#th');
+  const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];$('#g-count').textContent=`${cur+1} / ${N}`;th&&(th.innerHTML='')};
+  goTo(0);
+  // Rimuovi thumbs infiniti: sostituisci col controllo slider
+  if(th){
+    th.outerHTML=`
+      <div class="g-controls" data-testid="gallery-controls">
+        <button type="button" class="g-btn g-prev" id="g-prev" aria-label="Foto precedente" data-testid="gallery-prev">‹</button>
+        <span class="g-count" id="g-count" data-testid="gallery-counter">1 / ${N}</span>
+        <button type="button" class="g-btn g-next" id="g-next" aria-label="Foto successiva" data-testid="gallery-next">›</button>
+      </div>`;
+  }
+  $('#g-prev').onclick=()=>goTo(cur-1);
+  $('#g-next').onclick=()=>goTo(cur+1);
+  // Click sulla parte destra/sinistra dell'immagine per navigare
+  gm.parentElement.classList.add('gallery-main-slider');
+  gm.parentElement.addEventListener('click',e=>{
+    const r=gm.parentElement.getBoundingClientRect();
+    (e.clientX-r.left)>r.width/2?goTo(cur+1):goTo(cur-1);
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1);});
+  $('#g-count').textContent=`${cur+1} / ${N}`;
 
   // disponibilità e prenotazione
   const box=$('#bk'),bz=await get('a=busy&id='+p.id);
   if(!bz){
-    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>La prenotazione online non è attiva in questo momento. Scrivici per verificare la disponibilità: <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a></p></div>`;
+    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>Al momento non riesco a caricare la disponibilità. Scrivici: <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a></p></div>`;
     return;
   }
   const busy=new Set(bz),today=iso(new Date());
@@ -54,7 +73,7 @@ async function apt(c){
     <div class="field"><label for="bn">Nome e cognome</label><input id="bn" name="nome" required data-testid="booking-name"></div>
     <div class="field"><label for="be">Email</label><input id="be" name="email" type="email" required data-testid="booking-email"></div>
     <div class="field"><label for="bt">Telefono</label><input id="bt" name="tel" data-testid="booking-phone"></div>
-    <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Richiedi prenotazione</button>
+    <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Prenota</button>
     <p class="form-err" id="e" data-testid="booking-error"></p>
   </form>`;
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
@@ -78,17 +97,21 @@ async function apt(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
     if(!a){$('#e').textContent='Scegli le date sul calendario';return}
     try{const r=await api('book',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
-      box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Richiesta inviata</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: insieme alla tua email ti serve per consultare la prenotazione nell'<a href="area-clienti.html">area personale</a>.</p></div>`}
+      box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Prenotazione ricevuta</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: insieme alla tua email ti serve per accedere alla tua <a href="area-clienti.html">area clienti</a> e per creare la tua Trentino Guest Card.</p></div>`}
     catch(x){$('#e').textContent=x.message}};
   draw();
 }
 
 function clienti(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
-    try{const r=await api('mie',Object.fromEntries(new FormData(e.target)));
-      $('#r').innerHTML='<div class="table-wrap"><table class="data"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Totale</th><th>Stato</th></tr></thead><tbody>'
-        +r.map(x=>`<tr><td><b>${x.code}</b></td><td>${nomeA(c,x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${eur(x.totale)}</td><td><span class="stato ${x.stato}">${x.stato}</span></td></tr>`).join('')
-        +'</tbody></table></div>'}
+    try{const d=Object.fromEntries(new FormData(e.target));
+      const r=await api('mie',d);
+      sessionStorage.lc_email=d.email;sessionStorage.lc_code=d.code;
+      const notti=r.map(x=>days(x.da,x.a).length);
+      $('#r').innerHTML=`
+      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${r.length}</b> prenotazion${r.length===1?'e':'i'} — totale <b>${notti.reduce((s,n)=>s+n,0)} notti</b>. Puoi consultare qui i dettagli e, per ogni prenotazione, generare la tua <b>Trentino Guest Card</b>.</p></div>
+      <div class="table-wrap"><table class="data" data-testid="mie-table"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Notti</th><th>Ospiti</th><th>Totale</th><th>Stato</th><th>Guest Card</th></tr></thead><tbody>${r.map((x,i)=>`<tr><td><b>${x.code}</b></td><td>${nomeA(c,x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${notti[i]}</td><td>${x.ospiti}</td><td>${eur(x.totale)}</td><td><span class="stato ${x.stato}">${x.stato}</span></td><td><a class="btn btn-line" style="padding:8px 16px;font-size:.85rem" href="guest-card.html?code=${x.code}&email=${encodeURIComponent(x.email)}" data-testid="gc-link-${x.code}">Crea</a></td></tr>`).join('')}</tbody></table></div>`;
+    }
     catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}};
 }
 
@@ -96,13 +119,14 @@ function admin(c){
   let t=sessionStorage.lc_t||'';
   const M=$('#m'),S=structuredClone(c),today=iso(new Date());
   const nA=id=>esc(short(S.apts.find(p=>p.id===id)||{nome:id}));
-  const login=()=>{M.innerHTML=`<div class="auth-card" style="margin:0 auto;max-width:440px" data-testid="admin-login-card"><span class="section-eyebrow">Area riservata</span><h1 style="font-size:2rem;margin-bottom:8px;font-style:italic">Gestione</h1><p class="sub">Accedi per modificare contenuti, foto, prezzi e prenotazioni.</p><form id="l" data-testid="admin-login-form"><div class="field"><label for="au">Nome utente</label><input id="au" name="u" autocomplete="username" data-testid="admin-user"></div><div class="field"><label for="ap">Password</label><input id="ap" name="p" type="password" autocomplete="current-password" data-testid="admin-pass"></div><button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="admin-login-submit">Accedi</button><p class="form-err" id="e" data-testid="admin-login-error"></p></form></div>`;
+  const login=()=>{M.innerHTML=`<div class="auth-card" style="margin:0 auto;max-width:440px" data-testid="admin-login-card"><span class="section-eyebrow">Area riservata</span><h1 style="font-size:2rem;margin-bottom:8px;font-style:italic">Gestione</h1><p class="sub">Accedi per modificare contenuti, foto, prezzi ed eventi.</p><form id="l" data-testid="admin-login-form"><div class="field"><label for="au">Nome utente</label><input id="au" name="u" autocomplete="username" data-testid="admin-user"></div><div class="field"><label for="ap">Password</label><input id="ap" name="p" type="password" autocomplete="current-password" data-testid="admin-pass"></div><button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="admin-login-submit">Accedi</button><p class="form-err" id="e" data-testid="admin-login-error"></p></form></div>`;
     $('#l').onsubmit=async e=>{e.preventDefault();
       try{t=sessionStorage.lc_t=(await api('login',Object.fromEntries(new FormData(e.target)))).t;panel()}
       catch(x){$('#e').textContent=x.message}}};
   const ph=i=>{document.querySelector(`[data-i="${i}"] .photo-grid`).innerHTML=S.apts[i].foto.map((u,j)=>`<div class="ph${j===0?' cover':''}"><img src="${u}" alt=""><div class="ph-tools">${j?`<button type="button" title="Imposta come copertina" data-c="${j}">★</button>`:''}<button type="button" title="Rimuovi foto" data-x="${j}">✕</button></div></div>`).join('')};
   const rs=f=>new Promise(r=>{const im=new Image;im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=im.width*k;cv.height=im.height*k;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);r(cv.toDataURL('image/jpeg',.82))};im.src=URL.createObjectURL(f)});
   const panel=async()=>{let d;try{d=await api('adm',{},t)}catch(x){return login()}
+    const ev=await get('a=events')||[];
     M.innerHTML=`<div class="admin-top"><h1>Gestione</h1><button class="btn btn-line" id="out" data-testid="admin-logout">Esci</button></div>
     <form id="s" data-testid="admin-save-form">
       <div class="admin-card"><h2>Home</h2><div class="field"><label for="achi">Chi siamo</label><textarea id="achi" name="chi" rows="4" data-testid="admin-chi">${esc(S.chi)}</textarea></div></div>
@@ -117,14 +141,23 @@ function admin(c){
           <div class="field"><label>Ospiti massimi</label><input name="max" type="number" value="${p.max}"></div>
           <div class="field"><label>Notti minime</label><input name="min" type="number" value="${p.min}"></div>
         </div>
-        <div class="field"><label>Prezzi per periodo — una riga per periodo: primo giorno, ultimo giorno, prezzo (es. 2026-12-20 2027-01-06 200)</label><textarea name="periodi" rows="3">${(p.periodi||[]).map(q=>q.da+' '+q.a+' '+q.prezzo).join('\n')}</textarea></div>
+        <div class="field"><label>Prezzi per periodo (una riga: da a prezzo)</label><textarea name="periodi" rows="3">${(p.periodi||[]).map(q=>q.da+' '+q.a+' '+q.prezzo).join('\n')}</textarea></div>
         <div class="field"><label>Foto (bordata in oro = copertina)</label><div class="photo-grid"></div>
           <div class="upload-row"><label class="upload-btn">+ Aggiungi foto<input type="file" accept="image/*" multiple class="up"></label><span class="admin-msg" id="om${i}"></span></div></div>
       </div></div>`).join('')}
       <div class="admin-card"><button class="btn btn-wine" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
     </form>
-    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel)}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
-    <div class="admin-card"><h2>Occupazioni da Booking e Airbnb</h2><div class="table-wrap" data-testid="admin-external"><table class="data"><thead><tr><th>Appartamento</th><th>Dal</th><th>Al</th><th>Fonte</th></tr></thead><tbody>${(()=>{const f=d.ext.filter(x=>x.a>=today).sort((x,y)=>x.da<y.da?-1:1);return f.length?f.map(x=>`<tr><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.src}</td></tr>`).join(''):'<tr><td colspan="4">Nessuna occupazione esterna futura.</td></tr>'})()}</tbody></table></div></div>`;
+    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
+    <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Aggiungi eventi speciali che verranno mostrati sulla pagina Eventi (oltre a quelli scaricati automaticamente).</p>
+      <form id="evform" style="display:grid;grid-template-columns:1.5fr 1fr 1fr 2fr 1fr;gap:12px;align-items:end">
+        <div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div>
+        <div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div>
+        <div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div>
+        <div class="field" style="margin:0"><label>Luogo</label><input name="location" data-testid="ev-loc"></div>
+        <button class="btn btn-wine" data-testid="ev-add">+ Aggiungi</button>
+      </form>
+      <div class="table-wrap" style="margin-top:16px"><table class="data" data-testid="ev-table"><thead><tr><th>Titolo</th><th>Data</th><th>Ora</th><th>Luogo</th><th></th></tr></thead><tbody id="ev-body">${ev.map(x=>`<tr><td><b>${esc(x.title)}</b></td><td>${esc(x.date)}</td><td>${esc(x.time||'')}</td><td>${esc(x.location||'')}</td><td><button class="stato-select" data-del="${x.id}">Elimina</button></td></tr>`).join('')||'<tr><td colspan="5">Nessun evento manuale.</td></tr>'}</tbody></table></div>
+    </div>`;
     $('#out').onclick=()=>{sessionStorage.removeItem('lc_t');t='';login()};
     S.apts.forEach((_,i)=>ph(i));
     const s=$('#s');
@@ -147,9 +180,41 @@ function admin(c){
       try{await api('save',S,t);$('#o').textContent='Salvato: le modifiche sono già online.'}
       catch(x){$('#o').textContent=x.message}};
     M.onchange=e=>{if(e.target.dataset.code)api('stato',{code:e.target.dataset.code,stato:e.target.value},t)};
+    $('#evform').onsubmit=async e=>{e.preventDefault();try{await api('event_add',Object.fromEntries(new FormData(e.target)),t);panel()}catch(x){alert(x.message)}};
+    M.onclick=e=>{if(e.target.dataset.del){if(confirm('Eliminare?'))api('event_del',{id:e.target.dataset.del},t).then(panel)}};
   };
   t?panel():login();
 }
 
-const P={apt,clienti,admin};
+async function guestcard(c){
+  const q=new URLSearchParams(location.search);
+  if(q.get('code'))$('#gc-code').value=q.get('code');
+  if(q.get('email'))$('#gc-email').value=q.get('email');
+  $('#f').onsubmit=async e=>{e.preventDefault();
+    try{const d=Object.fromEntries(new FormData(e.target));
+      const r=await api('guestcard',d);
+      $('#r').innerHTML=`<div class="admin-card" data-testid="gc-success"><h2>Trentino Guest Card creata 🎉</h2><p>Codice: <b>${r.gc_id}</b></p><p>Intestata a: <b>${esc(r.nome)}</b></p><p>Validità: <b>${fmtD(r.valid_from)} → ${fmtD(r.valid_to)}</b></p><p>Ospiti coperti: <b>${r.ospiti}</b></p><p class="book-note">Presenta questo codice al check-in per attivare la tua card. Ti permette di viaggiare gratis su bus e treni in Trentino, e di visitare musei e attrazioni convenzionate.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`}
+    catch(x){$('#e').textContent=x.message}};
+}
+
+async function eventi(c){
+  const evs=await get('a=events')||[];
+  // eventi scraping simulati (senza chiavi) + eventi manuali
+  const stat=[{title:'Mercatini di Natale di Trento',date:'2026-11-21',time:'10:00-19:30',location:'Piazza Fiera, Trento',url:'https://www.visittrentino.info'},
+    {title:"Trento Film Festival",date:'2026-04-24',time:'tutta la giornata',location:'Vari luoghi, Trento',url:'https://trentofestival.it'},
+    {title:'Feste Vigiliane',date:'2026-06-20',time:'serata',location:'Centro storico, Trento',url:'https://www.festevigiliane.it'},
+    {title:'Autunno Trentino',date:'2026-10-05',time:'weekend',location:'Trento e valli',url:'https://www.visittrentino.info/autunno'}];
+  const all=[...stat,...evs].sort((x,y)=>x.date<y.date?-1:1);
+  $('#events').innerHTML=all.map(x=>`
+    <article class="apt-card" style="cursor:default" data-testid="ev-${esc(x.date)}">
+      <div class="body">
+        <span class="section-kicker">${esc(new Date(x.date).toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}</span>
+        <h3>${esc(x.title)}</h3>
+        <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
+        ${x.url?`<div class="cta"><a class="cta-link" href="${esc(x.url)}" target="_blank" rel="noopener">Info <span aria-hidden="true">→</span></a></div>`:''}
+      </div>
+    </article>`).join('');
+}
+
+const P={apt,clienti,admin,guestcard,eventi};
 get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p]&&P[B.p](c));
