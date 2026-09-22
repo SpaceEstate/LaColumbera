@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Area personale · La Columbera</title>
-<meta name="description" content="Consulta le tue prenotazioni a La Columbera con l'email usata per prenotare e il codice prenotazione.">
+<meta name="description" content="Consulta le tue prenotazioni a La Columbera con il codice di prenotazione.">
 <meta name="theme-color" content="#7A2E39">
 <link rel="icon" href="img/Favion/1-03.png">
 <link rel="apple-touch-icon" href="img/Favion/1-03.png">
@@ -35,15 +35,11 @@
       <div class="auth-card" data-testid="area-clienti-card">
         <span class="section-eyebrow">Area personale</span>
         <h1>Le tue prenotazioni</h1>
-        <p class="sub">Inserisci l'email usata per prenotare e il codice prenotazione che hai ricevuto al momento della richiesta.</p>
+        <p class="sub">Inserisci il codice prenotazione che hai ricevuto al momento della richiesta o dai portali (Booking / Airbnb).</p>
         <form id="f" data-testid="area-clienti-form">
           <div class="field">
-            <label for="em">Email</label>
-            <input id="em" name="email" type="email" required data-testid="area-clienti-email">
-          </div>
-          <div class="field">
             <label for="cd">Codice prenotazione</label>
-            <input id="cd" name="code" required data-testid="area-clienti-code">
+            <input id="cd" name="code" required autocomplete="off" data-testid="area-clienti-code">
           </div>
           <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="area-clienti-submit">Vedi prenotazioni</button>
         </form>
