@@ -11,7 +11,7 @@
 <body>
 <header class="site-header" data-solid><div class="wrap">
 <a class="brand" href="index.html"><img src="img/brand/logo.png" alt="" class="brand-logo-color"><img src="img/brand/logo-light.png" alt="" class="brand-logo-light"></a>
-<nav class="nav-links" id="nav-links"><a href="index.html#dimora">La dimora</a><a href="index.html#appartamenti">Appartamenti</a><a href="dintorni.html">Dintorni</a><a href="eventi.html">Eventi</a><a href="mappa.html">Mappa</a><a href="torre.html" class="only-mobile">App. Torre</a><a href="corte.html" class="only-mobile">App. Corte</a><a class="nav-cta" href="area-clienti.html">Area clienti</a></nav>
+<nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
 <button class="menu-toggle" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
 </div></header>
 <main>
@@ -22,47 +22,53 @@
 </div></section>
 <section class="map-wrap"><div class="wrap">
 <div class="map-illustration" data-testid="mappa-svg" data-reveal>
-<svg viewBox="0 0 1600 1000" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mappa stilizzata per raggiungere La Columbera">
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EBE0C4"/><stop offset="1" stop-color="#C7B892"/></linearGradient>
-    <pattern id="hills" width="200" height="40" patternUnits="userSpaceOnUse"><path d="M0 40 Q 50 10 100 40 T 200 40" fill="none" stroke="#8B7A55" stroke-width="1" opacity=".3"/></pattern>
+    <linearGradient id="land" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3EAD2"/><stop offset="0.55" stop-color="#E9DCBB"/><stop offset="1" stop-color="#D8C79E"/></linearGradient>
+    <linearGradient id="river" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9DBBD4"/><stop offset="1" stop-color="#7FA3C2"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FAE6A"/><stop offset="1" stop-color="#6E9150"/></linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#3A151B" flood-opacity="0.22"/></filter>
   </defs>
-  <rect width="1600" height="1000" fill="url(#sky)"/>
-  <rect width="1600" height="1000" fill="url(#hills)"/>
-  <!-- Fiume Adige -->
-  <path d="M 200 900 Q 400 700 350 500 T 500 200 L 600 100" fill="none" stroke="#7A9BB8" stroke-width="28" stroke-linecap="round" opacity=".55"/>
-  <text x="270" y="820" font-family="Fraunces,serif" font-style="italic" font-size="30" fill="#3E5876" opacity=".8">fiume Adige</text>
-  <!-- Autostrada A22 -->
-  <path d="M 100 950 L 1500 100" stroke="#7A2E39" stroke-width="10" stroke-dasharray="30 12"/>
-  <text x="1180" y="240" font-family="Manrope,sans-serif" font-weight="700" font-size="32" fill="#7A2E39" letter-spacing="4">A22 · BRENNERO</text>
-  <!-- Trento Sud exit -->
-  <circle cx="1170" cy="380" r="18" fill="#7A2E39"/>
-  <text x="1200" y="390" font-family="Manrope,sans-serif" font-weight="700" font-size="26" fill="#3A151B">Uscita Trento Sud</text>
-  <text x="1200" y="420" font-family="Manrope,sans-serif" font-size="20" fill="#6C5F55">A22 (~5 min)</text>
-  <!-- Path from highway to Columbera -->
-  <path d="M 1170 380 Q 950 480 780 500" fill="none" stroke="#B08D3C" stroke-width="6" stroke-dasharray="14 10" stroke-linecap="round"/>
-  <!-- La Columbera pin (struttura) -->
-  <circle cx="760" cy="510" r="34" fill="#7A2E39" stroke="#FBEFD3" stroke-width="6"/>
-  <path d="M 760 476 L 760 560" stroke="#3A151B" stroke-width="4"/>
-  <text x="810" y="500" font-family="Pinyon Script,cursive" font-size="60" fill="#3A151B">La Columbera</text>
-  <text x="810" y="540" font-family="Manrope,sans-serif" font-weight="700" font-size="22" fill="#7A2E39">Via Centrale 48 · Ravina, Trento</text>
-  <!-- Parcheggio pin -->
-  <rect x="640" y="590" width="60" height="60" rx="10" fill="#B08D3C" stroke="#FBEFD3" stroke-width="6"/>
-  <text x="655" y="632" font-family="Manrope,sans-serif" font-weight="900" font-size="40" fill="#FBEFD3">P</text>
-  <text x="465" y="700" font-family="Manrope,sans-serif" font-weight="700" font-size="22" fill="#5F5030">Parcheggio · Via Val Gola 22</text>
-  <text x="465" y="728" font-family="Manrope,sans-serif" font-size="19" fill="#6C5F55">a 50 metri dalla struttura</text>
-  <!-- Ravina label -->
-  <text x="620" y="450" font-family="Fraunces,serif" font-style="italic" font-size="34" fill="#3A151B" opacity=".7">Ravina</text>
-  <!-- Trento centro -->
-  <text x="480" y="180" font-family="Fraunces,serif" font-style="italic" font-size="42" fill="#3A151B" opacity=".85">Trento centro</text>
-  <text x="480" y="215" font-family="Manrope,sans-serif" font-size="20" fill="#6C5F55">Piazza Duomo · ~5 min in auto</text>
-  <circle cx="560" cy="170" r="14" fill="#3A151B" opacity=".7"/>
+  <rect width="1200" height="720" fill="url(#land)"/>
+  <path d="M0 470 Q 180 430 320 500 T 640 540 L 640 720 L 0 720 Z" fill="url(#green)" opacity="0.35"/>
+  <path d="M0 60 Q 140 120 120 260 T 60 470 L 0 470 Z" fill="url(#green)" opacity="0.28"/>
+  <path d="M1120 -20 C 1060 140, 1180 300, 1090 460 C 1030 580, 1120 660, 1080 740" fill="none" stroke="url(#river)" stroke-width="46" stroke-linecap="round" opacity="0.9"/>
+  <text x="1030" y="120" font-family="Fraunces,serif" font-style="italic" font-size="26" fill="#3E5876" opacity="0.85" transform="rotate(8 1030 120)">fiume Adige</text>
+  <g stroke="#FBF6EA" stroke-width="16" fill="none" stroke-linecap="round"><path d="M120 330 L 560 320 L 860 470" opacity="0.9"/><path d="M560 320 L 600 120" opacity="0.9"/><path d="M300 330 L 340 620" opacity="0.9"/></g>
+  <g stroke="#E4D6B4" stroke-width="16" fill="none" stroke-linecap="round" stroke-dasharray="1 22"><path d="M120 330 L 560 320 L 860 470"/><path d="M560 320 L 600 120"/></g>
+  <path d="M760 720 C 820 600, 900 560, 940 470 C 980 380, 900 300, 1000 120" fill="none" stroke="#6E2833" stroke-width="18" stroke-linecap="round"/>
+  <path d="M760 720 C 820 600, 900 560, 940 470 C 980 380, 900 300, 1000 120" fill="none" stroke="#E8C36B" stroke-width="4" stroke-dasharray="18 16"/>
+  <text x="905" y="250" font-family="Manrope,sans-serif" font-weight="700" font-size="22" fill="#6E2833" letter-spacing="3" transform="rotate(-58 905 250)">A22 · BRENNERO</text>
+  <g filter="url(#soft)"><circle cx="905" cy="486" r="34" fill="url(#green)" stroke="#FBF6EA" stroke-width="6"/><path d="M905 470 c -12 0 -18 8 -18 17 c 0 12 18 26 18 26 c 0 0 18 -14 18 -26 c 0 -9 -6 -17 -18 -17 z" fill="#FBF6EA" opacity="0.9"/></g>
+  <text x="828" y="556" font-family="Manrope,sans-serif" font-weight="700" font-size="21" fill="#3F5D52">Uscita Trento Sud</text>
+  <text x="828" y="582" font-family="Manrope,sans-serif" font-size="17" fill="#6C5F55">A22 · ~5 min di auto</text>
+  <path d="M872 486 Q 560 470 300 335" fill="none" stroke="#B08D3C" stroke-width="5" stroke-dasharray="12 10" stroke-linecap="round"/>
+  <g fill="#B79A63" opacity="0.7"><rect x="150" y="250" width="26" height="26" rx="4"/><rect x="196" y="238" width="22" height="22" rx="4"/><rect x="150" y="370" width="24" height="24" rx="4"/><rect x="210" y="392" width="20" height="20" rx="4"/></g>
+  <text x="150" y="215" font-family="Fraunces,serif" font-style="italic" font-size="30" fill="#3A151B" opacity="0.75">Ravina</text>
+  <g fill="#6E9150" opacity="0.6"><circle cx="70" cy="540" r="12"/><circle cx="110" cy="560" r="10"/><circle cx="500" cy="600" r="11"/><circle cx="640" cy="640" r="12"/><circle cx="720" cy="180" r="10"/><circle cx="80" cy="170" r="11"/></g>
+  <g filter="url(#soft)"><rect x="150" y="392" width="58" height="58" rx="12" fill="#E8C36B" stroke="#FBF6EA" stroke-width="5"/><text x="179" y="434" text-anchor="middle" font-family="Manrope,sans-serif" font-weight="800" font-size="38" fill="#6E2833">P</text></g>
+  <text x="112" y="482" font-family="Manrope,sans-serif" font-weight="700" font-size="18" fill="#5F5030">Parcheggio · Via Val Gola 22</text>
+  <text x="112" y="504" font-family="Manrope,sans-serif" font-size="15" fill="#6C5F55">a 50 metri dalla struttura</text>
+  <g filter="url(#soft)" transform="translate(196 250)">
+    <rect x="-46" y="30" width="92" height="60" fill="#8A3541"/><rect x="-46" y="30" width="92" height="60" fill="#7A2E39" opacity="0.6"/>
+    <rect x="-62" y="6" width="30" height="84" fill="#6E2833"/><rect x="32" y="6" width="30" height="84" fill="#6E2833"/>
+    <g fill="#6E2833"><rect x="-62" y="-4" width="9" height="12"/><rect x="-47" y="-4" width="9" height="12"/><rect x="-41" y="-4" width="9" height="12"/><rect x="41" y="-4" width="9" height="12"/><rect x="47" y="-4" width="9" height="12"/><rect x="53" y="-4" width="9" height="12"/></g>
+    <g fill="#8A3541"><rect x="-30" y="18" width="10" height="12"/><rect x="-14" y="18" width="10" height="12"/><rect x="2" y="18" width="10" height="12"/><rect x="18" y="18" width="10" height="12"/></g>
+    <path d="M-10 90 L -10 62 a 10 10 0 0 1 20 0 L 10 90 Z" fill="#3A151B"/>
+    <rect x="-52" y="30" width="12" height="18" fill="#E8C36B"/><rect x="40" y="30" width="12" height="18" fill="#E8C36B"/>
+    <line x1="47" y1="-4" x2="47" y2="-36" stroke="#3A151B" stroke-width="3"/><path d="M47 -34 L 74 -28 L 47 -20 Z" fill="#E8C36B"/>
+  </g>
+  <text x="300" y="250" font-family="Pinyon Script,cursive" font-size="54" fill="#3A151B">La Columbera</text>
+  <text x="300" y="284" font-family="Manrope,sans-serif" font-weight="700" font-size="17" fill="#6E2833">Via Centrale 48 · Ravina, Trento</text>
+  <text x="470" y="98" font-family="Fraunces,serif" font-style="italic" font-size="34" fill="#3A151B" opacity="0.85">Trento centro</text>
+  <text x="470" y="124" font-family="Manrope,sans-serif" font-size="16" fill="#6C5F55">Piazza Duomo · ~5 min in auto</text>
+  <circle cx="600" cy="120" r="12" fill="#3A151B" opacity="0.7"/>
 </svg>
 </div>
 <div class="map-legend" data-testid="map-legend">
-  <div><span class="pin" style="background:#7A2E39"></span><b>La Columbera</b> — Via Centrale 48, 38123 Ravina (Trento)</div>
-  <div><span class="pin" style="background:#B08D3C;border-radius:4px"></span><b>Parcheggio</b> — Via Val Gola 22 (a 50 m)</div>
-  <div><span class="pin" style="background:#7A2E39;outline:3px dashed #7A2E39;outline-offset:3px"></span><b>Uscita Trento Sud A22</b> — ~5 minuti in auto</div>
+  <div><span class="pin castle"></span><b>La Columbera</b> — Via Centrale 48, 38123 Ravina (Trento)</div>
+  <div><span class="pin park"></span><b>Parcheggio</b> — Via Val Gola 22 (a 50 m)</div>
+  <div><span class="pin exit"></span><b>Uscita Trento Sud A22</b> — ~5 minuti in auto</div>
 </div>
 <div class="grid-cards" style="padding-top:40px">
 <article class="apt-card"><div class="body"><h3>In auto</h3><p>Autostrada A22 del Brennero, uscita <b>Trento Sud</b>. Seguite indicazioni per Ravina — la struttura è a circa 5 minuti dall'uscita. Parcheggio in Via Val Gola 22.</p></div></article>
