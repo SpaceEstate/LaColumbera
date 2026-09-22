@@ -6,7 +6,7 @@ const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'ap
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 const iso=d=>d.toISOString().slice(0,10);
 const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
-const np=(p,d)=>{const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
+const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 const tot=(p,da,a,n)=>days(da,a).reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0);
 const fmtD=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
 const short=p=>p.nome.replace('La Columbera ','');
@@ -14,6 +14,7 @@ const nomeA=(c,id)=>esc(short(c.apts.find(p=>p.id===id)||{nome:id}));
 
 async function apt(c){
   const p=c.apts.find(x=>x.id===B.id);if(!p)return;
+  p.prices=p.prices||{};p.periodi=p.periodi||[];
   const other=c.apts.find(x=>x.id!==B.id);
   document.title=p.nome+' · La Columbera';
   $('#ph-img').src=p.foto[0]||'';
@@ -30,31 +31,23 @@ async function apt(c){
     $('#other-link').href=other.id+'.html';
   }
 
-  // Galleria a slider (frecce + click destro/sinistro sull'immagine)
+  // Galleria: freccia avanti/indietro + strip di anteprime (solo alcune, scorrevoli)
   let cur=0;const N=p.foto.length;
-  const gm=$('#gm');
-  const th=$('#th');
-  const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];$('#g-count').textContent=`${cur+1} / ${N}`;th&&(th.innerHTML='')};
+  const gm=$('#gm'),gmWrap=gm.parentElement,th=$('#th');
+  gmWrap.insertAdjacentHTML('beforeend',
+    `<button type="button" class="g-arrow prev" id="g-prev" aria-label="Foto precedente" data-testid="gallery-prev">‹</button>
+     <button type="button" class="g-arrow next" id="g-next" aria-label="Foto successiva" data-testid="gallery-next">›</button>
+     <span class="g-counter" id="g-count" data-testid="gallery-counter"></span>`);
+  th.innerHTML=p.foto.map((u,i)=>`<button type="button" data-i="${i}" data-testid="gallery-thumb-${i}"><img src="${u}" alt="" loading="lazy"></button>`).join('');
+  const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];$('#g-count').textContent=`${cur+1} / ${N}`;
+    th.querySelectorAll('button').forEach((b,j)=>b.classList.toggle('on',j===cur));
+    const act=th.querySelector(`[data-i="${cur}"]`);act&&act.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})};
   goTo(0);
-  // Rimuovi thumbs infiniti: sostituisci col controllo slider
-  if(th){
-    th.outerHTML=`
-      <div class="g-controls" data-testid="gallery-controls">
-        <button type="button" class="g-btn g-prev" id="g-prev" aria-label="Foto precedente" data-testid="gallery-prev">‹</button>
-        <span class="g-count" id="g-count" data-testid="gallery-counter">1 / ${N}</span>
-        <button type="button" class="g-btn g-next" id="g-next" aria-label="Foto successiva" data-testid="gallery-next">›</button>
-      </div>`;
-  }
+  if(N<2){$('#g-prev').style.display=$('#g-next').style.display='none';th.style.display='none'}
   $('#g-prev').onclick=()=>goTo(cur-1);
   $('#g-next').onclick=()=>goTo(cur+1);
-  // Click sulla parte destra/sinistra dell'immagine per navigare
-  gm.parentElement.classList.add('gallery-main-slider');
-  gm.parentElement.addEventListener('click',e=>{
-    const r=gm.parentElement.getBoundingClientRect();
-    (e.clientX-r.left)>r.width/2?goTo(cur+1):goTo(cur-1);
-  });
-  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1);});
-  $('#g-count').textContent=`${cur+1} / ${N}`;
+  th.onclick=e=>{const b=e.target.closest('button');if(b)goTo(+b.dataset.i)};
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
 
   // disponibilità e prenotazione
   const box=$('#bk'),bz=await get('a=busy&id='+p.id);
@@ -118,38 +111,63 @@ function clienti(c){
 function admin(c){
   let t=sessionStorage.lc_t||'';
   const M=$('#m'),S=structuredClone(c),today=iso(new Date());
+  S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[]});S.ical=S.ical||{};
+  const months=S.apts.map(()=>{const m=new Date();m.setDate(1);return m});
+  const sels=S.apts.map(()=>new Set());
+  let busyMap={};
   const nA=id=>esc(short(S.apts.find(p=>p.id===id)||{nome:id}));
+
   const login=()=>{M.innerHTML=`<div class="auth-card" style="margin:0 auto;max-width:440px" data-testid="admin-login-card"><span class="section-eyebrow">Area riservata</span><h1 style="font-size:2rem;margin-bottom:8px;font-style:italic">Gestione</h1><p class="sub">Accedi per modificare contenuti, foto, prezzi ed eventi.</p><form id="l" data-testid="admin-login-form"><div class="field"><label for="au">Nome utente</label><input id="au" name="u" autocomplete="username" data-testid="admin-user"></div><div class="field"><label for="ap">Password</label><input id="ap" name="p" type="password" autocomplete="current-password" data-testid="admin-pass"></div><button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="admin-login-submit">Accedi</button><p class="form-err" id="e" data-testid="admin-login-error"></p></form></div>`;
     $('#l').onsubmit=async e=>{e.preventDefault();
       try{t=sessionStorage.lc_t=(await api('login',Object.fromEntries(new FormData(e.target)))).t;panel()}
       catch(x){$('#e').textContent=x.message}}};
-  const ph=i=>{document.querySelector(`[data-i="${i}"] .photo-grid`).innerHTML=S.apts[i].foto.map((u,j)=>`<div class="ph${j===0?' cover':''}"><img src="${u}" alt=""><div class="ph-tools">${j?`<button type="button" title="Imposta come copertina" data-c="${j}">★</button>`:''}<button type="button" title="Rimuovi foto" data-x="${j}">✕</button></div></div>`).join('')};
+
+  // ----- Foto: render + drag & drop -----
+  const phRender=i=>{const p=S.apts[i],el=document.querySelector(`[data-pm="${i}"]`);if(!el)return;
+    el.innerHTML=p.foto.map((u,j)=>`<div class="pm-item${j===0?' cover':''}" draggable="true" data-pi="${i}" data-j="${j}" data-testid="pm-item-${i}-${j}"><img src="${u}" alt="">${j===0?'<span class="pm-cover-badge">Copertina</span>':''}<span class="pm-handle">↕</span><div class="pm-tools"><button type="button" data-pleft="${j}" title="Sposta a sinistra">‹</button><button type="button" data-pright="${j}" title="Sposta a destra">›</button>${j?`<button type="button" data-pcover="${j}" title="Copertina">★</button>`:''}<button type="button" data-pdel="${j}" title="Rimuovi">✕</button></div></div>`).join('')};
+  const move=(i,from,to)=>{const f=S.apts[i].foto;if(to<0||to>=f.length)return;const[x]=f.splice(from,1);f.splice(to,0,x);phRender(i)};
+
+  // ----- Calendario prezzi -----
+  const pcalRender=i=>{const p=S.apts[i],m=months[i],el=document.querySelector(`[data-pcal="${i}"]`);if(!el)return;
+    const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
+    const busy=busyMap[p.id]||new Set();
+    let h=`<div class="pcal-head"><button type="button" class="cal-nav" data-pv="${i}" aria-label="Mese precedente">‹</button><b>${m.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</b><button type="button" class="cal-nav" data-nx="${i}" aria-label="Mese successivo">›</button></div>`;
+    h+=`<div class="pcal-grid">`+'Lun Mar Mer Gio Ven Sab Dom'.split(' ').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);
+    for(let d=1;d<=n;d++){const ds=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const past=ds<today,bs=busy.has(ds),ov=p.prices[ds]!=null,selc=sels[i].has(ds);
+      h+=`<div class="pcell${past?' past':''}${bs?' busy':''}${ov?' ov':''}${selc?' sel':''}" data-day="${ds}" data-pi="${i}" data-testid="pcell-${i}-${ds}"><span class="pday">${d}</span>${bs?'<span class="pstate">occupato</span>':`<span class="pprice">${eur(np(p,ds))}</span>`}</div>`}
+    h+=`</div><div class="pcal-tools"><div class="field" style="margin:0"><label>Prezzo a notte (€)</label><input type="number" placeholder="es. 200" data-price="${i}"></div><button type="button" class="btn btn-wine" data-apply="${i}">Applica ai ${sels[i].size} giorni</button><button type="button" class="btn btn-line" data-reset="${i}">Ripristina base</button><button type="button" class="btn btn-line" data-selmonth="${i}">Seleziona mese</button><button type="button" class="btn btn-line" data-clearsel="${i}">Deseleziona</button></div><p class="book-note">Seleziona i giorni disponibili e imposta il prezzo. Oro = prezzo personalizzato. I giorni <b>occupati</b> (prenotazioni o iCal Booking/Airbnb) non sono modificabili.</p>`;
+    el.innerHTML=h};
+
   const rs=f=>new Promise(r=>{const im=new Image;im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=im.width*k;cv.height=im.height*k;cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);r(cv.toDataURL('image/jpeg',.82))};im.src=URL.createObjectURL(f)});
+
   const panel=async()=>{let d;try{d=await api('adm',{},t)}catch(x){return login()}
-    const ev=await get('a=events')||[];
+    const ev=(await get('a=events'))||[];
+    busyMap={};S.apts.forEach(p=>busyMap[p.id]=new Set());
+    (d.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>busyMap[e.id]&&busyMap[e.id].add(x)));
+    (d.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>busyMap[x.id]&&busyMap[x.id].add(z)));
     M.innerHTML=`<div class="admin-top"><h1>Gestione</h1><button class="btn btn-line" id="out" data-testid="admin-logout">Esci</button></div>
-    <form id="s" data-testid="admin-save-form">
-      <div class="admin-card"><h2>Home</h2><div class="field"><label for="achi">Chi siamo</label><textarea id="achi" name="chi" rows="4" data-testid="admin-chi">${esc(S.chi)}</textarea></div></div>
-      ${S.apts.map((p,i)=>`<div class="admin-card" data-testid="admin-apt-${p.id}"><h2>Appartamento <span class="n">${esc(short(p))}</span></h2><div data-i="${i}">
-        <div class="field"><label>Nome</label><input name="nome" value="${esc(p.nome)}"></div>
-        <div class="field"><label>Sottotitolo</label><input name="sotto" value="${esc(p.sotto)}"></div>
-        <div class="field"><label>Descrizione</label><textarea name="testo" rows="6">${esc(p.testo)}</textarea></div>
-        <div class="fields-grid">
-          <div class="field"><label>Prezzo a notte (€)</label><input name="base" type="number" value="${p.base}"></div>
-          <div class="field"><label>Ospiti inclusi</label><input name="inclusi" type="number" value="${p.inclusi}"></div>
-          <div class="field"><label>Ospite extra (€/notte)</label><input name="extra" type="number" value="${p.extra}"></div>
-          <div class="field"><label>Ospiti massimi</label><input name="max" type="number" value="${p.max}"></div>
-          <div class="field"><label>Notti minime</label><input name="min" type="number" value="${p.min}"></div>
-        </div>
-        <div class="field"><label>Prezzi per periodo (una riga: da a prezzo)</label><textarea name="periodi" rows="3">${(p.periodi||[]).map(q=>q.da+' '+q.a+' '+q.prezzo).join('\n')}</textarea></div>
-        <div class="field"><label>Foto (bordata in oro = copertina)</label><div class="photo-grid"></div>
-          <div class="upload-row"><label class="upload-btn">+ Aggiungi foto<input type="file" accept="image/*" multiple class="up"></label><span class="admin-msg" id="om${i}"></span></div></div>
-      </div></div>`).join('')}
-      <div class="admin-card"><button class="btn btn-wine" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
-    </form>
-    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>Appartamento</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
-    <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Aggiungi eventi speciali che verranno mostrati sulla pagina Eventi (oltre a quelli scaricati automaticamente).</p>
-      <form id="evform" style="display:grid;grid-template-columns:1.5fr 1fr 1fr 2fr 1fr;gap:12px;align-items:end">
+    <div class="admin-card"><h2>Home</h2><div class="field"><label for="achi">Chi siamo</label><textarea id="achi" name="chi" rows="4" data-testid="admin-chi">${esc(S.chi)}</textarea></div></div>
+    ${S.apts.map((p,i)=>`<div class="admin-card" data-testid="admin-apt-${p.id}"><h2>Appartamento <span class="n">${esc(short(p))}</span></h2><div data-i="${i}">
+      <div class="field"><label>Nome</label><input name="nome" value="${esc(p.nome)}"></div>
+      <div class="field"><label>Sottotitolo</label><input name="sotto" value="${esc(p.sotto)}"></div>
+      <div class="field"><label>Descrizione</label><textarea name="testo" rows="6">${esc(p.testo)}</textarea></div>
+      <div class="fields-grid">
+        <div class="field"><label>Prezzo base (€/notte)</label><input name="base" type="number" value="${p.base}"></div>
+        <div class="field"><label>Ospiti inclusi</label><input name="inclusi" type="number" value="${p.inclusi}"></div>
+        <div class="field"><label>Ospite extra (€/notte)</label><input name="extra" type="number" value="${p.extra}"></div>
+        <div class="field"><label>Ospiti massimi</label><input name="max" type="number" value="${p.max}"></div>
+        <div class="field"><label>Notti minime</label><input name="min" type="number" value="${p.min}"></div>
+      </div>
+      <h3>Calendario prezzi</h3><div data-pcal="${i}"></div>
+      <h3>Foto</h3><div class="pm-grid" data-pm="${i}"></div>
+      <div class="upload-row"><label class="upload-btn">+ Aggiungi foto<input type="file" accept="image/*" multiple class="up" data-up="${i}"></label><span class="admin-msg" id="om${i}"></span></div>
+      <div class="field" style="margin-top:14px"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input name="ical" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
+    </div></div>`).join('')}
+    <div class="admin-card save-bar"><button class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
+    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join(''):'<tr><td colspan="8">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
+    <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali che verranno mostrati anch'essi sulla pagina Eventi.</p>
+      <form id="evform" class="ev-form">
         <div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div>
         <div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div>
         <div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div>
@@ -158,30 +176,62 @@ function admin(c){
       </form>
       <div class="table-wrap" style="margin-top:16px"><table class="data" data-testid="ev-table"><thead><tr><th>Titolo</th><th>Data</th><th>Ora</th><th>Luogo</th><th></th></tr></thead><tbody id="ev-body">${ev.map(x=>`<tr><td><b>${esc(x.title)}</b></td><td>${esc(x.date)}</td><td>${esc(x.time||'')}</td><td>${esc(x.location||'')}</td><td><button class="stato-select" data-del="${x.id}">Elimina</button></td></tr>`).join('')||'<tr><td colspan="5">Nessun evento manuale.</td></tr>'}</tbody></table></div>
     </div>`;
+
     $('#out').onclick=()=>{sessionStorage.removeItem('lc_t');t='';login()};
-    S.apts.forEach((_,i)=>ph(i));
-    const s=$('#s');
-    s.onclick=e=>{const z=e.target.closest('[data-i]');if(!z)return;const i=+z.dataset.i,f=S.apts[i]?.foto,D=e.target.dataset;
-      if(!f)return;
-      if(D.x)f.splice(+D.x,1);else if(D.c)f.unshift(...f.splice(+D.c,1));else return;
-      ph(i)};
-    s.onchange=async e=>{if(!e.target.classList.contains('up'))return;
-      const i=+e.target.closest('[data-i]').dataset.i,msg=$('#om'+i);
-      msg.textContent='Carico le foto…';
-      try{for(const f of e.target.files)S.apts[i].foto.push((await api('up',{id:S.apts[i].id,img:await rs(f)},t)).url);
-        ph(i);msg.textContent='Foto caricate. Salva per pubblicarle.'}
-      catch(x){msg.textContent=x.message}};
-    s.onsubmit=async e=>{e.preventDefault();
-      S.chi=s.chi.value;
+    S.apts.forEach((_,i)=>{pcalRender(i);phRender(i)});
+
+    // ---- Interazioni: calendario prezzi + foto tools ----
+    M.addEventListener('click',e=>{
+      const T=e.target,ds=T.dataset;
+      if(T.closest('[data-pv]')){const i=+T.closest('[data-pv]').dataset.pv;months[i].setMonth(months[i].getMonth()-1);pcalRender(i);return}
+      if(T.closest('[data-nx]')){const i=+T.closest('[data-nx]').dataset.nx;months[i].setMonth(months[i].getMonth()+1);pcalRender(i);return}
+      const cell=T.closest('.pcell');
+      if(cell&&!cell.classList.contains('busy')&&!cell.classList.contains('past')){const i=+cell.dataset.pi,day=cell.dataset.day;sels[i].has(day)?sels[i].delete(day):sels[i].add(day);pcalRender(i);return}
+      if(ds.apply!=null){const i=+ds.apply,inp=document.querySelector(`[data-price="${i}"]`),v=inp.value===''?null:+inp.value;if(v==null){inp.focus();return}sels[i].forEach(day=>S.apts[i].prices[day]=v);sels[i].clear();inp.value='';pcalRender(i);return}
+      if(ds.reset!=null){const i=+ds.reset;sels[i].forEach(day=>{delete S.apts[i].prices[day]});sels[i].clear();pcalRender(i);return}
+      if(ds.selmonth!=null){const i=+ds.selmonth,m=months[i],y=m.getFullYear(),mo=m.getMonth(),n=new Date(y,mo+1,0).getDate();for(let d=1;d<=n;d++){const day=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;if(day>=today&&!(busyMap[S.apts[i].id]||new Set()).has(day))sels[i].add(day)}pcalRender(i);return}
+      if(ds.clearsel!=null){const i=+ds.clearsel;sels[i].clear();pcalRender(i);return}
+      // foto tools
+      const item=T.closest('.pm-item');
+      if(item){const i=+item.dataset.pi;
+        if(T.closest('[data-pleft]')){move(i,+T.closest('[data-pleft]').dataset.pleft,+T.closest('[data-pleft]').dataset.pleft-1);return}
+        if(T.closest('[data-pright]')){move(i,+T.closest('[data-pright]').dataset.pright,+T.closest('[data-pright]').dataset.pright+1);return}
+        if(T.closest('[data-pcover]')){move(i,+T.closest('[data-pcover]').dataset.pcover,0);return}
+        if(T.closest('[data-pdel]')){S.apts[i].foto.splice(+T.closest('[data-pdel]').dataset.pdel,1);phRender(i);return}
+      }
+      if(ds.del){if(confirm('Eliminare questo evento?'))api('event_del',{id:ds.del},t).then(panel)}
+    });
+
+    // ---- Drag & drop foto ----
+    let dragI=null,dragFrom=null;
+    M.addEventListener('dragstart',e=>{const it=e.target.closest('.pm-item');if(!it)return;dragI=+it.dataset.pi;dragFrom=+it.dataset.j;it.classList.add('dragging')});
+    M.addEventListener('dragend',e=>{const it=e.target.closest('.pm-item');it&&it.classList.remove('dragging');document.querySelectorAll('.pm-item.dragover').forEach(x=>x.classList.remove('dragover'))});
+    M.addEventListener('dragover',e=>{const it=e.target.closest('.pm-item');if(it&&+it.dataset.pi===dragI){e.preventDefault();it.classList.add('dragover')}});
+    M.addEventListener('dragleave',e=>{const it=e.target.closest('.pm-item');it&&it.classList.remove('dragover')});
+    M.addEventListener('drop',e=>{const it=e.target.closest('.pm-item');if(!it||+it.dataset.pi!==dragI)return;e.preventDefault();const to=+it.dataset.j;if(dragFrom!=null&&dragFrom!==to)move(dragI,dragFrom,to);dragI=dragFrom=null});
+
+    // ---- Upload foto ----
+    M.addEventListener('change',async e=>{
+      if(e.target.classList.contains('up')){const i=+e.target.dataset.up,msg=$('#om'+i);
+        msg.textContent='Carico le foto…';
+        try{for(const f of e.target.files)S.apts[i].foto.push((await api('up',{id:S.apts[i].id,img:await rs(f)},t)).url);
+          phRender(i);msg.textContent='Foto caricate. Ricordati di salvare.'}
+        catch(x){msg.textContent=x.message}return}
+      if(e.target.dataset.code)api('stato',{code:e.target.dataset.code,stato:e.target.value},t);
+    });
+
+    // ---- Salva ----
+    $('#save').onclick=async()=>{
+      S.chi=$('#achi').value;
       document.querySelectorAll('[data-i]').forEach(z=>{const p=S.apts[+z.dataset.i],g=n=>z.querySelector(`[name=${n}]`).value;
         for(const k of['nome','sotto','testo'])p[k]=g(k);
         for(const k of['base','inclusi','extra','max','min'])p[k]=+g(k);
-        p.periodi=g('periodi').split('\n').map(l=>l.trim().split(/\s+/)).filter(x=>x.length===3).map(([da,a,prezzo])=>({da,a,prezzo:+prezzo}))});
-      try{await api('save',S,t);$('#o').textContent='Salvato: le modifiche sono già online.'}
+        S.ical[p.id]=g('ical')});
+      try{await api('save',S,t);$('#o').textContent='Salvato: le modifiche sono già online.';setTimeout(()=>$('#o').textContent='',4000)}
       catch(x){$('#o').textContent=x.message}};
-    M.onchange=e=>{if(e.target.dataset.code)api('stato',{code:e.target.dataset.code,stato:e.target.value},t)};
+
+    // ---- Aggiungi evento ----
     $('#evform').onsubmit=async e=>{e.preventDefault();try{await api('event_add',Object.fromEntries(new FormData(e.target)),t);panel()}catch(x){alert(x.message)}};
-    M.onclick=e=>{if(e.target.dataset.del){if(confirm('Eliminare?'))api('event_del',{id:e.target.dataset.del},t).then(panel)}};
   };
   t?panel():login();
 }
@@ -198,17 +248,17 @@ async function guestcard(c){
 }
 
 async function eventi(c){
-  const evs=await get('a=events')||[];
-  // eventi scraping simulati (senza chiavi) + eventi manuali
-  const stat=[{title:'Mercatini di Natale di Trento',date:'2026-11-21',time:'10:00-19:30',location:'Piazza Fiera, Trento',url:'https://www.visittrentino.info'},
-    {title:"Trento Film Festival",date:'2026-04-24',time:'tutta la giornata',location:'Vari luoghi, Trento',url:'https://trentofestival.it'},
-    {title:'Feste Vigiliane',date:'2026-06-20',time:'serata',location:'Centro storico, Trento',url:'https://www.festevigiliane.it'},
-    {title:'Autunno Trentino',date:'2026-10-05',time:'weekend',location:'Trento e valli',url:'https://www.visittrentino.info/autunno'}];
-  const all=[...stat,...evs].sort((x,y)=>x.date<y.date?-1:1);
-  $('#events').innerHTML=all.map(x=>`
-    <article class="apt-card" style="cursor:default" data-testid="ev-${esc(x.date)}">
+  const box=$('#events');
+  const [feed,manual]=await Promise.all([get('a=events_feed'),get('a=events')]);
+  const auto=Array.isArray(feed)?feed:[];
+  const man=Array.isArray(manual)?manual:[];
+  const today=iso(new Date());
+  const all=[...auto,...man].filter(x=>x.date>=today).sort((a,b)=>a.date<b.date?-1:1);
+  if(!all.length){box.innerHTML='<p class="book-note">Nessun evento in programma al momento.</p>';return}
+  box.innerHTML=all.map(x=>`
+    <article class="apt-card ev-card" style="cursor:default" data-testid="ev-${esc(x.date)}">
       <div class="body">
-        <span class="section-kicker">${esc(new Date(x.date).toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}</span>
+        <span class="section-kicker">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}${x.source?' · '+esc(x.source):''}</span>
         <h3>${esc(x.title)}</h3>
         <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
         ${x.url?`<div class="cta"><a class="cta-link" href="${esc(x.url)}" target="_blank" rel="noopener">Info <span aria-hidden="true">→</span></a></div>`:''}
