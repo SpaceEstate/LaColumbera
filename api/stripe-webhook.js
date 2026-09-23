@@ -4,7 +4,7 @@
 const x=require('./x.js');
 const buffer=req=>new Promise((res,rej)=>{const ch=[];req.on('data',d=>ch.push(d));req.on('end',()=>res(Buffer.concat(ch)));req.on('error',rej)});
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const OWNER_EMAIL=process.env.OWNER_EMAIL||'comper977@gmail.com';
+const OWNER_EMAIL=process.env.OWNER_EMAIL||'patrick.comper@yahoo.com';
 const ownerHtml=b=>`<h2>Nuova prenotazione confermata</h2>
 <p><b>Codice:</b> ${esc(b.code)}<br>
 <b>Appartamento:</b> ${esc(x.APT_LABEL[b.id]||b.id)}<br>
