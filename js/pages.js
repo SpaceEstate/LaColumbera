@@ -266,13 +266,39 @@ function admin(c){
 }
 
 async function guestcard(c){
-  const q=new URLSearchParams(location.search);
-  if(q.get('code'))$('#gc-code').value=q.get('code');
-  $('#f').onsubmit=async e=>{e.preventDefault();
-    try{const d=Object.fromEntries(new FormData(e.target));
-      const r=await api('guestcard',d);
-      $('#r').innerHTML=`<div class="admin-card" data-testid="gc-success"><h2>Trentino Guest Card creata 🎉</h2><p>Codice: <b>${r.gc_id}</b></p><p>Intestata a: <b>${esc(r.nome)}</b></p><p>Validità: <b>${fmtD(r.valid_from)} → ${fmtD(r.valid_to)}</b></p><p>Ospiti coperti: <b>${r.ospiti}</b></p><p class="book-note">Presenta questo codice al check-in per attivare la tua card. Ti permette di viaggiare gratis su bus e treni in Trentino, e di visitare musei e attrazioni convenzionate.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`}
+  const q=new URLSearchParams(location.search),box=$('#r');
+  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Trentino Guest Card ${g.stato==='attiva'?'attiva':'creata'} 🎉</h2><p>Codice: <b>${esc(g.gc_id||'—')}</b></p><p>Validità: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">La card è stata inviata via email a <b>${esc(g.email)}</b>: segui le istruzioni per attivarla sull'app Mio Trentino. Presentala al check-in.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`;
+  const renderConfirm=x=>{
+    box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
+      <h2>Prenotazione trovata</h2>
+      <div class="bc-grid">
+        <div class="bc-cell"><span>Appartamento</span><b>${nomeA(c,x.id)}</b></div>
+        <div class="bc-cell"><span>Check-in</span><b>${fmtD(x.da)}</b></div>
+        <div class="bc-cell"><span>Check-out</span><b>${fmtD(x.a)}</b></div>
+        <div class="bc-cell"><span>Notti</span><b>${x.notti}</b></div>
+        <div class="bc-cell"><span>Ospiti</span><b>${x.ospiti}</b></div>
+      </div>
+      <p class="book-note">Questi dati sono presi automaticamente dalla tua prenotazione confermata e non si possono modificare qui: la Guest Card viene sempre emessa per il periodo e il numero di ospiti reali della prenotazione.</p>
+      ${x.needsEmail?`<div class="field"><label for="gc-email">La tua email (per ricevere la Guest Card)</label><input id="gc-email" type="email" required data-testid="gc-email"></div>`:''}
+      <button class="btn btn-wine" style="width:100%;justify-content:center" id="gc-go" data-testid="gc-issue">Genera Trentino Guest Card</button>
+      <p class="form-err" id="e2"></p>
+    </div>`;
+    $('#gc-go').onclick=async()=>{
+      const btn=$('#gc-go');if(btn.dataset.loading)return;
+      const email=x.needsEmail?($('#gc-email').value||'').trim():undefined;
+      if(x.needsEmail&&!/.+@.+\..+/.test(email||'')){$('#e2').textContent="Inserisci un'email valida";return}
+      btn.dataset.loading='1';btn.disabled=true;const orig=btn.textContent;btn.textContent='Genero…';
+      try{const g=await api('gc_issue',{code:x.code,email});box.innerHTML=renderCard(g)}
+      catch(err){$('#e2').textContent=err.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
+  };
+  const check=async code=>{
+    $('#e').textContent='';box.innerHTML='';
+    try{const r=await api('gc_check',{code});
+      if(r.card){box.innerHTML=renderCard(r.card);return}
+      renderConfirm({...r.booking,code})}
     catch(x){$('#e').textContent=x.message}};
+  $('#f').onsubmit=e=>{e.preventDefault();const code=$('#gc-code').value.trim().toUpperCase();if(code)check(code)};
+  if(q.get('code')){const code=q.get('code').trim().toUpperCase();$('#gc-code').value=code;check(code)}
 }
 
 async function eventi(c){
