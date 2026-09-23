@@ -142,7 +142,12 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  let tgc;
  try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti})}
  catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
- const card={gc_id:tgc.codice||tgc.id||tgc.idCard||tgc.codiceCard||'',stato:'attiva',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
+ // Nota: nel flusso "Emissione Essenziale" la card non è immediatamente attiva. L'operatore (qui: il
+ // nostro server) invia solo Dal/Al/personeMax/email; il sistema TGC manda all'ospite un'email/SMS con
+ // un link, e la card viene generata solo quando l'ospite lo completa (indica minori/provenienza e crea
+ // il suo account MyTrentinoGuestCard). Quindi qui NON assumiamo un gc_id già valido: lo salviamo solo
+ // se la risposta lo contiene davvero, altrimenti restiamo su "richiesta inviata".
+ const card={gc_id:tgc.codice||tgc.id||tgc.idCard||tgc.codiceCard||tgc.qrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
  await kv('SET','gc:'+x.code,JSON.stringify(card));
  return res.json(card)}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
