@@ -33,6 +33,12 @@ const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.leng
 const closedDays=(config,id)=>{if(!(config.closed&&config.closed[id]))return[];const o=[],s=new Date();for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
 const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id)])};
 
+// ---- Email (Gmail SMTP) ----
+const sendMail=async(to,subject,html)=>{if(!process.env.GMAIL_USER||!process.env.GMAIL_APP_PASSWORD)return;
+ try{const nodemailer=require('nodemailer'),t=nodemailer.createTransport({service:'gmail',auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD}});
+  await t.sendMail({from:'"La Columbera" <'+process.env.GMAIL_USER+'>',to,subject,html})}
+ catch(e){console.error('sendMail:',e.message)}};
+
 function icalFeed(id,set){const dd=[...set].sort();const ranges=[];for(const d of dd){const last=ranges[ranges.length-1];if(last&&addDays(last.end,1)===d)last.end=d;else ranges.push({start:d,end:d})}const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'').replace('Z','')+'Z';let out='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Columbera//Prenotazioni//IT\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:La Columbera '+id+'\r\n';for(const r of ranges){out+='BEGIN:VEVENT\r\nUID:'+r.start+'-'+r.end+'-'+id+'@lacolumbera\r\nDTSTAMP:'+stamp+'\r\nDTSTART;VALUE=DATE:'+r.start.replace(/-/g,'')+'\r\nDTEND;VALUE=DATE:'+addDays(r.end,1).replace(/-/g,'')+'\r\nSUMMARY:Occupato - La Columbera\r\nTRANSP:OPAQUE\r\nEND:VEVENT\r\n'}out+='END:VCALENDAR\r\n';return out}
 
 // ---- Eventi automatici ----
@@ -116,4 +122,4 @@ if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),i
  await kv('SET','cfg',JSON.stringify(n));return res.json({ok:1})}
 res.status(404).json({err:'?'})}catch(e){res.status(500).json({err:e.message})}};
 module.exports=handler;
-module.exports.kv=kv;module.exports.sheetAppend=sheetAppend;module.exports.getBk=getBk;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;
+module.exports.kv=kv;module.exports.sheetAppend=sheetAppend;module.exports.getBk=getBk;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;
