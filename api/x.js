@@ -34,23 +34,29 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
  if(s)return{code:s.code,id:s.id,da:s.da,a:s.a,notti:s.notti,ospiti:s.ospiti,nome:'',email:'',stato:s.stato,fonte:'foglio'};
  return null};
 
-// ---- Trentino Guest Card: emissione essenziale ----
-// IMPORTANTE: il path dell'endpoint e i nomi esatti dei campi del corpo JSON qui sotto sono la
-// ricostruzione più probabile in base alla documentazione pubblica (base URL, Basic Auth, JSON,
-// date yyyyMMdd, campi IdTipologiaCard/Dal/Al/email/personeMax) ma NON sono stati verificati contro
-// la documentazione tecnica ufficiale (fornita da Trentino Marketing via DTU dopo l'abilitazione).
-// Prima di andare in produzione: 1) abilitare l'account su DTU, 2) farsi mandare le credenziali API
-// e la documentazione tecnica aggiornata, 3) verificare/correggere qui path e nomi dei campi (anche
-// con una chiamata di test a TipologieCard per ottenere il TGC_CARD_TYPE_ID corretto).
+// ---- Trentino Guest Card: emissione essenziale (verificato su doc ufficiale rev.11, 03/2026) ----
+// baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
+// Autenticazione DOPPIA su OGNI chiamata (doc pag.2: "Tutti i metodi delle web api prevedono una
+// Basic Authentication"):
+//  1) header Authorization: Basic base64(TGC_BASIC_USER:TGC_BASIC_PASS) — credenziali del gestionale
+//     (test: Gestionali / 12345678; produzione: comunicate via email da Trentino Marketing)
+//  2) Username/Password della STRUTTURA su ricettivo.guestcard.info, passate come campo del
+//     form/querystring (test: Belvedere / Belvedere; produzione: quelle di "La Columbera")
+// TGC_CARD_TYPE_ID va preso dalla risposta di TipologieCard.ashx (endpoint admin gc_tipologie).
 const TGC_BASE=process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info';
+const tgcBasicAuth=()=>'Basic '+Buffer.from(process.env.TGC_BASIC_USER+':'+process.env.TGC_BASIC_PASS).toString('base64');
 const ymd=s=>String(s).replace(/-/g,'');
-async function emettiGuestCardTGC({dal,al,email,personeMax}){
- const auth='Basic '+Buffer.from(process.env.TGC_USERNAME+':'+process.env.TGC_PASSWORD).toString('base64');
- const r=await fetch(TGC_BASE+'/api/EmissioneEssenziale',{ // TODO: verificare path esatto sulla doc ufficiale
-  method:'POST',headers:{'Content-Type':'application/json',Authorization:auth},
-  body:JSON.stringify({IdTipologiaCard:process.env.TGC_CARD_TYPE_ID,Dal:ymd(dal),Al:ymd(al),email,personeMax})});
+async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
+ const fd=new FormData();
+ fd.set('idTipologiaCard',String(process.env.TGC_CARD_TYPE_ID));
+ fd.set('dal',ymd(dal));fd.set('al',ymd(al));
+ fd.set('Email',email);fd.set('PersoneMax',String(personeMax));
+ fd.set('Username',process.env.TGC_USERNAME);fd.set('Password',process.env.TGC_PASSWORD);
+ if(process.env.TGC_ATTRIBUTO_ID)fd.set('IdAttributo',String(process.env.TGC_ATTRIBUTO_ID));
+ if(codice)fd.set('ExtraSftAlbergatori',String(codice).slice(0,36)); // id prenotazione PMS, per riconciliazione
+ const r=await fetch(TGC_BASE+'/ws/SoftwareGestionali/EmissioneEssenzialeCard.ashx',{method:'POST',headers:{Authorization:tgcBasicAuth()},body:fd});
  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
- if(!r.ok)throw new Error(j.message||j.err||j.Message||('HTTP '+r.status+' '+txt.slice(0,200)));
+ if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
 // ---- Prenotazioni: lettura con pulizia automatica delle "in_attesa" scadute (pagamento mai completato) ----
@@ -135,19 +141,15 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  const existing=await jg('gc:'+x.code);if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
  let email=x.email;
  if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
- if(!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD||!process.env.TGC_CARD_TYPE_ID)
-  return res.status(500).json({err:'Guest Card non configurata sul server (mancano TGC_USERNAME / TGC_PASSWORD / TGC_CARD_TYPE_ID su Vercel)'});
+ if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD||!process.env.TGC_CARD_TYPE_ID)
+  return res.status(500).json({err:'Guest Card non configurata sul server (mancano variabili TGC_* su Vercel)'});
  // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
  // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
  let tgc;
- try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti})}
+ try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti,codice:x.code})}
  catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
- // Nota: nel flusso "Emissione Essenziale" la card non è immediatamente attiva. L'operatore (qui: il
- // nostro server) invia solo Dal/Al/personeMax/email; il sistema TGC manda all'ospite un'email/SMS con
- // un link, e la card viene generata solo quando l'ospite lo completa (indica minori/provenienza e crea
- // il suo account MyTrentinoGuestCard). Quindi qui NON assumiamo un gc_id già valido: lo salviamo solo
- // se la risposta lo contiene davvero, altrimenti restiamo su "richiesta inviata".
- const card={gc_id:tgc.codice||tgc.id||tgc.idCard||tgc.codiceCard||tgc.qrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
+ // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido).
+ const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
  await kv('SET','gc:'+x.code,JSON.stringify(card));
  return res.json(card)}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
@@ -155,9 +157,9 @@ if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({er
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
- if(!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano TGC_USERNAME / TGC_PASSWORD su Vercel'});
- const auth2='Basic '+Buffer.from(process.env.TGC_USERNAME+':'+process.env.TGC_PASSWORD).toString('base64');
- try{const r=await fetch(TGC_BASE+'/api/TipologieCard',{headers:{Authorization:auth2}}); // TODO: verificare path esatto sulla doc ufficiale
+ if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano variabili TGC_* su Vercel'});
+ try{const qs=new URLSearchParams({username:process.env.TGC_USERNAME,password:process.env.TGC_PASSWORD});
+  const r=await fetch(TGC_BASE+'/ws/SoftwareGestionali/TipologieCard.ashx?'+qs,{headers:{Authorization:tgcBasicAuth()}});
   const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
   if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
   return res.json(j)}
