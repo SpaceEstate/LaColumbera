@@ -132,6 +132,9 @@ function clienti(c){
     }
     catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
     finally{btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
+  // Link dalla mail di conferma: ?code=XXXX precompila il codice e mostra subito la prenotazione
+  const qc=new URLSearchParams(location.search).get('code');
+  if(qc){$('#cd').value=qc.trim().toUpperCase();$('#f').requestSubmit()}
 }
 
 function admin(c){
