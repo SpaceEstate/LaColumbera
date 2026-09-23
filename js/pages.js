@@ -50,7 +50,13 @@ async function apt(c){
   document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
 
   // disponibilità e prenotazione
-  const box=$('#bk'),bz=await get('a=busy&id='+p.id);
+  const box=$('#bk'),qp=new URLSearchParams(location.search),pagamento=qp.get('pagamento');
+  if(pagamento==='successo'){
+    history.replaceState(null,'',location.pathname);
+    box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card. Riceverai a breve anche una conferma via email.</p></div>`;
+    return;
+  }
+  const bz=await get('a=busy&id='+p.id);
   if(!bz){
     box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>Al momento non riesco a caricare la disponibilità. Scrivici: <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a></p></div>`;
     return;
@@ -69,6 +75,7 @@ async function apt(c){
     <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Prenota</button>
     <p class="form-err" id="e" data-testid="booking-error"></p>
   </form>`;
+  if(pagamento==='annullato'){history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
     let h='LMMGVSD'.split('').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);
@@ -90,9 +97,9 @@ async function apt(c){
   $('#f').onsubmit=async e=>{e.preventDefault();
     if(!a){$('#e').textContent='Scegli le date sul calendario';return}
     const btn=e.target.querySelector('[data-testid="booking-submit"]');
-    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Invio in corso…';$('#e').textContent='';
-    try{const r=await api('book',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
-      box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Prenotazione ricevuta</h3><p>Il tuo codice prenotazione è <b>${r.code}</b> (totale ${eur(r.totale)}). Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card.</p></div>`}
+    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Reindirizzo al pagamento…';$('#e').textContent='';
+    try{const r=await api('checkout',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
+      location.href=r.url}
     catch(x){$('#e').textContent=x.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   draw();
 }
@@ -186,7 +193,7 @@ function admin(c){
       <div class="field" style="margin-top:8px"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito)</label><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"></div>
     </div></div>`).join('')}
     <div class="admin-card save-bar"><button class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
-    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td><button class="stato-select btn-del-book" data-bookdel="${x.code}" data-testid="admin-book-del-${x.code}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
+    <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','in_attesa','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td><button class="stato-select btn-del-book" data-bookdel="${x.code}" data-testid="admin-book-del-${x.code}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
     <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali che verranno mostrati anch'essi sulla pagina Eventi.</p>
       <form id="evform" class="ev-form">
         <div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div>
