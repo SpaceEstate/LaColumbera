@@ -2,6 +2,7 @@
   "name": "la-columbera",
   "private": true,
   "dependencies": {
-    "@vercel/blob": "^1.1.1"
+    "@vercel/blob": "^1.1.1",
+    "stripe": "^22.6.2"
   }
 }
