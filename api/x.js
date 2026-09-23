@@ -164,6 +164,16 @@ if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta pe
   if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
   return res.json(j)}
  catch(e){return res.status(502).json({err:e.message})}}
+if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede idAttributo
+ if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano variabili TGC_* su Vercel'});
+ const idTipologiaCard=req.query.idTipologiaCard||b.idTipologiaCard;
+ if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
+ try{const qs=new URLSearchParams({username:process.env.TGC_USERNAME,password:process.env.TGC_PASSWORD,idTipologiaCard:String(idTipologiaCard)});
+  const r=await fetch(TGC_BASE+'/ws/SoftwareGestionali/AttributiCard.ashx?'+qs,{headers:{Authorization:tgcBasicAuth()}});
+  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+  if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
+  return res.json(j)}
+ catch(e){return res.status(502).json({err:e.message})}}
 if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
 if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
 if(a==='book_del'){let bk=await getBk();const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
