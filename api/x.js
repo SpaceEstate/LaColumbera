@@ -26,6 +26,33 @@ const itDate=s=>{const m=/(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s));return 
 async function sheetBookings(){try{const t=await(await fetch(sheetCsvUrl(),{headers:{'User-Agent':'LaColumberaBot/1.0'}})).text();const rows=parseCSV(t);if(rows.length<2)return[];const out=[];for(let i=1;i<rows.length;i++){const r=rows[i];if(!r||!(r[0]||'').trim())continue;const code=String(r[0]).trim(),da=itDate(r[1]),id=aptFromLabel(String(r[2]||'')),ospiti=parseInt(String(r[3]||'').trim())||0,notti=parseInt(String(r[4]||'').trim())||0;if(!code||!da||!id||!notti)continue;out.push({code,id,da,a:addDays(da,notti),ospiti,notti,stato:'confermata',fonte:'foglio'})}return out}catch{return[]}}
 async function sheetAppend(b){const url=process.env.SHEET_WEBAPP_URL;if(!url)return;try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:process.env.SHEET_SECRET||'',code:b.code,checkin:F2(b.da),appartamento:APT_LABEL[b.id]||b.id,ospiti:b.ospiti,notti:b.notti})})}catch{}}
 
+// ---- Prenotazione unica per codice (per Guest Card): 'bk' (sito, ha email) prima, poi foglio (esterne, senza email) ----
+const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!code)return null;
+ const bk=await getBk(),x=bk.find(k=>String(k.code).toUpperCase()===code);
+ if(x)return{code:x.code,id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,email:x.email||'',stato:x.stato,fonte:'sito'};
+ const sheet=await sheetBookings(),s=sheet.find(k=>String(k.code).toUpperCase()===code);
+ if(s)return{code:s.code,id:s.id,da:s.da,a:s.a,notti:s.notti,ospiti:s.ospiti,nome:'',email:'',stato:s.stato,fonte:'foglio'};
+ return null};
+
+// ---- Trentino Guest Card: emissione essenziale ----
+// IMPORTANTE: il path dell'endpoint e i nomi esatti dei campi del corpo JSON qui sotto sono la
+// ricostruzione più probabile in base alla documentazione pubblica (base URL, Basic Auth, JSON,
+// date yyyyMMdd, campi IdTipologiaCard/Dal/Al/email/personeMax) ma NON sono stati verificati contro
+// la documentazione tecnica ufficiale (fornita da Trentino Marketing via DTU dopo l'abilitazione).
+// Prima di andare in produzione: 1) abilitare l'account su DTU, 2) farsi mandare le credenziali API
+// e la documentazione tecnica aggiornata, 3) verificare/correggere qui path e nomi dei campi (anche
+// con una chiamata di test a TipologieCard per ottenere il TGC_CARD_TYPE_ID corretto).
+const TGC_BASE=process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info';
+const ymd=s=>String(s).replace(/-/g,'');
+async function emettiGuestCardTGC({dal,al,email,personeMax}){
+ const auth='Basic '+Buffer.from(process.env.TGC_USERNAME+':'+process.env.TGC_PASSWORD).toString('base64');
+ const r=await fetch(TGC_BASE+'/api/EmissioneEssenziale',{ // TODO: verificare path esatto sulla doc ufficiale
+  method:'POST',headers:{'Content-Type':'application/json',Authorization:auth},
+  body:JSON.stringify({IdTipologiaCard:process.env.TGC_CARD_TYPE_ID,Dal:ymd(dal),Al:ymd(al),email,personeMax})});
+ const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+ if(!r.ok)throw new Error(j.message||j.err||j.Message||('HTTP '+r.status+' '+txt.slice(0,200)));
+ return j}
+
 // ---- Prenotazioni: lettura con pulizia automatica delle "in_attesa" scadute (pagamento mai completato) ----
 const PEND_MS=18e5; // 30 minuti
 const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.length;bk=bk.filter(x=>!(x.stato==='in_attesa'&&now-Date.parse(x.creato)>PEND_MS));if(bk.length!==n)await kv('SET','bk',JSON.stringify(bk));return bk};
@@ -98,13 +125,38 @@ if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return
  const sheet=await sheetBookings(),found=sheet.filter(x=>String(x.code).toUpperCase()===code).map(x=>({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}));
  if(!found.length)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  return res.json(found)}
-if(a==='guestcard'){const code=String(b.code||'').trim().toUpperCase();const bk=await getBk(),sheet=await sheetBookings();
- const x=bk.find(k=>String(k.code).toUpperCase()===code)||sheet.find(k=>String(k.code).toUpperCase()===code);if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
- return res.json({gc_id:'TGC-'+c.randomBytes(4).toString('hex').toUpperCase(),nome:String(b.nome||x.nome||'').slice(0,80),valid_from:x.da,valid_to:x.a,ospiti:+b.ospiti||x.ospiti||1})}
+if(a==='gc_check'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+ if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
+ if(x.stato==='in_attesa'||x.stato==='richiesta')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
+ const card=await jg('gc:'+x.code);
+ return res.json({booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,needsEmail:!x.email},card:card||null})}
+if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+ if(x.stato!=='confermata')return res.status(409).json({err:'La prenotazione non è (ancora) confermata'});
+ const existing=await jg('gc:'+x.code);if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
+ let email=x.email;
+ if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
+ if(!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD||!process.env.TGC_CARD_TYPE_ID)
+  return res.status(500).json({err:'Guest Card non configurata sul server (mancano TGC_USERNAME / TGC_PASSWORD / TGC_CARD_TYPE_ID su Vercel)'});
+ // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
+ // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
+ let tgc;
+ try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti})}
+ catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
+ const card={gc_id:tgc.codice||tgc.id||tgc.idCard||tgc.codiceCard||'',stato:'attiva',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
+ await kv('SET','gc:'+x.code,JSON.stringify(card));
+ return res.json(card)}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
+if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
+ if(!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano TGC_USERNAME / TGC_PASSWORD su Vercel'});
+ const auth2='Basic '+Buffer.from(process.env.TGC_USERNAME+':'+process.env.TGC_PASSWORD).toString('base64');
+ try{const r=await fetch(TGC_BASE+'/api/TipologieCard',{headers:{Authorization:auth2}}); // TODO: verificare path esatto sulla doc ufficiale
+  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+  if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
+  return res.json(j)}
+ catch(e){return res.status(502).json({err:e.message})}}
 if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
 if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
 if(a==='book_del'){let bk=await getBk();const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
