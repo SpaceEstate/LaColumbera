@@ -26,6 +26,10 @@ const itDate=s=>{const m=/(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s));return 
 async function sheetBookings(){try{const t=await(await fetch(sheetCsvUrl(),{headers:{'User-Agent':'LaColumberaBot/1.0'}})).text();const rows=parseCSV(t);if(rows.length<2)return[];const out=[];for(let i=1;i<rows.length;i++){const r=rows[i];if(!r||!(r[0]||'').trim())continue;const code=String(r[0]).trim(),da=itDate(r[1]),id=aptFromLabel(String(r[2]||'')),ospiti=parseInt(String(r[3]||'').trim())||0,notti=parseInt(String(r[4]||'').trim())||0;if(!code||!da||!id||!notti)continue;out.push({code,id,da,a:addDays(da,notti),ospiti,notti,stato:'confermata',fonte:'foglio'})}return out}catch{return[]}}
 async function sheetAppend(b){const url=process.env.SHEET_WEBAPP_URL;if(!url)return;try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:process.env.SHEET_SECRET||'',code:b.code,checkin:F2(b.da),appartamento:APT_LABEL[b.id]||b.id,ospiti:b.ospiti,notti:b.notti})})}catch{}}
 
+// ---- Prenotazioni: lettura con pulizia automatica delle "in_attesa" scadute (pagamento mai completato) ----
+const PEND_MS=18e5; // 30 minuti
+const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.length;bk=bk.filter(x=>!(x.stato==='in_attesa'&&now-Date.parse(x.creato)>PEND_MS));if(bk.length!==n)await kv('SET','bk',JSON.stringify(bk));return bk};
+
 const closedDays=(config,id)=>{if(!(config.closed&&config.closed[id]))return[];const o=[],s=new Date();for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
 const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id)])};
 
@@ -57,35 +61,47 @@ const feed=async()=>{
  return curated();
 };
 
-module.exports=async(req,res)=>{const a=req.query.a,b=req.body||{};res.setHeader('Cache-Control','no-store');
+const handler=async(req,res)=>{const a=req.query.a,b=req.body||{};res.setHeader('Cache-Control','no-store');
 try{
 if(a==='cfg')return res.json(await cfg(req));
-if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await busy(config,String(req.query.id),(await jg('bk'))||[])].sort())}
-if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,(await jg('bk'))||[]);res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
+if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await busy(config,String(req.query.id),await getBk())].sort())}
+if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
 if(a==='events')return res.json((await jg('events'))||[]);
 if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())}
-if(a==='book'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
+if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
  if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);if(g.length<p.min||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+p.min+' notti)'});
- const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=(await jg('bk'))||[],occ=await busy(config,p.id,bk);
+ const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=await getBk(),occ=await busy(config,p.id,bk);
  if(g.some(d=>occ.has(d)))return res.status(409).json({err:'Date non più disponibili'});
- const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale:g.reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0),stato:'richiesta',creato:new Date().toISOString()};
- bk.push(r);await kv('SET','bk',JSON.stringify(bk));await sheetAppend({code:r.code,da:r.da,id:p.id,ospiti:n,notti:g.length});return res.json(r)}
+ if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
+ const totale=g.reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0);
+ const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
+ const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host;
+ let session;
+ try{session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:r.email,client_reference_id:r.code,locale:'it',
+  line_items:[{quantity:1,price_data:{currency:'eur',unit_amount:Math.round(totale*100),product_data:{name:APT_LABEL[p.id]||p.nome,description:F2(r.da)+' → '+F2(r.a)+' · '+n+' ospiti · '+g.length+' notti'}}}],
+  metadata:{code:r.code,apt:p.id,da:r.da,a:r.a},
+  success_url:site+'/'+p.id+'.html?pagamento=successo&code='+r.code,
+  cancel_url:site+'/'+p.id+'.html?pagamento=annullato',
+  expires_at:Math.floor(Date.now()/1000)+1810})}
+ catch(e){return res.status(500).json({err:'Errore nella creazione del pagamento: '+e.message})}
+ r.sessione=session.id;bk.push(r);await kv('SET','bk',JSON.stringify(bk));
+ return res.json({code:r.code,url:session.url})}
 if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return res.status(400).json({err:'Inserisci il codice prenotazione'});
  const sheet=await sheetBookings(),found=sheet.filter(x=>String(x.code).toUpperCase()===code).map(x=>({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}));
  if(!found.length)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  return res.json(found)}
-if(a==='guestcard'){const code=String(b.code||'').trim().toUpperCase();const bk=(await jg('bk'))||[],sheet=await sheetBookings();
+if(a==='guestcard'){const code=String(b.code||'').trim().toUpperCase();const bk=await getBk(),sheet=await sheetBookings();
  const x=bk.find(k=>String(k.code).toUpperCase()===code)||sheet.find(k=>String(k.code).toUpperCase()===code);if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
  return res.json({gc_id:'TGC-'+c.randomBytes(4).toString('hex').toUpperCase(),nome:String(b.nome||x.nome||'').slice(0,80),valid_from:x.da,valid_to:x.a,ospiti:+b.ospiti||x.ospiti||1})}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
-if(a==='adm'){const config=await cfg(req),bk=(await jg('bk'))||[],ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
-if(a==='stato'){const bk=(await jg('bk'))||[],x=bk.find(k=>k.code===b.code);if(x&&['richiesta','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
-if(a==='book_del'){let bk=(await jg('bk'))||[];const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
+if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
+if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
+if(a==='book_del'){let bk=await getBk();const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
 if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)return res.status(400).json({err:'Titolo e data obbligatori'});
  list.push({id:c.randomBytes(4).toString('hex'),title:String(b.title).slice(0,200),date:String(b.date).slice(0,10),time:String(b.time||'').slice(0,20),location:String(b.location||'').slice(0,200),url:absUrl(b.url).slice(0,400),source:'La Columbera'});
  await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
@@ -99,3 +115,5 @@ if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),i
  for(const p of old.apts)for(const u of p.foto)if(!keep.has(u)&&/blob\.vercel-storage\.com/.test(u))await del(u).catch(()=>{});
  await kv('SET','cfg',JSON.stringify(n));return res.json({ok:1})}
 res.status(404).json({err:'?'})}catch(e){res.status(500).json({err:e.message})}};
+module.exports=handler;
+module.exports.kv=kv;module.exports.sheetAppend=sheetAppend;module.exports.getBk=getBk;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;
