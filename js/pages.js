@@ -267,7 +267,7 @@ function admin(c){
 
 async function guestcard(c){
   const q=new URLSearchParams(location.search),box=$('#r');
-  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Trentino Guest Card ${g.stato==='attiva'?'attiva':'creata'} 🎉</h2><p>Codice: <b>${esc(g.gc_id||'—')}</b></p><p>Validità: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">La card è stata inviata via email a <b>${esc(g.email)}</b>: segui le istruzioni per attivarla sull'app Mio Trentino. Presentala al check-in.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`;
+  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail (o l'SMS) che arriverà a <b>${esc(g.email)}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`;
   const renderConfirm=x=>{
     box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
       <h2>Prenotazione trovata</h2>
