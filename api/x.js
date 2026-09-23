@@ -43,7 +43,11 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 //  2) Username/Password della STRUTTURA su ricettivo.guestcard.info, passate come campo del
 //     form/querystring (test: Belvedere / Belvedere; produzione: quelle di "La Columbera")
 // TGC_CARD_TYPE_ID va preso dalla risposta di TipologieCard.ashx (endpoint admin gc_tipologie).
-const TGC_BASE=process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info';
+// SICUREZZA: senza TGC_BASE_URL si usa l'ambiente DEMO, così una configurazione incompleta non emette mai card reali.
+// Per andare in produzione imposta esplicitamente TGC_BASE_URL=https://ricettivo.guestcard.info su Vercel.
+const TGC_BASE=(process.env.TGC_BASE_URL||'https://demoricettivo.hi-logic.it').replace(/\/+$/,'');
+// Le card demo e quelle di produzione sono salvate con chiavi diverse: una card di prova non blocca mai l'emissione reale per lo stesso codice.
+const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code;
 const tgcBasicAuth=()=>'Basic '+Buffer.from(process.env.TGC_BASIC_USER+':'+process.env.TGC_BASIC_PASS).toString('base64');
 const ymd=s=>String(s).replace(/-/g,'');
 async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
@@ -134,11 +138,11 @@ if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return
 if(a==='gc_check'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
  if(x.stato==='in_attesa'||x.stato==='richiesta')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
- const card=await jg('gc:'+x.code);
+ const card=await jg(GCK(x.code));
  return res.json({booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,needsEmail:!x.email},card:card||null})}
 if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  if(x.stato!=='confermata')return res.status(409).json({err:'La prenotazione non è (ancora) confermata'});
- const existing=await jg('gc:'+x.code);if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
+ const existing=await jg(GCK(x.code));if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
  let email=x.email;
  if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
  if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD||!process.env.TGC_CARD_TYPE_ID)
@@ -150,7 +154,7 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
  // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido).
  const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
- await kv('SET','gc:'+x.code,JSON.stringify(card));
+ await kv('SET',GCK(x.code),JSON.stringify(card));
  return res.json(card)}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
