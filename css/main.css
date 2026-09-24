@@ -829,3 +829,7 @@ table.data th{white-space:nowrap}
 .rv-badge:hover{border-color:var(--wine)}
 .rv-badge b{color:var(--wine);font-size:1.05rem}
 .rv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:34px 24px;padding-top:14px}
+
+/* Eventi: tutta la scheda è cliccabile come per gli appartamenti */
+.grid-cards a.apt-card.ev-link{cursor:pointer;text-decoration:none;color:inherit}
+.grid-cards article.apt-card.ev-card{cursor:default}
