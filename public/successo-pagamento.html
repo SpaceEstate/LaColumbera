@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="successPage.title">Pagamento Riuscito - La Columbera</title>
+    <link rel="icon" href="favicon.ico?v=2" sizes="any">
+    <link rel="icon" href="favicon-32.png?v=2" type="image/png" sizes="32x32">
+    <link rel="icon" href="favicon-16.png?v=2" type="image/png" sizes="16x16">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="i18n.js"></script>
+    <style>
+        * {
+            margin: 0; 
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f1e9d9 0%, #dccfb6 100%);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #1e1917;
+        }
+
+        .success-container {
+            background: #fff;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(58, 21, 27, 0.15);
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .language-selector {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .lang-flag {
+            font-size: 1.3rem;
+            line-height: 1;
+            background: #faf5ec;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+
+        .lang-flag:hover {
+            transform: translateY(-1px);
+        }
+
+        .lang-flag.active {
+            border-color: #7a2e39;
+        }
+
+        .success-header {
+            margin-bottom: 30px;
+        }
+
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .success-title {
+            color: #7a2e39;
+            font-family: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+            font-size: 2.1rem;
+            font-weight: 500;
+            margin-bottom: 10px;
+        }
+
+        .success-logo {
+            height: 44px;
+            width: auto;
+            margin-bottom: 18px;
+        }
+
+        .success-subtitle {
+            font-size: 1.1rem;
+            color: #1e1917;
+            margin-bottom: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+            text-align: left;
+        }
+
+        .info-card {
+            background: #faf5ec;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #7a2e39;
+        }
+
+        .info-card h3 {
+            color: #7a2e39;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 500;
+            color: #1e1917;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #7a2e39;
+        }
+
+        .code-section {
+            background: linear-gradient(135deg, #7a2e39, #b08d3c);
+            color: #fff;
+            padding: 25px;
+            border-radius: 15px;
+            margin: 30px 0;
+        }
+
+        .code-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .code-box {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            letter-spacing: 0.2em;
+            margin-bottom: 10px;
+        }
+
+        .code-note {
+            font-size: 0.95rem;
+            opacity: 0.9;
+        }
+
+        .loading {
+            display: inline-block;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.6; }
+            to { opacity: 1; }
+        }
+
+        .error {
+            color: #e74c3c;
+            background: #fdf2f2;
+            border-color: #e74c3c;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #b08d3c, #7a2e39);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: #f8f8f8;
+            color: #1e1917;
+            border: 2px solid #e0e0e0;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(122, 46, 57, 0.3);
+        }
+
+/* Stili per codici multipli */
+.multi-codes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    width: 100%;
+}
+
+.code-item {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.code-label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #fff;
+    opacity: 0.95;
+}
+
+.code-number {
+    font-size: 2.2rem;
+    font-weight: bold;
+    letter-spacing: 0.15em;
+    margin: 15px 0;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.code-desc {
+    display: block;
+    font-size: 0.85rem;
+    opacity: 0.8;
+    margin-top: 8px;
+}
+
+/* Responsive per mobile */
+@media (max-width: 600px) {
+    .multi-codes {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .code-number {
+        font-size: 1.8rem;
+        padding: 12px;
+    }
+
+    .code-label {
+        font-size: 1rem;
+    }
+}
+
+        @media (max-width: 600px) {
+            .success-container {
+                padding: 25px;
+            }
+
+            .success-title {
+                font-size: 1.6rem;
+            }
+
+            .code-box {
+                font-size: 2rem;
+            }
+
+            .actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 280px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="language-selector" id="language-selector" role="group" aria-label="Lingua / Language / Sprache"></div>
+        <div class="success-header">
+            <img src="img/brand/logo.png" alt="La Columbera" class="success-logo">
+            <div class="success-icon">✅</div>
+            <h1 class="success-title" data-i18n="successPage.mainTitle">Pagamento completato!</h1>
+            <p class="success-subtitle" data-i18n="successPage.subtitle">Grazie per aver completato il check-in e il pagamento della tassa di soggiorno.</p>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3 data-i18n="successPage.bookingDetailsTitle">📋 Dettagli prenotazione</h3>
+                <div id="booking-details">
+                    <div class="loading" data-i18n="successPage.loadingDetails">Caricamento dettagli...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="code-section">
+            <h3 class="code-title" data-i18n="successPage.codeTitle">🔑 Codice cassetta sicurezza</h3>
+            <div id="codice-cassetta" class="code-box loading">
+                ••••
+            </div>
+            <p class="code-note" data-i18n="successPage.codeNote">Usa questo codice per accedere al tuo appartamento</p>
+        </div>
+
+        <div class="actions">
+            <a href="index.html" class="btn btn-primary" data-i18n="successPage.backHome">🏠 Torna alla Home</a>
+            <button onclick="window.print()" class="btn btn-secondary" data-i18n="successPage.print">🖨️ Stampa</button>
+        </div>
+    </div>
+
+    <script>
+        async function caricaDatiPagamento() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get("session_id");
+    const langParam = urlParams.get("lang");
+    if (langParam && ['it', 'en', 'de'].includes(langParam)) {
+        impostaLingua(langParam);
+    }
+    
+    console.log("🔍 Session ID:", sessionId);
+
+    if (!sessionId) {
+        mostraErrore(t('successPage.sessionNotFound'));
+        return;
+    }
+
+    try {
+        console.log("📡 Caricamento dati sessione...");
+        
+        const response = await fetch(`https://checkin-six-coral.vercel.app/api/get-session?session_id=${sessionId}&lang=${getLingua()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Errore HTTP: ${response.status}`);
+        }
+
+        const sessionData = await response.json();
+        console.log("✅ Dati sessione ricevuti:", sessionData);
+
+        mostraDettagliPrenotazione(sessionData);
+        mostraCodiciCassetta(sessionData.codiciCassetta);
+
+        sessionStorage.removeItem('datiPrenotazione');
+        sessionStorage.removeItem('paymentTimestamp');
+
+    } catch (error) {
+        console.error("❌ Errore nel caricamento:", error);
+        tentaRecuperoDaSessionStorage();
+    }
+}
+
+        async function tentaRecuperoDaSessionStorage() {
+    try {
+        const datiSalvati = sessionStorage.getItem('datiPrenotazione');
+        
+        if (datiSalvati) {
+            const datiPrenotazione = JSON.parse(datiSalvati);
+            console.log("✅ Dati recuperati da sessionStorage:", datiPrenotazione);
+            
+            mostraDettagliPrenotazione(datiPrenotazione);
+
+            // I codici non vengono più calcolati qui (erano in chiaro nel file
+            // pubblico). Se la prima chiamata a get-session è fallita, ci
+            // riproviamo solo per i codici; se fallisce anche questa,
+            // mostriamo un messaggio sicuro invece di inventare un codice.
+            const sessionId = new URLSearchParams(window.location.search).get("session_id");
+            let codici = null;
+            if (sessionId) {
+                try {
+                    const resp = await fetch(`https://checkin-six-coral.vercel.app/api/get-session?session_id=${sessionId}&lang=${getLingua()}`);
+                    if (resp.ok) {
+                        const dati = await resp.json();
+                        codici = dati.codiciCassetta;
+                    }
+                } catch (e) {
+                    console.warn("⚠️ Secondo tentativo di recupero codici fallito:", e);
+                }
+            }
+            mostraCodiciCassetta(codici);
+            
+            sessionStorage.removeItem('datiPrenotazione');
+            sessionStorage.removeItem('paymentTimestamp');
+        } else {
+            mostraErrore(t('successPage.noDataForSession'));
+        }
+    } catch (error) {
+        console.error("❌ Errore nel recupero da sessionStorage:", error);
+        mostraErrore(t('successPage.errorLoadingSaved'));
+    }
+}
+
+        function mostraDettagliPrenotazione(sessionData) {
+            const container = document.getElementById('booking-details');
+            
+            if (!sessionData) {
+                container.innerHTML = `<div class="error">${t('successPage.dataNotAvailable')}</div>`;
+                return;
+            }
+
+            // Formatta la data
+            let dataCheckin = 'N/A';
+            if (sessionData.dataCheckin) {
+                try {
+                    dataCheckin = new Date(sessionData.dataCheckin).toLocaleDateString(localeCorrente(), {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                } catch {
+                    dataCheckin = sessionData.dataCheckin;
+                }
+            }
+
+            // CORREZIONE: Gestisce sia formato API che sessionStorage
+            const totale = sessionData.totale || sessionData.amount_total || '0.00';
+            const numeroOspiti = sessionData.numeroOspiti || 'N/A';
+            const numeroNotti = sessionData.numeroNotti || 'N/A';
+            // Il valore arrivato dal backend resta sempre in italiano (coerente
+            // con Google Sheets/PDF proprietario): qui si traduce solo l'etichetta
+            // mostrata all'ospite, vedi nomeAppartamentoTradotto() in i18n.js.
+            const appartamento = sessionData.appartamento ? nomeAppartamentoTradotto(sessionData.appartamento) : 'N/A';
+
+            container.innerHTML = `
+                <div class="info-item">
+                    <span class="info-label" data-i18n="successPage.checkin">Check-in:</span>
+                    <span class="info-value">${dataCheckin}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label" data-i18n="successPage.apartment">Appartamento:</span>
+                    <span class="info-value">${appartamento}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label" data-i18n="successPage.guests">Ospiti:</span>
+                    <span class="info-value">${numeroOspiti}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label" data-i18n="successPage.nights">Notti:</span>
+                    <span class="info-value">${numeroNotti}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label" data-i18n="successPage.totalPaid">Totale pagato:</span>
+                    <span class="info-value">€${parseFloat(totale).toFixed(2)}</span>
+                </div>
+            `;
+            // ✅ FIX: stesso bug di checkin.js — le etichette qui sopra hanno
+            // già gli attributi data-i18n, ma vanno effettivamente tradotte
+            // dopo l'inserimento nel DOM (lo sweep di impostaLingua() è già
+            // passato prima che questo blocco esistesse).
+            applicaTraduzioni(container);
+        }
+
+        // I codici arrivano già calcolati dal backend (api/get-session.js),
+        // che li legge dalle variabili d'ambiente solo dopo aver verificato
+        // il pagamento. Qui ci limitiamo a mostrarli: prima venivano
+        // ricalcolati in chiaro anche qui, in un file pubblico scaricabile
+        // da chiunque anche senza aver pagato.
+        function mostraCodiciCassetta(codici) {
+    const codiceElement = document.getElementById('codice-cassetta');
+
+    if (!codici || codici.length === 0 || !codici.some(c => c.codice)) {
+        codiceElement.innerHTML = `<div class="error">${t('successPage.codeNotAvailable')}</div>`;
+        return;
+    }
+
+    // ✅ Genera HTML in base al numero di appartamenti
+    if (codici.length === 1) {
+        // Un solo appartamento
+        codiceElement.innerHTML = codici[0].codice;
+        codiceElement.classList.remove('loading');
+    } else {
+        // Entrambi gli appartamenti
+        codiceElement.innerHTML = `
+            <div class="multi-codes">
+                ${codici.map(cassetta => `
+                    <div class="code-item">
+                        <div class="code-label">🏠 ${cassetta.nome}</div>
+                        <div class="code-number">${cassetta.codice}</div>
+                        <small class="code-desc">${cassetta.descrizione}</small>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        codiceElement.classList.remove('loading');
+        codiceElement.style.fontSize = '1.2rem'; // Riduci font per contenere entrambi
+    }
+
+    console.log('🔑 Codici cassetta mostrati:', codici.map(c => c.nome).join(', '));
+}
+
+        function mostraErrore(messaggio) {
+            // Aggiorna dettagli prenotazione
+            const bookingDetails = document.getElementById('booking-details');
+            if (bookingDetails) {
+                bookingDetails.innerHTML = `<div class="error">${messaggio}</div>`;
+            }
+
+            // Aggiorna codice cassetta
+            const codiceElement = document.getElementById('codice-cassetta');
+            if (codiceElement) {
+                codiceElement.textContent = t('successPage.errorLoadingTitle');
+                codiceElement.classList.remove('loading');
+                codiceElement.classList.add('error');
+            }
+
+            // Cambia il titolo
+            const title = document.querySelector('.success-title');
+            if (title) {
+                title.removeAttribute('data-i18n');
+                title.textContent = t('successPage.errorLoadingTitle');
+            }
+
+            // Cambia l'icona
+            const icon = document.querySelector('.success-icon');
+            if (icon) {
+                icon.textContent = "❌";
+            }
+        }
+
+        // Inizializzazione
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("🚀 Pagina successo inizializzata");
+            caricaDatiPagamento();
+        });
+
+        // Gestione errori globali
+        window.addEventListener('error', function(event) {
+            console.error('❌ Errore JavaScript:', event.error);
+            mostraErrore(t('successPage.unexpectedError'));
+        });
+    </script>
+</body>
+</html>
