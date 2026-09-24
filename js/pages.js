@@ -197,6 +197,7 @@ function admin(c){
     </div></div>`).join('')}
     <div class="admin-card save-bar"><button class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button> <span class="admin-msg" id="o" data-testid="admin-save-msg"></span></div>
     <div class="admin-card"><h2>Prenotazioni dal sito</h2><div class="table-wrap" data-testid="admin-bookings"><table class="data"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${d.bk.length?d.bk.map(x=>`<tr><td><b>${x.code}</b></td><td>${nA(x.id)}</td><td>${fmtD(x.da)}</td><td>${fmtD(x.a)}</td><td>${x.ospiti}</td><td>${esc(x.nome)}<br>${esc(x.email)} ${esc(x.tel||'')}</td><td>${eur(x.totale)}</td><td><select class="stato-select" data-code="${x.code}">${['richiesta','in_attesa','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td><button class="stato-select btn-del-book" data-bookdel="${x.code}" data-testid="admin-book-del-${x.code}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9">Nessuna prenotazione per ora.</td></tr>'}</tbody></table></div></div>
+    <div class="admin-card" data-testid="admin-gc"><h2>Trentino Guest Card</h2><p class="book-note">Mostra le tipologie di card del tuo account: copia l'ID della tipologia giusta e mettilo su Vercel come <b>TGC_CARD_TYPE_ID</b>.</p><button class="btn btn-line" id="gctip" type="button">Mostra tipologie card</button><pre id="gcout" style="white-space:pre-wrap;word-break:break-word;margin-top:12px;font-size:.85rem"></pre></div>
     <div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali che verranno mostrati anch'essi sulla pagina Eventi.</p>
       <form id="evform" class="ev-form">
         <div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div>
@@ -262,6 +263,8 @@ function admin(c){
       try{await api('save',S,t);$('#o').textContent='Salvato: le modifiche sono già online.';setTimeout(()=>$('#o').textContent='',4000)}
       catch(x){$('#o').textContent=x.message}};
 
+    // ---- Guest Card: elenco tipologie ----
+    $('#gctip').onclick=async()=>{const o=$('#gcout');o.textContent='Carico…';try{o.textContent=JSON.stringify(await api('gc_tipologie',{},t),null,2)}catch(x){o.textContent='Errore: '+x.message}};
     // ---- Aggiungi evento ----
     $('#evform').onsubmit=async e=>{e.preventDefault();try{await api('event_add',Object.fromEntries(new FormData(e.target)),t);panel()}catch(x){alert(x.message)}};
   };
@@ -313,15 +316,18 @@ async function eventi(c){
   const today=iso(new Date());
   const all=[...auto,...man].filter(x=>x.date>=today).sort((a,b)=>a.date<b.date?-1:1);
   if(!all.length){box.innerHTML='<p class="book-note">Nessun evento in programma al momento.</p>';return}
-  box.innerHTML=all.map(x=>`
-    <article class="apt-card ev-card" style="cursor:default" data-testid="ev-${esc(x.date)}">
+  box.innerHTML=all.map(x=>{
+    const u=safeUrl(x.url),
+    inner=`
       <div class="body">
         <span class="section-kicker">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}${x.source?' · '+esc(x.source):''}</span>
         <h3>${esc(x.title)}</h3>
         <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
-        ${(()=>{const u=safeUrl(x.url);return u?`<div class="cta"><a class="cta-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer">Info <span aria-hidden="true">→</span></a></div>`:''})()}
-      </div>
-    </article>`).join('');
+        ${u?`<div class="cta"><span class="cta-link">Scopri di più <span aria-hidden="true">→</span></span></div>`:''}
+      </div>`;
+    return u
+      ?`<a class="apt-card ev-card ev-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer" aria-label="Apri la pagina dell'evento: ${esc(x.title)}" data-testid="ev-${esc(x.date)}">${inner}</a>`
+      :`<article class="apt-card ev-card" data-testid="ev-${esc(x.date)}">${inner}</article>`}).join('');
 }
 
 const P={apt,clienti,admin,guestcard,eventi};
