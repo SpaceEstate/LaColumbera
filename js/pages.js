@@ -127,6 +127,7 @@ function clienti(c){
           <div class="bc-actions">
             <a class="btn btn-wine" href="guest-card.html?code=${encodeURIComponent(x.code)}" data-testid="gc-link-${esc(x.code)}">Crea Guest Card</a>
             <a class="btn btn-line" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener" data-testid="checkin-link-${esc(x.code)}">Check-in online</a>
+            <a class="btn btn-line" href="https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ" target="_blank" rel="noopener" data-testid="review-link-${esc(x.code)}">Lascia una recensione</a>
           </div>
         </article>`).join('')}</div>`;
     }
