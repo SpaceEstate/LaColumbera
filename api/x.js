@@ -79,27 +79,50 @@ const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!pro
 function icalFeed(id,set){const dd=[...set].sort();const ranges=[];for(const d of dd){const last=ranges[ranges.length-1];if(last&&addDays(last.end,1)===d)last.end=d;else ranges.push({start:d,end:d})}const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'').replace('Z','')+'Z';let out='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Columbera//Prenotazioni//IT\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:La Columbera '+id+'\r\n';for(const r of ranges){out+='BEGIN:VEVENT\r\nUID:'+r.start+'-'+r.end+'-'+id+'@lacolumbera\r\nDTSTAMP:'+stamp+'\r\nDTSTART;VALUE=DATE:'+r.start.replace(/-/g,'')+'\r\nDTEND;VALUE=DATE:'+addDays(r.end,1).replace(/-/g,'')+'\r\nSUMMARY:Occupato - La Columbera\r\nTRANSP:OPAQUE\r\nEND:VEVENT\r\n'}out+='END:VCALENDAR\r\n';return out}
 
 // ---- Eventi automatici ----
+// Fonte: guida eventi ufficiale VisitTrentino (il vecchio indirizzo /it/eventi non esiste più: dava 404).
+// Se la pagina cambia struttura o non risponde si usa l'elenco fisso qui sotto, con link verificati.
+const EV_HOME='https://www.visittrentino.info';
+const EV_PAGE=EV_HOME+'/it/guida/cosa-fare/eventi';
 const curated=()=>{const t=new Date(),Y=t.getUTCFullYear();const base=[
- ['Mercatini di Natale di Trento',11,21,'Piazza Fiera & Piazza Cesare Battisti, Trento','https://www.visittrentino.info/it/eventi/mercatini-di-natale'],
- ['Trento Film Festival',4,24,'Vari luoghi, Trento','https://trentofestival.it'],
- ['Feste Vigiliane',6,20,'Centro storico, Trento','https://www.festevigiliane.it'],
- ["Festival dell'Economia di Trento",5,22,'Centro storico, Trento','https://www.festivaleconomia.it'],
- ['DiVinNosiola - Tempo di Vino Santo',3,28,'Valle dei Laghi, Trento','https://www.visittrentino.info/it/eventi'],
- ['Autunno Trentino - Sagre e sapori',10,4,'Trento e valli','https://www.visittrentino.info/it/eventi']];
+ ['Trentodoc Festival',9,25,'Centro storico, Trento','https://www.trentodocfestival.it/'],
+ ['Il Festival dello Sport di Trento',10,1,'Centro storico, Trento','https://www.ilfestivaldellosport.it/'],
+ ['Mercatini di Natale di Trento',11,21,'Piazza Fiera & Piazza Cesare Battisti, Trento',EV_HOME+'/it/esperienze/natale-in-trentino'],
+ ['Trento Film Festival',4,24,'Vari luoghi, Trento','https://trentofestival.it/'],
+ ["Festival dell'Economia di Trento",5,20,'Centro storico, Trento','https://www.festivaleconomia.it/it'],
+ ['Feste Vigiliane',6,20,'Centro storico, Trento','https://www.visittrento.it/it/eventi-festival/festival-grandi-eventi']];
  const iso2=d=>d.toISOString().slice(0,10),today=iso2(t);
  return base.map(([title,mo,day,location,url])=>{let d=new Date(Date.UTC(Y,mo-1,day));if(iso2(d)<today)d=new Date(Date.UTC(Y+1,mo-1,day));return{title,date:iso2(d),time:'',location,url,source:'VisitTrentino'}})};
-const absUrl=u=>{u=String(u||'').trim();if(!u)return'';if(/^https?:\/\//i.test(u))return u;if(u[0]==='/')return'https://www.visittrentino.info'+u;return'https://'+u};
+const absUrl=u=>{u=String(u||'').trim();if(!u)return'';if(/^https?:\/\//i.test(u))return u;if(u[0]==='/')return EV_HOME+u;return'https://'+u};
+const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+const decode=s=>String(s).replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#0?39;|&apos;/g,"'").replace(/&nbsp;/g,' ').replace(/&#(\d+);/g,(m,n)=>String.fromCharCode(+n)).replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+// Estrae gli eventi di Trento dall'HTML della guida: per ogni link evento cerca titolo (h2/h3), date e luogo vicini,
+// e scarta le coppie in cui il titolo non corrisponde al link (evita link sbagliati).
+function parseEventiHtml(html){
+ const out=[],seen=new Set(),re=/href="((?:https?:\/\/www\.visittrentino\.info)?\/it\/guida\/cosa-fare\/eventi\/([a-z0-9\-_]+)_e_\d+)"/gi,hits=[];let m;
+ while((m=re.exec(html)))hits.push({i:m.index,path:m[1],slug:m[2]});
+ for(let k=0;k<hits.length;k++){const h=hits[k];if(seen.has(h.path))continue;
+  const end=Math.min(hits[k+1]?hits[k+1].i:html.length,h.i+3500),win=html.slice(h.i,end);
+  const tm=/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(win);if(!tm)continue;
+  const title=decode(tm[1].replace(/<[^>]+>/g,'')).replace(/\s+/g,' ').trim();
+  if(!title||slug(title).slice(0,10)!==h.slug.slice(0,10))continue;
+  const txt=win.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,'\n'),lines=decode(txt).split('\n').map(x=>x.trim()).filter(Boolean);
+  const di=lines.findIndex(l=>/^\d{2}\/\d{2}\/\d{4}(\s*-\s*\d{2}\/\d{2}\/\d{4})?$/.test(l));if(di<1)continue;
+  const dm=lines[di].match(/(\d{2})\/(\d{2})\/(\d{4})/g),conv=x=>x.slice(6)+'-'+x.slice(3,5)+'-'+x.slice(0,2);
+  const loc=lines[di-1].replace(/\s*-\s*Una città da scoprire$/i,'');
+  if(!/trento|povo|ravina|mattarello|villazzano|cadine|sardagna|bondone|piné|baselga/i.test(lines[di-1]))continue;
+  seen.add(h.path);
+  const start=conv(dm[0]),endD=dm[1]?conv(dm[1]):start,today=new Date().toISOString().slice(0,10);
+  // eventi lunghi (mostre di mesi): mostrati a partire da oggi, non dal giorno di inizio
+  out.push({title,date:start<today&&endD>=today?today:start,time:'',location:loc,url:absUrl(h.path),source:'VisitTrentino'})}
+ return out}
 const feed=async()=>{
  try{
-  const r=await fetch('https://www.visittrentino.info/it/eventi',{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'}});
-  if(r.ok){const html=await r.text(),out=[],re=/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;let m;
-   while((m=re.exec(html))){let data;try{data=JSON.parse(m[1])}catch{continue}
-    const arr=Array.isArray(data)?data:[data];
-    for(const it of arr){if(!it||typeof it!=='object')continue;const type=it['@type'];
-     if((type==='Event'||type==='Festival'||it.startDate)&&it.startDate){const sd=String(it.startDate).slice(0,10);if(!/^\d{4}-\d\d-\d\d$/.test(sd))continue;
-      let loc='';if(it.location&&it.location.name)loc=it.location.name;else if(Array.isArray(it.location)&&it.location[0])loc=it.location[0].name||'';
-      out.push({title:it.name||'Evento',date:sd,time:String(it.startDate).slice(11,16),location:loc||'Trentino',url:absUrl(it.url)||'https://www.visittrentino.info/it/eventi',source:'VisitTrentino'})}}}
-   if(out.length)return out}
+  const out=[],seenU=new Set();
+  for(const pg of [1,2,3]){
+   const r=await fetch(EV_PAGE+'?mode=list&page='+pg,{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'}});
+   if(!r.ok)continue;
+   for(const e of parseEventiHtml(await r.text()))if(!seenU.has(e.url)){seenU.add(e.url);out.push(e)}}
+  if(out.length)return out
  }catch{}
  return curated();
 };
