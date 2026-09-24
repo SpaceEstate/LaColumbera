@@ -735,7 +735,7 @@ input,select,textarea{font-family:inherit}
 .pcal{margin:6px 0 8px}
 .pcal-head{display:flex;justify-content:space-between;align-items:center;margin:10px 0}
 .pcal-head b{font-family:var(--serif);font-style:italic;font-size:1.2rem;text-transform:capitalize}
-.pcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.pcal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .pcal-grid>b{font-size:.68rem;letter-spacing:.08em;color:var(--muted);font-weight:700;text-align:center;padding:4px 0}
 .pcal-grid>i{min-height:1px}
 .pcell{
@@ -837,3 +837,95 @@ table.data th{white-space:nowrap}
 /* Eventi: tutta la scheda è cliccabile come per gli appartamenti */
 .grid-cards a.apt-card.ev-link{cursor:pointer;text-decoration:none;color:inherit}
 .grid-cards article.apt-card.ev-card{cursor:default}
+
+/* ===== Admin: correzioni base (desktop + mobile) ===== */
+.admin-card{min-width:0}
+.field input,.field select,.field textarea{min-width:0;max-width:100%}
+.pcell{min-width:0;overflow:hidden}
+.pcal-grid>b{min-width:0}
+.field .closed-toggle{display:flex;align-items:flex-start;gap:12px;margin:0;font-size:.9rem;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink);cursor:pointer;line-height:1.4}
+.field .closed-toggle input{width:20px;height:20px;flex:0 0 20px;margin:1px 0 0;padding:0;accent-color:var(--wine)}
+.fields-grid .field{display:flex;flex-direction:column;justify-content:flex-end}
+.ev-form .field,.ev-form input{min-width:0}
+
+/* ===== Admin: ottimizzazione telefono ===== */
+@media (max-width:760px){
+  .admin-main .wrap{padding-left:14px;padding-right:14px}
+  .admin-card{padding:18px 16px;margin-bottom:22px;border-radius:16px}
+  .admin-card h2{font-size:1.3rem}
+  .field label{letter-spacing:.08em}
+  .field input,.field select,.field textarea{font-size:16px} /* evita lo zoom automatico di iOS */
+
+  /* campi numerici: 2 colonne con input allineati sulla stessa riga */
+  .fields-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+
+  /* calendario prezzi: 7 colonne uguali, niente scritte che le allargano */
+  .pcal-grid{gap:3px}
+  .pcal-grid>b{font-size:.62rem;letter-spacing:0}
+  .pcell{min-height:50px;padding:5px 2px 4px;border-radius:8px;align-items:center;text-align:center}
+  .pcell .pday{font-size:.75rem}
+  .pcell .pprice{font-size:.64rem;letter-spacing:-.02em}
+  .pcell .pstate{font-size:0;letter-spacing:0}
+  .pcell .pstate::after{content:"occ.";font-size:.58rem;letter-spacing:0}
+  .pcal-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
+  .pcal-tools .field{grid-column:1/-1;min-width:0;margin:0}
+  .pcal-tools .btn{width:100%;justify-content:center;padding:12px 10px;font-size:.85rem;white-space:normal;line-height:1.2;text-align:center}
+  .pcal-tools [data-apply]{grid-column:1/-1}
+
+  /* foto: comandi in una barra in basso, senza coprire il badge "Copertina" */
+  .pm-grid{gap:10px}
+  .pm-item{width:calc(50% - 5px)}
+  .pm-handle{display:none}
+  .pm-tools{top:auto;right:0;bottom:0;left:0;justify-content:space-evenly;gap:0;padding:5px 4px;background:linear-gradient(to top,rgba(30,25,23,.72),rgba(30,25,23,0))}
+  .pm-tools button{width:32px;height:32px;font-size:.95rem}
+
+  /* prenotazioni & eventi: da tabella larga a schede leggibili */
+  .table-wrap.tw-stack{overflow:visible;background:none;border:0;box-shadow:none;border-radius:0}
+  table.stack,table.stack tbody{display:block;width:100%}
+  table.stack thead{display:none}
+  table.stack tr{display:block;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:6px 14px 12px;margin-bottom:12px}
+  table.stack td{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem;min-width:0;overflow-wrap:anywhere}
+  table.stack td::before{content:attr(data-label);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--wine)}
+  table.stack td.td-cliente{align-items:start}
+  table.stack td.td-azioni{display:block;border-bottom:0;padding:12px 0 0}
+  table.stack td.td-azioni::before{display:none}
+  table.stack td.td-azioni .stato-select{width:100%;padding:11px 12px;text-align:center}
+  table.stack td.td-empty{display:block;border:0;padding:14px 0;text-align:center;color:var(--muted)}
+  table.stack td.td-empty::before{display:none}
+  table.stack .stato-select{width:100%;font-size:16px}
+  table.data.stack th,table.data.stack td{padding-left:0;padding-right:0}
+  table.stack td{line-height:1.4}
+
+  /* prenotazioni: scheda compatta a 2 colonne (Codice/App, Dal/Al, Ospiti/Totale) */
+  table.stack.bk tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;padding:12px 14px 14px}
+  table.stack.bk td{display:block;border-bottom:0;padding:7px 0}
+  table.stack.bk td::before{display:block;margin-bottom:3px}
+  table.stack.bk td.td-cliente,table.stack.bk td[data-label="Stato"],table.stack.bk td.td-azioni{grid-column:1/-1}
+  table.stack.bk td.td-cliente{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+  table.stack.bk td.td-cliente b,table.stack.bk td[data-label="Codice"] b{font-size:1rem}
+  table.stack.bk td.td-azioni{padding-top:6px}
+  table.stack.bk td.td-empty{grid-column:1/-1}
+  table.stack.bk td[data-label="Totale"]{order:6}
+  table.stack.bk td.td-cliente{order:7}
+  table.stack.bk td[data-label="Stato"]{order:8}
+  table.stack.bk td.td-azioni{order:9}
+  .pcal-tools [data-clearsel]{grid-column:1/-1}
+
+  /* form eventi: due colonne uguali, bottone a tutta larghezza */
+  .ev-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .ev-form>.field:first-child,.ev-form>.field:nth-child(4),.ev-form>.btn{grid-column:1/-1}
+  .ev-form .btn{width:100%;justify-content:center}
+  .ev-form{align-items:start}
+  .ev-form input{min-height:46px;height:46px}
+  .ev-form input[type=date]{-webkit-appearance:none;appearance:none;display:block}
+
+  /* riga foto: bottone "+ Aggiungi foto" a tutta larghezza */
+  .upload-row{gap:10px}
+  .upload-btn{flex:1 1 100%;justify-content:center}
+  .admin-msg{margin-left:0}
+}
+@media (max-width:400px){
+  .fields-grid{gap:0 10px}
+  .admin-card{padding:16px 13px}
+  table.stack td{grid-template-columns:72px minmax(0,1fr)}
+}
