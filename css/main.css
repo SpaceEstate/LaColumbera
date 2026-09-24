@@ -134,7 +134,7 @@ p{margin:0 0 1em}
   .nav-links.is-open{transform:translateY(0);opacity:1;pointer-events:auto}
   .nav-links a{padding:14px 8px;color:var(--ink) !important;border-radius:0;border-bottom:1px solid rgba(122,46,57,.08)}
   .nav-links a.only-mobile{display:block}
-  .nav-links .nav-cta{display:none}
+  .nav-links .nav-cta{display:flex;justify-content:center;align-items:center;margin:12px 0 0;color:#fff !important;border-bottom:none}
   .site-header:not(.is-scrolled) .nav-links a{color:var(--ink) !important}
 }
 
@@ -770,7 +770,8 @@ input,select,textarea{font-family:inherit}
 .pm-tools{position:absolute;top:6px;right:6px;display:flex;gap:4px}
 .pm-tools button{width:26px;height:26px;border-radius:50%;border:0;background:rgba(30,25,23,.82);color:#F6EBD9;font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:background .2s ease}
 .pm-tools button:hover{background:var(--wine)}
-.save-bar{display:flex;align-items:center;gap:14px;position:sticky;bottom:16px;z-index:20}
+.save-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:fixed;left:0;right:0;bottom:16px;margin:0 auto;width:calc(100% - 40px);max-width:1176px;z-index:40}
+.admin-main{padding-bottom:190px}
 .ev-form{display:grid;grid-template-columns:1.5fr 1fr .8fr 1.4fr auto;gap:12px;align-items:end}
 @media(max-width:760px){.ev-form{grid-template-columns:1fr 1fr}}
 
@@ -810,10 +811,13 @@ table.data th{white-space:nowrap}
   .pcell .pstate{font-size:.56rem}
   .pcal-tools{gap:8px}
   .pcal-tools .field{min-width:120px}
-  .admin-main{padding:110px 0 60px}
+  .admin-main{padding:110px 0 170px}
   .book-card{padding:20px}
   .gallery-main .g-arrow{width:40px;height:40px;font-size:1.4rem}
   .fields-grid{grid-template-columns:1fr 1fr}
+  .pm-item{width:calc(50% - 7px);height:auto;aspect-ratio:150/110}
+  .save-bar{bottom:12px;width:calc(100% - 24px);padding:16px 18px !important;justify-content:center}
+  .save-bar .btn{flex:1 1 auto;justify-content:center}
 }
 @media (max-width:480px){
   .booking-card .bc-actions{flex-direction:column}
