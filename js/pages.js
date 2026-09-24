@@ -39,7 +39,7 @@ async function apt(c){
      <button type="button" class="g-arrow next" id="g-next" aria-label="Foto successiva" data-testid="gallery-next">›</button>
      <span class="g-counter" id="g-count" data-testid="gallery-counter"></span>`);
   th.innerHTML=p.foto.map((u,i)=>`<button type="button" data-i="${i}" data-testid="gallery-thumb-${i}"><img src="${u}" alt="" loading="lazy"></button>`).join('');
-  const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];$('#g-count').textContent=`${cur+1} / ${N}`;
+  const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];[cur+1,cur-1].forEach(k=>{if(N>1)new Image().src=p.foto[(k+N)%N]});$('#g-count').textContent=`${cur+1} / ${N}`;
     th.querySelectorAll('button').forEach((b,j)=>b.classList.toggle('on',j===cur));
     const act=th.querySelector(`[data-i="${cur}"]`);act&&act.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})};
   goTo(0);
@@ -48,6 +48,33 @@ async function apt(c){
   $('#g-next').onclick=()=>goTo(cur+1);
   th.onclick=e=>{const b=e.target.closest('button');if(b)goTo(+b.dataset.i)};
   document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
+
+  // Swipe col dito sulla foto grande (mobile): trascina a sinistra = avanti, a destra = indietro
+  if(N>1){
+    let sx=0,sy=0,dx=0,drag=false,lock=null;
+    const reset=()=>{gm.style.transition='transform .25s ease';gm.style.transform=''};
+    gmWrap.addEventListener('touchstart',e=>{
+      if(e.touches.length!==1){drag=false;return}
+      sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=0;drag=true;lock=null;gm.style.transition='none';
+    },{passive:true});
+    gmWrap.addEventListener('touchmove',e=>{
+      if(!drag)return;
+      const x=e.touches[0].clientX-sx,y=e.touches[0].clientY-sy;
+      if(lock===null&&(Math.abs(x)>8||Math.abs(y)>8))lock=Math.abs(x)>Math.abs(y)?'x':'y';
+      if(lock!=='x')return;
+      dx=x;gm.style.transform=`translateX(${dx}px)`;
+    },{passive:true});
+    gmWrap.addEventListener('touchend',()=>{
+      if(!drag)return;drag=false;
+      if(lock==='x'&&Math.abs(dx)>50){
+        const dir=dx<0?1:-1;
+        goTo(cur+dir);
+        gm.style.transition='none';gm.style.transform=`translateX(${dir*40}px)`;gm.style.opacity='.3';
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{gm.style.transition='transform .25s ease,opacity .25s ease';gm.style.transform='';gm.style.opacity=''}));
+      }else reset();
+    });
+    gmWrap.addEventListener('touchcancel',()=>{drag=false;reset()});
+  }
 
   // disponibilità e prenotazione
   const box=$('#bk'),qp=new URLSearchParams(location.search),pagamento=qp.get('pagamento');
