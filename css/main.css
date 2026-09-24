@@ -820,3 +820,12 @@ table.data th{white-space:nowrap}
   .booking-card .bc-actions .btn{width:100%}
   .page-intro{padding:120px 0 30px}
 }
+
+/* ===== Recensioni dinamiche (torre/corte) ===== */
+.rv-section{padding:20px 0 90px}
+.rv-section h2{margin-bottom:26px}
+.rv-badges{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:34px}
+.rv-badge{display:inline-block;padding:10px 18px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--charcoal);font-size:.92rem;text-decoration:none;transition:border-color .2s}
+.rv-badge:hover{border-color:var(--wine)}
+.rv-badge b{color:var(--wine);font-size:1.05rem}
+.rv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:34px 24px;padding-top:14px}
