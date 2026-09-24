@@ -929,3 +929,14 @@ table.data th{white-space:nowrap}
   .admin-card{padding:16px 13px}
   table.stack td{grid-template-columns:72px minmax(0,1fr)}
 }
+
+
+/* ===== Mobile: hero home inquadrata sulla lampada + swipe galleria ===== */
+@media (max-width:900px){
+  .hero-media img{object-position:80% 50%}
+}
+@media (max-width:520px){
+  .hero{min-height:88vh;min-height:88svh}
+}
+.gallery-main{touch-action:pan-y}
+.gallery-main img{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
