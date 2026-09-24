@@ -85,7 +85,7 @@ async function apt(c){
   }
   const bz=await get('a=busy&id='+p.id);
   if(!bz){
-    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>Al momento non riesco a caricare la disponibilità. Scrivici: <a href="mailto:info@lacolumbera.it">info@lacolumbera.it</a></p></div>`;
+    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>Al momento non riesco a caricare la disponibilità. Scrivici: <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a></p></div>`;
     return;
   }
   const busy=new Set(bz),today=iso(new Date());
