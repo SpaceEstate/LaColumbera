@@ -45,7 +45,7 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // TGC_CARD_TYPE_ID va preso dalla risposta di TipologieCard.ashx (endpoint admin gc_tipologie).
 // SICUREZZA: senza TGC_BASE_URL si usa l'ambiente DEMO, così una configurazione incompleta non emette mai card reali.
 // Per andare in produzione imposta esplicitamente TGC_BASE_URL=https://ricettivo.guestcard.info su Vercel.
-const TGC_BASE=(process.env.TGC_BASE_URL||'https://demoricettivo.hi-logic.it').replace(/\/+$/,'');
+const TGC_BASE=(process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info').replace(/\/+$/,'');
 // Le card demo e quelle di produzione sono salvate con chiavi diverse: una card di prova non blocca mai l'emissione reale per lo stesso codice.
 const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code;
 const tgcBasicAuth=()=>'Basic '+Buffer.from(process.env.TGC_BASIC_USER+':'+process.env.TGC_BASIC_PASS).toString('base64');
