@@ -37,27 +37,27 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// Modalità ATTIVA oggi — Emissione Essenziale via Basic Auth (doc pag.2-6, "opzione consigliata"):
-// Autenticazione DOPPIA su OGNI chiamata (doc pag.2: "Tutti i metodi delle web api prevedono una
-// Basic Authentication"):
-//  1) header Authorization: Basic base64(TGC_BASIC_USER:TGC_BASIC_PASS) — credenziali del gestionale
-//     (test: Gestionali / 12345678; produzione: comunicate via email da Trentino Marketing)
-//  2) Username/Password della STRUTTURA su ricettivo.guestcard.info, passate come campo del
-//     form/querystring (test: Belvedere / Belvedere; produzione: quelle di "La Columbera")
-// TGC_CARD_TYPE_ID va preso dalla risposta di TipologieCard.ashx (endpoint admin gc_tipologie).
+// Modalità ATTIVA oggi — Bearer Token OAuth (doc pag.17-20): confermata dal test come l'unica che
+// funziona per questo account. Serve un client_id/client_secret OAuth DEDICATI, che Trentino
+// Marketing fornisce "per ogni PMS" su richiesta esplicita (doc pag.17-18: in demo è sempre
+// "PMSOauth_demo" con un secret proprio — una coppia DIVERSA dalle credenziali Basic Auth del
+// gestionale). Vanno messi in TGC_OAUTH_CLIENT_ID / TGC_OAUTH_CLIENT_SECRET. Flusso: il bottone
+// admin "Autorizza Trentino Guest Card" (gc_oauth_start) → login con Username/Password STRUTTURA su
+// ricettivo.guestcard.info (quelle della struttura, non il client OAuth — su Vercel sono
+// TGC_USERNAME/TGC_PASSWORD) → redirect con ?code=...&state=... a gc_oauth_callback → scambio
+// code/Token salvato su KV → da lì tgcGetToken() lo rinnova da solo (refresh_token) quando scade, e
+// tgcCall() chiama /ws/Pms/... con Authorization: Bearer. TGC_REDIRECT_URI (l'url di
+// gc_oauth_callback) va comunicato a Trentino Marketing per il whitelisting: senza, il login fallisce
+// anche con client_id/secret corretti (doc pag.18). TGC_CARD_TYPE_ID va preso dalla risposta di
+// gc_tipologie, ma solo DOPO aver completato l'autorizzazione qui sopra: prima di allora tgcCall
+// risponde con l'errore "Guest Card non ancora autorizzata".
 //
-// Modalità PRONTA MA NON ATTIVA — Bearer Token OAuth (doc pag.17-20, "più moderna", opzionale):
-// serve un client_id/client_secret OAuth DEDICATI, che Trentino Marketing fornisce "per ogni PMS" su
-// richiesta esplicita (doc pag.17-18: in demo è sempre "PMSOauth_demo" con un secret proprio — una
-// coppia DIVERSA dalle credenziali Basic Auth del gestionale, mai la stessa). Vanno messi in
-// TGC_OAUTH_CLIENT_ID / TGC_OAUTH_CLIENT_SECRET — NON riusare TGC_BASIC_USER/PASS qui: la commit
-// precedente lo faceva ed è quasi certamente la causa del "Client non autorizzato" quando si prova
-// ad autorizzare, perché quelle sono le credenziali Basic Auth del gestionale, non il client_id OAuth.
-// Finché TGC_OAUTH_CLIENT_ID/SECRET non sono confermati da Trentino Marketing, l'emissione usa la
-// Basic Auth qui sopra — più semplice e già funzionante con le credenziali disponibili fin dall'inizio.
-// Il bottone admin "Autorizza" e gc_oauth_start/gc_oauth_callback restano nel codice, pronti da usare
-// (tramite tgcCall) appena i valori sono confermati; finché TGC_OAUTH_CLIENT_ID non è impostata,
-// gc_oauth_start risponde con un errore chiaro invece di mandare l'admin su un login che rifiuterà comunque.
+// Modalità DISMESSA — Emissione Essenziale via Basic Auth (doc pag.2-6): il test conferma che per
+// questo account la coppia TGC_BASIC_USER/PASS (un id con prefisso "PMS_" + un GUID) viene rifiutata
+// dal server con "401 Invalid PMS" — non è una Basic Auth "gestionale" valida (in demo quella è la
+// parola semplice "Gestionali"/"12345678", doc pag.2), ma la stessa forma del client_id/secret OAuth
+// messa nel posto sbagliato. tgcBasicAuth() ed emettiGuestCardTGC() restano nel codice come riserva,
+// ma nessun endpoint le chiama più: gc_issue, gc_tipologie e gc_attributi passano tutti da tgcCall().
 //
 // SICUREZZA: senza TGC_BASE_URL si usa l'ambiente DEMO, così una configurazione incompleta non emette mai card reali.
 // Per andare in produzione imposta esplicitamente TGC_BASE_URL=https://ricettivo.guestcard.info su Vercel.
@@ -67,6 +67,7 @@ const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code
 const tgcBasicAuth=()=>'Basic '+Buffer.from(process.env.TGC_BASIC_USER+':'+process.env.TGC_BASIC_PASS).toString('base64');
 const ymd=s=>String(s).replace(/-/g,'');
 
+// Riserva, non usata oggi (vedi nota sopra): emissione via Basic Auth, rifiutata dal server per questo account.
 async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
  const fd=new FormData();
  fd.set('idTipologiaCard',String(process.env.TGC_CARD_TYPE_ID));
@@ -80,7 +81,7 @@ async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
  if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
-// ---- OAuth Bearer Token: scaffolding pronto, NON ancora agganciato all'emissione (vedi nota sopra) ----
+// ---- OAuth Bearer Token: percorso attivo (vedi nota sopra) ----
 const tgcOauthBasic=()=>'Basic '+Buffer.from(process.env.TGC_OAUTH_CLIENT_ID+':'+process.env.TGC_OAUTH_CLIENT_SECRET).toString('base64');
 
 // Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken
@@ -238,12 +239,14 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  const existing=await jg(GCK(x.code));if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
  let email=x.email;
  if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
- if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD||!process.env.TGC_CARD_TYPE_ID)
-  return res.status(500).json({err:'Guest Card non configurata sul server (mancano variabili TGC_* su Vercel)'});
+ if(!process.env.TGC_CARD_TYPE_ID)
+  return res.status(500).json({err:'Guest Card non configurata sul server (manca TGC_CARD_TYPE_ID su Vercel)'});
  // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
  // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
+ const form={idTipologiaCard:process.env.TGC_CARD_TYPE_ID,dal:ymd(x.da),al:ymd(x.a),Email:email,PersoneMax:x.ospiti,ExtraSftAlbergatori:String(x.code).slice(0,36)};
+ if(process.env.TGC_ATTRIBUTO_ID)form.IdAttributo=process.env.TGC_ATTRIBUTO_ID;
  let tgc;
- try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti,codice:x.code})}
+ try{tgc=await tgcCall('EmissioneEssenzialeCard.ashx',{method:'POST',form})}
  catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
  // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido).
  const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
@@ -265,28 +268,18 @@ if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({er
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
 if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
- if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'OAuth non ancora configurato: mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel (client_id/secret dedicati da richiedere a Trentino Marketing — non sono le stesse credenziali della Basic Auth). Per ora l\'emissione funziona comunque via Basic Auth, senza bisogno di autorizzare nulla qui.'});
+ if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'OAuth non ancora configurato: mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel (client_id/secret dedicati da richiedere a Trentino Marketing — non sono le stesse credenziali della Basic Auth, ormai dismessa perché rifiutata dal server per questo account con "401 Invalid PMS"). Senza autorizzazione OAuth l\'emissione della Guest Card non funziona.'});
  const state=c.randomBytes(16).toString('hex');
  await kv('SET','tgc:oauth:state:'+state,'1','EX','600');
  const qs=new URLSearchParams({client_id:process.env.TGC_OAUTH_CLIENT_ID,redirect_uri:process.env.TGC_REDIRECT_URI,state});
  return res.json({url:TGC_BASE+'/loginricettivo.aspx?'+qs})}
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
- if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano variabili TGC_* su Vercel'});
- try{const qs=new URLSearchParams({username:process.env.TGC_USERNAME,password:process.env.TGC_PASSWORD});
-  const r=await fetch(TGC_BASE+'/ws/SoftwareGestionali/TipologieCard.ashx?'+qs,{headers:{Authorization:tgcBasicAuth()}});
-  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
-  if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
-  return res.json(j)}
+ try{return res.json(await tgcCall('TipologieCard.ashx'))}
  catch(e){return res.status(502).json({err:e.message})}}
 if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede idAttributo
- if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS||!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)return res.status(500).json({err:'Mancano variabili TGC_* su Vercel'});
  const idTipologiaCard=req.query.idTipologiaCard||b.idTipologiaCard;
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
- try{const qs=new URLSearchParams({username:process.env.TGC_USERNAME,password:process.env.TGC_PASSWORD,idTipologiaCard:String(idTipologiaCard)});
-  const r=await fetch(TGC_BASE+'/ws/SoftwareGestionali/AttributiCard.ashx?'+qs,{headers:{Authorization:tgcBasicAuth()}});
-  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
-  if(!r.ok)return res.status(502).json({err:'HTTP '+r.status+' '+txt.slice(0,300)});
-  return res.json(j)}
+ try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
 if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
 if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
