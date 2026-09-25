@@ -37,27 +37,29 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// Modalità ATTIVA oggi — Bearer Token OAuth (doc pag.17-20): confermata dal test come l'unica che
-// funziona per questo account. Serve un client_id/client_secret OAuth DEDICATI, che Trentino
-// Marketing fornisce "per ogni PMS" su richiesta esplicita (doc pag.17-18: in demo è sempre
-// "PMSOauth_demo" con un secret proprio — una coppia DIVERSA dalle credenziali Basic Auth del
-// gestionale). Vanno messi in TGC_OAUTH_CLIENT_ID / TGC_OAUTH_CLIENT_SECRET. Flusso: il bottone
-// admin "Autorizza Trentino Guest Card" (gc_oauth_start) → login con Username/Password STRUTTURA su
-// ricettivo.guestcard.info (quelle della struttura, non il client OAuth — su Vercel sono
-// TGC_USERNAME/TGC_PASSWORD) → redirect con ?code=...&state=... a gc_oauth_callback → scambio
-// code/Token salvato su KV → da lì tgcGetToken() lo rinnova da solo (refresh_token) quando scade, e
-// tgcCall() chiama /ws/Pms/... con Authorization: Bearer. TGC_REDIRECT_URI (l'url di
-// gc_oauth_callback) va comunicato a Trentino Marketing per il whitelisting: senza, il login fallisce
-// anche con client_id/secret corretti (doc pag.18). TGC_CARD_TYPE_ID va preso dalla risposta di
-// gc_tipologie, ma solo DOPO aver completato l'autorizzazione qui sopra: prima di allora tgcCall
-// risponde con l'errore "Guest Card non ancora autorizzata".
+// STATO ATTUALE (25/09/2026): NESSUNA delle due modalità funziona ancora con le credenziali
+// disponibili — non dare per scontato che una sia "quella giusta" finché Trentino Marketing non lo
+// conferma esplicitamente:
+//  - Basic Auth (TGC_BASIC_USER/PASS = "PMS_Lacolumbera" + un GUID): rifiutata con "401 Invalid PMS".
+//  - OAuth (TGC_OAUTH_CLIENT_ID/SECRET = la STESSA coppia "PMS_Lacolumbera" + GUID): la pagina di
+//    login di Trentino (loginricettivo.aspx) risponde "Client non autorizzato" dopo l'inserimento di
+//    Username/Password della struttura — quindi anche come client_id OAuth questa coppia non è
+//    (ancora) riconosciuta valida.
+// La conclusione più probabile è che "PMS_Lacolumbera" + GUID non sia un client_id OAuth dedicato
+// vero e proprio, ma un altro tipo di credenziale (o un client non ancora attivato lato Trentino);
+// va chiesto un chiarimento esplicito a Trentino Marketing su quale sia la modalità di
+// autenticazione corretta per questo account e, se serve OAuth, un client_id/secret DEDICATI
+// (doc pag.17-18: "per ogni PMS", diversi da quelli già in mano).
 //
-// Modalità DISMESSA — Emissione Essenziale via Basic Auth (doc pag.2-6): il test conferma che per
-// questo account la coppia TGC_BASIC_USER/PASS (un id con prefisso "PMS_" + un GUID) viene rifiutata
-// dal server con "401 Invalid PMS" — non è una Basic Auth "gestionale" valida (in demo quella è la
-// parola semplice "Gestionali"/"12345678", doc pag.2), ma la stessa forma del client_id/secret OAuth
-// messa nel posto sbagliato. tgcBasicAuth() ed emettiGuestCardTGC() restano nel codice come riserva,
-// ma nessun endpoint le chiama più: gc_issue, gc_tipologie e gc_attributi passano tutti da tgcCall().
+// Il codice sotto implementa comunque ENTRAMBI i percorsi, pronti a essere usati appena le
+// credenziali giuste saranno note:
+//  - OAuth (gc_oauth_start → login struttura → gc_oauth_callback → tgcCall su /ws/Pms/...) è quello
+//    collegato oggi a gc_issue, gc_tipologie, gc_attributi — perché è il flusso "più moderno" secondo
+//    la doc, non perché sia stato verificato funzionante.
+//  - Basic Auth (tgcBasicAuth, emettiGuestCardTGC) resta nel codice come riserva, non agganciata a
+//    nessun endpoint; va riagganciata se Trentino Marketing conferma che è quella corretta.
+// TGC_REDIRECT_URI (l'url di gc_oauth_callback) risulta già whitelistata correttamente (il login
+// arriva fino al form Username/Password), quindi il problema non è lì.
 //
 // SICUREZZA: senza TGC_BASE_URL si usa l'ambiente DEMO, così una configurazione incompleta non emette mai card reali.
 // Per andare in produzione imposta esplicitamente TGC_BASE_URL=https://ricettivo.guestcard.info su Vercel.
