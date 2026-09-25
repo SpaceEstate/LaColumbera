@@ -34,35 +34,41 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
  if(s)return{code:s.code,id:s.id,da:s.da,a:s.a,notti:s.notti,ospiti:s.ospiti,nome:'',email:'',stato:s.stato,fonte:'foglio'};
  return null};
 
-// ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) ----
+// ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026), innovazione@trentinomarketing.org ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// STATO ATTUALE (25/09/2026): NESSUNA delle due modalità funziona ancora con le credenziali
-// disponibili — non dare per scontato che una sia "quella giusta" finché Trentino Marketing non lo
-// conferma esplicitamente:
-//  - Basic Auth (TGC_BASIC_USER/PASS = "PMS_Lacolumbera" + un GUID): rifiutata con "401 Invalid PMS".
-//  - OAuth (TGC_OAUTH_CLIENT_ID/SECRET = la STESSA coppia "PMS_Lacolumbera" + GUID): la pagina di
-//    login di Trentino (loginricettivo.aspx) risponde "Client non autorizzato" dopo l'inserimento di
-//    Username/Password della struttura — quindi anche come client_id OAuth questa coppia non è
-//    (ancora) riconosciuta valida.
-// La conclusione più probabile è che "PMS_Lacolumbera" + GUID non sia un client_id OAuth dedicato
-// vero e proprio, ma un altro tipo di credenziale (o un client non ancora attivato lato Trentino);
-// va chiesto un chiarimento esplicito a Trentino Marketing su quale sia la modalità di
-// autenticazione corretta per questo account e, se serve OAuth, un client_id/secret DEDICATI
-// (doc pag.17-18: "per ogni PMS", diversi da quelli già in mano).
+// Il doc (pag.2, 17-18) descrive DUE sistemi di credenziali indipendenti, mai intercambiabili:
+//  - Basic Auth "gestionale" (pag.2): header Authorization: Basic base64(TGC_BASIC_USER:TGC_BASIC_PASS)
+//    — comunicate via email da Trentino Marketing — PIÙ, come parametro separato in ogni chiamata,
+//    Username/Password della STRUTTURA su ricettivo.guestcard.info (TGC_USERNAME/TGC_PASSWORD).
+//  - OAuth (pag.17-18): un client_id/client_secret DEDICATI, "forniti per ogni PMS" — in demo è
+//    sempre il valore fisso "PMSOauth_demo"; in produzione va richiesto esplicitamente e NON
+//    coincide con le credenziali Basic Auth sopra (vanno in TGC_OAUTH_CLIENT_ID/SECRET).
 //
-// Il codice sotto implementa comunque ENTRAMBI i percorsi, pronti a essere usati appena le
-// credenziali giuste saranno note:
+// STATO ATTUALE (25/09/2026): nessuna delle due modalità funziona ancora, e i tentativi fatti finora
+// non sono conclusivi su quale sia "quella giusta":
+//  - Basic Auth con TGC_BASIC_USER/PASS ("PMS_Lacolumbera" + un GUID) → "401 Invalid PMS".
+//  - OAuth con quella stessa coppia messa in TGC_OAUTH_CLIENT_ID/SECRET → "Client non autorizzato"
+//    (dopo login struttura riuscito, con TGC_REDIRECT_URI correttamente whitelistata).
+//  - OAuth con le credenziali di login struttura (TGC_USERNAME/PASSWORD) messe in
+//    TGC_OAUTH_CLIENT_ID/SECRET → stesso esito negativo.
+// Nessuno dei tre tentativi corrisponde a quanto descritto dal doc (3 credenziali DISTINTE:
+// gestionale, struttura, OAuth dedicato) — probabile che Trentino Marketing non abbia ancora fornito
+// un client_id/secret OAuth dedicato per questo PMS, o che le credenziali Basic Auth in mano non
+// siano quelle corrette/attive. Va chiesto un chiarimento esplicito a innovazione@trentinomarketing.org,
+// indicando entrambi gli errori sopra.
+//
+// Il codice sotto implementa comunque ENTRAMBI i percorsi, pronti a usare appena le credenziali
+// corrette saranno note:
 //  - OAuth (gc_oauth_start → login struttura → gc_oauth_callback → tgcCall su /ws/Pms/...) è quello
-//    collegato oggi a gc_issue, gc_tipologie, gc_attributi — perché è il flusso "più moderno" secondo
-//    la doc, non perché sia stato verificato funzionante.
+//    collegato oggi a gc_issue, gc_tipologie, gc_attributi, perché il doc lo descrive come il flusso
+//    più moderno — non perché sia stato verificato funzionante.
 //  - Basic Auth (tgcBasicAuth, emettiGuestCardTGC) resta nel codice come riserva, non agganciata a
-//    nessun endpoint; va riagganciata se Trentino Marketing conferma che è quella corretta.
-// TGC_REDIRECT_URI (l'url di gc_oauth_callback) risulta già whitelistata correttamente (il login
-// arriva fino al form Username/Password), quindi il problema non è lì.
+//    nessun endpoint; è comunque "l'opzione consigliata" dal doc (pag.5) per semplicità, quindi va
+//    considerata alla pari se Trentino Marketing conferma le credenziali giuste.
 //
-// SICUREZZA: senza TGC_BASE_URL si usa l'ambiente DEMO, così una configurazione incompleta non emette mai card reali.
-// Per andare in produzione imposta esplicitamente TGC_BASE_URL=https://ricettivo.guestcard.info su Vercel.
+// SICUREZZA: senza TGC_BASE_URL il fallback qui sotto è l'ambiente di PRODUZIONE
+// (ricettivo.guestcard.info, non demo) — imposta esplicitamente TGC_BASE_URL=https://demoricettivo.hi-logic.it per testare in demo.
 const TGC_BASE=(process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info').replace(/\/+$/,'');
 // Le card demo e quelle di produzione sono salvate con chiavi diverse: una card di prova non blocca mai l'emissione reale per lo stesso codice.
 const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code;
