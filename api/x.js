@@ -69,6 +69,13 @@ const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.leng
 
 const closedDays=(config,id)=>{if(!(config.closed&&config.closed[id]))return[];const o=[],s=new Date();for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
 const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id)])};
+// Rete di sicurezza SOLO lato ospite (calendario sul sito + checkout): oltre questo orizzonte le date sono
+// considerate chiuse per default, anche se il feed iCal non dice nulla (es. Booking non ancora aperto così avanti).
+// Non tocca busy()/l'export a==='ical' verso Booking/Airbnb, per non segnalare loro come occupate date che
+// vogliono invece tenere aperte più a lungo.
+const HORIZON_DAYS=()=>+process.env.ORIZZONTE_MAX_GIORNI||365;
+const beyondHorizon=()=>{const o=[],s=new Date();s.setUTCDate(s.getUTCDate()+HORIZON_DAYS());for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
+const guestBusy=async(config,id,bk)=>new Set([...(await busy(config,id,bk)),...beyondHorizon()]);
 
 // ---- Email (Gmail SMTP) ----
 const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!process.env.GMAIL_APP_PASSWORD)return;
@@ -130,7 +137,7 @@ const feed=async()=>{
 const handler=async(req,res)=>{const a=req.query.a,b=req.body||{};res.setHeader('Cache-Control','no-store');
 try{
 if(a==='cfg')return res.json(await cfg(req));
-if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await busy(config,String(req.query.id),await getBk())].sort())}
+if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
 if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
 if(a==='events')return res.json((await jg('events'))||[]);
 if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())}
@@ -138,7 +145,7 @@ if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id
  if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);if(g.length<p.min||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+p.min+' notti)'});
- const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=await getBk(),occ=await busy(config,p.id,bk);
+ const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=await getBk(),occ=await guestBusy(config,p.id,bk);
  if(g.some(d=>occ.has(d)))return res.status(409).json({err:'Date non più disponibili'});
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
  const totale=g.reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0);
