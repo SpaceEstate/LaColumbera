@@ -37,10 +37,11 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) — autenticazione OAuth Bearer Token (pag.17-20) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// PERCORSO ATTIVO: OAuth Bearer Token. Le credenziali di produzione inviate da Trentino Marketing
-// (PMS_Lacolumbera + GUID) sono client_id / client_secret OAuth: NON funzionano come Basic Auth diretta
-// sulle API (davano 401 "invalid PMS"), vanno usate solo per scambio code e refresh del token.
-// Env su Vercel: TGC_OAUTH_CLIENT_ID, TGC_OAUTH_CLIENT_SECRET, TGC_REDIRECT_URI, TGC_CARD_TYPE_ID,
+// PERCORSO ATTIVO: OAuth Bearer Token. Il client_id OAuth di produzione è "PMSOauth_Lacolumbera" (indicato da
+// Trentino Marketing il 28/09/2026); la sola coppia PMS_Lacolumbera + GUID inviata via email NON funziona come Basic Auth
+// diretta sulle API (401 "invalid PMS"). Il client_secret va usato solo per scambio code e refresh del token.
+// Env su Vercel: TGC_OAUTH_CLIENT_ID (= PMSOauth_Lacolumbera, indicato da Trentino Marketing), TGC_OAUTH_CLIENT_SECRET,
+// TGC_REDIRECT_URI (= https://la-columbera.vercel.app, solo dominio), TGC_CARD_TYPE_ID,
 // TGC_BASE_URL (opzionale, default produzione). TGC_BASIC_USER/PASS e TGC_USERNAME/PASSWORD NON servono più:
 // username e password della struttura si digitano sulla pagina di login di Trentino Marketing, non nel codice.
 // Flusso: admin clicca "Autorizza" (gc_oauth_start) → login struttura su ricettivo.guestcard.info → redirect
@@ -253,8 +254,10 @@ if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Ca
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
  const state=c.randomBytes(16).toString('hex');
  await kv('SET','tgc:oauth:state:'+state,'1','EX','600');
- const qs=new URLSearchParams({client_id:process.env.TGC_OAUTH_CLIENT_ID,redirect_uri:process.env.TGC_REDIRECT_URI,state});
- return res.json({url:TGC_BASE+'/loginricettivo.aspx?'+qs})}
+ // Formato esatto indicato da Trentino Marketing: redirect_uri = SOLO il dominio (https://la-columbera.vercel.app), codifica %3a%2f%2f;
+ // Trentino rimanda alla home con ?code=..&state=.. e index.html inoltra a gc_oauth_callback.
+ const enc=v=>encodeURIComponent(v).replace(/%[0-9A-F]{2}/g,m=>m.toLowerCase());
+ return res.json({url:TGC_BASE+'/loginricettivo.aspx?client_id='+enc(process.env.TGC_OAUTH_CLIENT_ID)+'&redirect_uri='+enc(String(process.env.TGC_REDIRECT_URI).replace(/\/+$/,''))+'&state='+state})}
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
  try{return res.json(await tgcCall('TipologieCard.ashx'))}
  catch(e){return res.status(502).json({err:e.message})}}
