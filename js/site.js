@@ -1,5 +1,19 @@
 // La Columbera · UI micro-interactions
 (function(){
+  // OAuth Trentino Guest Card: il provider reindirizza alla home,
+  // che inoltra code+state al callback backend che effettua lo scambio del token.
+  const oauthQs = new URLSearchParams(window.location.search);
+  const oauthCode = oauthQs.get('code');
+  const oauthState = oauthQs.get('state');
+  if (oauthCode && oauthState && (window.location.pathname === '/' || window.location.pathname === '')) {
+    const callback = new URL('/api/x', window.location.origin);
+    callback.searchParams.set('a', 'gc_oauth_callback');
+    callback.searchParams.set('code', oauthCode);
+    callback.searchParams.set('state', oauthState);
+    window.location.replace(callback.toString());
+    return;
+  }
+
   const header = document.querySelector('.site-header');
   const toggle = document.querySelector('.menu-toggle');
   const nav = document.getElementById('nav-links');
