@@ -5,9 +5,9 @@
 <script>
 // Se il redirect_uri registrato su Trentino Guest Card è il dominio nudo (non /api/x?a=gc_oauth_callback),
 // dopo il login l'utente atterra qui con ?code=...&state=... nell'indirizzo. Senza questo, quei due
-// parametri andrebbero persi sulla home e l'autorizzazione non si completerebbe mai (nessun errore
-// visibile, semplicemente il token non verrebbe salvato). Se non ci sono questi parametri, non fa nulla.
-(function(){var p=new URLSearchParams(location.search);if(p.has('code')&&p.has('state'))location.replace('/api/x?a=gc_oauth_callback'+location.search)})();
+// parametri andrebbero persi sulla home e l'autorizzazione non si completerebbe mai. Ricostruiamo l'url
+// con "&" (non concateniamo mai un secondo "?": è esattamente il bug che stiamo aggirando).
+(function(){var p=new URLSearchParams(location.search);if(p.has('code')&&p.has('state'))location.replace('/api/x?a=gc_oauth_callback&'+p.toString())})();
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>La Columbera · Dimora storica del XV secolo a Ravina, Trento</title>
