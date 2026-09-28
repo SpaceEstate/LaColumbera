@@ -34,71 +34,26 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
  if(s)return{code:s.code,id:s.id,da:s.da,a:s.a,notti:s.notti,ospiti:s.ospiti,nome:'',email:'',stato:s.stato,fonte:'foglio'};
  return null};
 
-// ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026), innovazione@trentinomarketing.org ----
+// ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) — autenticazione OAuth Bearer Token (pag.17-20) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// Il doc (pag.2, 17-18) descrive DUE sistemi di credenziali indipendenti, mai intercambiabili:
-//  - Basic Auth "gestionale" (pag.2): header Authorization: Basic base64(TGC_BASIC_USER:TGC_BASIC_PASS)
-//    — comunicate via email da Trentino Marketing — PIÙ, come parametro separato in ogni chiamata,
-//    Username/Password della STRUTTURA su ricettivo.guestcard.info (TGC_USERNAME/TGC_PASSWORD).
-//  - OAuth (pag.17-18): un client_id/client_secret DEDICATI, "forniti per ogni PMS" — in demo è
-//    sempre il valore fisso "PMSOauth_demo"; in produzione andrebbe richiesto esplicitamente a
-//    Trentino Marketing e NON coincide con le credenziali Basic Auth sopra.
-//
-// STATO (25/09/2026): Paolo Maccagnan (Trentino Marketing) ha confermato via email che le credenziali
-// inviate il 24/09 (username "PMS_Lacolumbera" + password) sono quelle definitive di produzione e che
-// non c'è nessun'altra attivazione da fare sul loro sistema. Non è mai arrivato — né in quella email né
-// prima — un client_id/client_secret OAuth realmente dedicato: solo lo username/password sopra, nel
-// formato tipico della Basic Auth "gestionale". Coerentemente, i tentativi OAuth fatti in questi giorni
-// (quella stessa coppia, e poi le credenziali struttura, messe in TGC_OAUTH_CLIENT_ID/SECRET) hanno
-// sempre dato "Client non autorizzato": quel client OAuth dedicato semplicemente non esiste per questo
-// account. Il percorso ATTIVO è quindi Basic Auth — è anche "l'opzione consigliata" dal doc (pag.5):
-//  - Basic Auth (tgcBasicAuth, tgcCallBasic, emettiGuestCardTGC) è oggi agganciata a gc_tipologie,
-//    gc_attributi e gc_issue.
-//  - OAuth (gc_oauth_start → login struttura → gc_oauth_callback → tgcCall su /ws/Pms/...) resta nel
-//    codice come riserva, pronta da riattivare se in futuro Trentino Marketing fornirà un client_id/
-//    secret OAuth dedicato.
-//
-// SICUREZZA: senza TGC_BASE_URL il fallback qui sotto è l'ambiente di PRODUZIONE
-// (ricettivo.guestcard.info, non demo) — imposta esplicitamente TGC_BASE_URL=https://demoricettivo.hi-logic.it per testare in demo.
+// PERCORSO ATTIVO: OAuth Bearer Token. Le credenziali di produzione inviate da Trentino Marketing
+// (PMS_Lacolumbera + GUID) sono client_id / client_secret OAuth: NON funzionano come Basic Auth diretta
+// sulle API (davano 401 "invalid PMS"), vanno usate solo per scambio code e refresh del token.
+// Env su Vercel: TGC_OAUTH_CLIENT_ID, TGC_OAUTH_CLIENT_SECRET, TGC_REDIRECT_URI, TGC_CARD_TYPE_ID,
+// TGC_BASE_URL (opzionale, default produzione). TGC_BASIC_USER/PASS e TGC_USERNAME/PASSWORD NON servono più:
+// username e password della struttura si digitano sulla pagina di login di Trentino Marketing, non nel codice.
+// Flusso: admin clicca "Autorizza" (gc_oauth_start) → login struttura su ricettivo.guestcard.info → redirect
+// a TGC_REDIRECT_URI con code+state (gc_oauth_callback) → code scambiato per Token+RefreshToken, salvati su KV →
+// tgcCall usa "Bearer" su /ws/Pms/... e rinnova da solo il Token quando scade. Se il RefreshToken scade o
+// viene revocato basta rifare "Autorizza" una volta dal pannello admin.
 const TGC_BASE=(process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info').replace(/\/+$/,'');
 // Le card demo e quelle di produzione sono salvate con chiavi diverse: una card di prova non blocca mai l'emissione reale per lo stesso codice.
 const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code;
-const tgcBasicAuth=()=>'Basic '+Buffer.from(process.env.TGC_BASIC_USER+':'+process.env.TGC_BASIC_PASS).toString('base64');
 const ymd=s=>String(s).replace(/-/g,'');
-
-// Chiamata generica Basic Auth verso /ws/SoftwareGestionali/...: aggiunge sempre l'header Authorization
-// Basic (gestionale, TGC_BASIC_USER/PASS) + Username/Password della struttura (TGC_USERNAME/PASSWORD),
-// come richiesto dal doc (pag.2) — per le GET in querystring, per le POST come campo form.
-async function tgcCallBasic(path,{method='GET',form}={}){
- if(!process.env.TGC_BASIC_USER||!process.env.TGC_BASIC_PASS)
-  throw new Error('Mancano TGC_BASIC_USER/TGC_BASIC_PASS su Vercel (credenziali gestionale inviate via email da Trentino Marketing)');
- if(!process.env.TGC_USERNAME||!process.env.TGC_PASSWORD)
-  throw new Error('Mancano TGC_USERNAME/TGC_PASSWORD su Vercel (credenziali della struttura su ricettivo.guestcard.info)');
- const opt={method,headers:{Authorization:tgcBasicAuth()}};
- let url=TGC_BASE+'/ws/SoftwareGestionali/'+path;
- if(method==='GET'){
-  const qs='username='+encodeURIComponent(process.env.TGC_USERNAME)+'&password='+encodeURIComponent(process.env.TGC_PASSWORD);
-  url+=(path.includes('?')?'&':'?')+qs
- }else{
-  const fd=new FormData();fd.set('Username',process.env.TGC_USERNAME);fd.set('Password',process.env.TGC_PASSWORD);
-  for(const k in(form||{}))if(form[k]!=null)fd.set(k,String(form[k]));
-  opt.body=fd
- }
- const r=await fetch(url,opt);
- const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
- if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
- return j}
-
-// Emissione card: percorso ATTIVO (Basic Auth, vedi nota sopra).
-async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
- const form={idTipologiaCard:process.env.TGC_CARD_TYPE_ID,dal:ymd(dal),al:ymd(al),Email:email,PersoneMax:String(personeMax)};
- if(process.env.TGC_ATTRIBUTO_ID)form.IdAttributo=process.env.TGC_ATTRIBUTO_ID;
- if(codice)form.ExtraSftAlbergatori=String(codice).slice(0,36);
- return tgcCallBasic('EmissioneEssenzialeCard.ashx',{method:'POST',form})}
-
-// ---- OAuth Bearer Token: riserva, non agganciata a nessun endpoint (vedi nota sopra) ----
-const tgcOauthBasic=()=>'Basic '+Buffer.from(process.env.TGC_OAUTH_CLIENT_ID+':'+process.env.TGC_OAUTH_CLIENT_SECRET).toString('base64');
+const tgcOauthBasic=()=>{
+ if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_OAUTH_CLIENT_SECRET)throw new Error('Mancano TGC_OAUTH_CLIENT_ID/TGC_OAUTH_CLIENT_SECRET su Vercel');
+ return 'Basic '+Buffer.from(process.env.TGC_OAUTH_CLIENT_ID+':'+process.env.TGC_OAUTH_CLIENT_SECRET).toString('base64')};
 
 // Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken
 async function tgcExchangeCode(code){
@@ -107,7 +62,7 @@ async function tgcExchangeCode(code){
  if(!r.ok||!j.Token)throw new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
-// Rinnova un Token scaduto usando il RefreshToken salvato
+// Rinnova un Token scaduto usando il RefreshToken salvato (il RefreshToken cambia a ogni refresh: va sempre risalvato)
 async function tgcRefreshToken(refreshToken){
  const fd=new FormData();fd.set('refreshToken',refreshToken);
  const r=await fetch(TGC_BASE+'/ws/oauth/refresh_token.ashx',{method:'POST',headers:{Authorization:tgcOauthBasic()},body:fd});
@@ -115,19 +70,24 @@ async function tgcRefreshToken(refreshToken){
  if(!r.ok||!j.Token)throw new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
-// Ritorna un Bearer Token valido, rinnovandolo se scaduto o vicino alla scadenza (margine 60s). Se non
-// esiste ancora nessuna autorizzazione salvata, lancia un errore chiaro invece di un 401 muto.
-async function tgcGetToken(){
+// Ritorna un Bearer Token valido; lo rinnova se scaduto/vicino alla scadenza (margine 60s) o se force=true.
+// Se un'altra richiesta ha già rinnovato nel frattempo (RefreshToken monouso) usa il token più recente su KV.
+async function tgcGetToken(force){
  let t=await jg('tgc:oauth:token');
- if(!t||!t.RefreshToken)throw new Error('Guest Card non ancora autorizzata: vai in admin e clicca "Autorizza Trentino Guest Card"');
- if(!t.expiresAt||Date.parse(t.expiresAt)<Date.now()+6e4){
-  const fresh=await tgcRefreshToken(t.RefreshToken);
-  t={Token:fresh.Token,RefreshToken:fresh.RefreshToken,expiresAt:fresh.expiresAt};
-  await kv('SET','tgc:oauth:token',JSON.stringify(t))}
+ if(!t||!t.RefreshToken)throw new Error('Guest Card non ancora autorizzata: in admin clicca "Autorizza Trentino Guest Card"');
+ if(force||!(Date.parse(t.expiresAt)>Date.now()+6e4)){
+  try{
+   const fresh=await tgcRefreshToken(t.RefreshToken);
+   t={Token:fresh.Token,RefreshToken:fresh.RefreshToken,expiresAt:fresh.expiresAt};
+   await kv('SET','tgc:oauth:token',JSON.stringify(t))}
+  catch(e){
+   const cur=await jg('tgc:oauth:token');
+   if(cur&&cur.RefreshToken&&cur.RefreshToken!==t.RefreshToken)t=cur;
+   else throw new Error('Autorizzazione Guest Card scaduta o revocata: in admin clicca "Autorizza Trentino Guest Card" ('+e.message+')')}}
  return t.Token}
 
-// Chiamata generica autenticata Bearer verso /ws/Pms/..., con un retry (refresh + ripeti una volta sola)
-// se il token risultasse comunque scaduto lato server (401) nonostante il controllo di tgcGetToken.
+// Chiamata generica autenticata Bearer verso /ws/Pms/... (niente più username/password nei parametri, doc pag.19).
+// Se il server risponde 401 rinnova il token e ripete una sola volta.
 async function tgcCall(path,{method='GET',form}={}){
  const once=async tok=>{
   const opt={method,headers:{Authorization:'Bearer '+tok}};
@@ -135,13 +95,19 @@ async function tgcCall(path,{method='GET',form}={}){
   const r=await fetch(TGC_BASE+'/ws/Pms/'+path,opt);
   const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
   return{r,j,txt}};
- let tok=await tgcGetToken(),{r,j,txt}=await once(tok);
- if(r.status===401){
-  const t=await jg('tgc:oauth:token'),fresh=await tgcRefreshToken(t.RefreshToken);
-  await kv('SET','tgc:oauth:token',JSON.stringify({Token:fresh.Token,RefreshToken:fresh.RefreshToken,expiresAt:fresh.expiresAt}));
-  ({r,j,txt}=await once(fresh.Token))}
+ let x=await once(await tgcGetToken());
+ if(x.r.status===401)x=await once(await tgcGetToken(true));
+ const{r,j,txt}=x;
  if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
+ if(j.raw!==undefined)throw new Error('Risposta non valida da Trentino Guest Card: '+txt.slice(0,200));
  return j}
+
+// Emissione essenziale (opzione consigliata dal doc, pag.5) via Bearer
+async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
+ return tgcCall('EmissioneEssenzialeCard.ashx',{method:'POST',form:{
+  idTipologiaCard:process.env.TGC_CARD_TYPE_ID,dal:ymd(dal),al:ymd(al),Email:email,PersoneMax:personeMax,
+  IdAttributo:process.env.TGC_ATTRIBUTO_ID||null,
+  ExtraSftAlbergatori:codice?String(codice).slice(0,36):null}})}
 
 // ---- Prenotazioni: lettura con pulizia automatica delle "in_attesa" scadute (pagamento mai completato) ----
 const PEND_MS=18e5; // 30 minuti
@@ -214,7 +180,7 @@ const feed=async()=>{
  return curated();
 };
 
-const handler=async(req,res)=>{const a=req.query.a,b=req.body||{};res.setHeader('Cache-Control','no-store');
+const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body||{};res.setHeader('Cache-Control','no-store');
 try{
 if(a==='cfg')return res.json(await cfg(req));
 if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
@@ -267,7 +233,9 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  await kv('SET',GCK(x.code),JSON.stringify(card));
  return res.json(card)}
 if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Marketing dopo il login della struttura
- const code=req.query.code,state=req.query.state;
+ // Trentino accoda "?state=..&code=.." al redirect_uri: se questo contiene già "?a=..." lo stato può finire dentro "a" (rawA)
+ const q=new URLSearchParams(rawA.includes('?')?rawA.slice(rawA.indexOf('?')+1):'');
+ const code=req.query.code||q.get('code'),state=req.query.state||q.get('state');
  if(!code||!state)return res.status(400).send('Parametri mancanti (code/state)');
  const okState=await jg('tgc:oauth:state:'+state);
  if(!okState)return res.status(400).send('Sessione di autorizzazione scaduta o già usata: riprova dal pannello admin');
@@ -275,25 +243,25 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
  try{
   const tok=await tgcExchangeCode(String(code));
   await kv('SET','tgc:oauth:token',JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
-  return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p>Puoi chiudere questa pagina e tornare al pannello admin.</p></body></html>')
+  return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')
  }catch(e){return res.status(502).send('Errore nello scambio del token: '+e.message)}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
-if(a==='gc_oauth_start'){ // solo admin: riserva — oggi la Guest Card funziona via Basic Auth (vedi nota sopra), non serve per l'emissione
- if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'OAuth non configurato: mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel. Non è un problema per l\'emissione della Guest Card, oggi attiva via Basic Auth: servirebbe solo un client_id/secret OAuth dedicato, mai fornito da Trentino Marketing per questo account.'});
+if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
+ if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
  const state=c.randomBytes(16).toString('hex');
  await kv('SET','tgc:oauth:state:'+state,'1','EX','600');
  const qs=new URLSearchParams({client_id:process.env.TGC_OAUTH_CLIENT_ID,redirect_uri:process.env.TGC_REDIRECT_URI,state});
  return res.json({url:TGC_BASE+'/loginricettivo.aspx?'+qs})}
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
- try{return res.json(await tgcCallBasic('TipologieCard.ashx'))}
+ try{return res.json(await tgcCall('TipologieCard.ashx'))}
  catch(e){return res.status(502).json({err:e.message})}}
 if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede idAttributo
  const idTipologiaCard=req.query.idTipologiaCard||b.idTipologiaCard;
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
- try{return res.json(await tgcCallBasic('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
+ try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
 if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
 if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
