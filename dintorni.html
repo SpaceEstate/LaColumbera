@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dintorni · La Columbera</title>
+<title>Luoghi di interesse · La Columbera</title>
 <meta name="theme-color" content="#7A2E39"><link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
@@ -11,14 +11,19 @@
 <body>
 <header class="site-header" data-solid><div class="wrap">
 <a class="brand" href="index.html"><img src="img/brand/logo.png" alt="" class="brand-logo-color"><img src="img/brand/logo-light.png" alt="" class="brand-logo-light"></a>
-<nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
+<nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="dintorni.html" data-testid="nav-dintorni">Luoghi di interesse</a><a href="convenzioni.html" data-testid="nav-convenzioni">Convenzioni</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
 <button class="menu-toggle" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
 </div></header>
 <main>
 <section class="page-intro"><div class="wrap">
 <span class="section-eyebrow" data-reveal>Da non perdere</span>
 <h1 data-reveal data-reveal-delay="1">Luoghi di interesse<br><em>nei dintorni</em></h1>
-<p class="lead" data-reveal data-reveal-delay="2">Trento, il Trentino e i borghi vicini: una selezione dei luoghi che ci sentiamo di consigliare — dai musei al lago, dalle passeggiate ai produttori locali.</p>
+<p class="lead" data-reveal data-reveal-delay="2">Trento, il Trentino e i borghi vicini: una selezione dei luoghi che ci sentiamo di consigliare — dai musei al lago, dalle passeggiate ai produttori locali — e le esperienze giuste per ogni stagione.</p>
+<div class="intro-links" data-reveal data-reveal-delay="3">
+<a href="convenzioni.html" data-testid="nav-convenzioni-link">Le convenzioni</a>
+<a href="#stagioni" data-testid="nav-trentino-link">Cosa fare in Trentino</a>
+<a href="mappa.html#bus" data-testid="nav-bus-link">Muoversi in autobus</a>
+</div>
 </div></section>
 <section style="padding:0 0 80px"><div class="wrap"><div class="grid-cards" data-testid="dintorni-grid">
 <article class="apt-card" data-testid="d-1"><figure><img src="img/Trento1.jpg" alt="Piazza Duomo, Trento"></figure><div class="body"><h3>Centro storico di Trento</h3><div class="meta"><span>5 min in auto</span><span>MUSE, Piazza Duomo, Castello Buonconsiglio</span></div><p>Il salotto della città: fontana del Nettuno, palazzi affrescati, il Duomo di San Vigilio e il moderno MUSE di Renzo Piano.</p></div></article>
@@ -28,9 +33,25 @@
 <article class="apt-card" data-testid="d-5"><div class="body"><h3>Lago di Garda (sponda trentina)</h3><div class="meta"><span>40 min</span><span>Riva, Torbole, Arco</span></div><p>La parte più selvaggia del Garda: falesie per l'arrampicata, windsurf, kite e passeggiate sul lungolago.</p></div></article>
 <article class="apt-card" data-testid="d-6"><div class="body"><h3>Ciclabile della Valle dell'Adige</h3><div class="meta"><span>parte da 5 min</span><span>fino a Verona</span></div><p>Piatta e panoramica, attraversa vigneti e frutteti. Da qui potete raggiungere in bici Trento centro, Rovereto o scendere verso il Garda.</p></div></article>
 <article class="apt-card" data-testid="d-7"><div class="body"><h3>Val di Non e Val di Sole</h3><div class="meta"><span>45 min</span><span>mele · rafting · canyon</span></div><p>Frutteti a perdita d'occhio, canyon del Rio Sass, rafting sul Noce e i castelli della Val di Non.</p></div></article>
-<article class="apt-card" data-testid="d-8"><div class="body"><h3>Ristoranti e osterie consigliate</h3><div class="meta"><span>a Ravina e Trento</span><span>cucina trentina</span></div><p>Al check-in vi lasciamo una lista curata di locali dove mangiare bene: dalle osterie tipiche alle pizzerie di quartiere.</p></div></article>
+<article class="apt-card" data-testid="d-8"><div class="body"><h3>Ristoranti e locali convenzionati</h3><div class="meta"><span>a Ravina e dintorni</span><span>partner de La Columbera</span></div><p>Pizzerie, caffè, birrerie e palestre: le realtà del territorio che consigliamo e con cui siamo convenzionati.</p><div class="cta"><a class="cta-link" href="convenzioni.html" data-testid="d-8-cta">Scopri le convenzioni <span aria-hidden="true">→</span></a></div></div></article>
 </div></div></section>
+
+<div class="marquee" aria-hidden="true"><div class="marquee-track">
+<span>Monte Bondone</span><i>·</i><span>Le Viotte</span><i>·</i><span>Lago di Toblino</span><i>·</i><span>Val di Non</span><i>·</i><span>Lago di Garda</span><i>·</i><span>Mercatini di Natale</span><i>·</i><span>Ciclabile dell'Adige</span><i>·</i><span>Trento</span><i>·</i>
+<span>Monte Bondone</span><i>·</i><span>Le Viotte</span><i>·</i><span>Lago di Toblino</span><i>·</i><span>Val di Non</span><i>·</i><span>Lago di Garda</span><i>·</i><span>Mercatini di Natale</span><i>·</i><span>Ciclabile dell'Adige</span><i>·</i><span>Trento</span><i>·</i>
+</div></div>
+
+<section class="dint-section" id="stagioni" data-testid="cosa-fare-trentino-section"><div class="wrap">
+<div class="dint-head">
+<span class="section-eyebrow" data-reveal>Tutto l'anno</span>
+<h2 data-reveal data-reveal-delay="1">Cosa fare <em>in Trentino</em></h2>
+<p class="lead" data-reveal data-reveal-delay="2">Le esperienze che ci sentiamo di consigliare, stagione per stagione: la pagina si apre su quella in corso, ma curiosate pure nelle altre. I link portano ai siti ufficiali, sempre aggiornati.</p>
+</div>
+<div class="season-tabs" id="season-tabs" role="tablist" data-testid="season-tabs"></div>
+<div class="grid-cards" id="season-grid" data-testid="season-grid"></div>
+</div></section>
 </main>
 <footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><div class="footer-brand-mark"><img src="img/brand/logo-light.png" alt=""></div><p class="footer-tag">Dimora storica del XV secolo a Ravina.</p></div><div class="footer-col"><h4>La dimora</h4><a href="index.html#dimora">La Columbera</a><a href="torre.html">Torre</a><a href="corte.html">Corte</a></div><div class="footer-col"><h4>Contatti</h4><a href="tel:+393517043594">+39 351 704 3594</a><a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a></div></div><div class="wrap footer-bottom"><span>© <span id="yr">2026</span> La Columbera</span></div></footer>
+<script src="js/dintorni.js"></script>
 <script src="js/site.js"></script>
 </body></html>

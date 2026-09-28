@@ -940,3 +940,51 @@ table.data th{white-space:nowrap}
 }
 .gallery-main{touch-action:pan-y}
 .gallery-main img{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+
+/* ===== Dintorni: convenzioni, stagioni & bus ===== */
+.dint-section{padding:clamp(60px,7vw,90px) 0}
+.dint-section.alt{background:linear-gradient(180deg,var(--paper-2) 0%,var(--paper) 100%)}
+.dint-head{max-width:760px}
+.dint-head h2 em{color:var(--wine);font-style:italic}
+.dint-head .lead{color:var(--muted);font-size:1.05rem;line-height:1.7;margin:14px 0 0;max-width:620px}
+.dint-section .grid-cards{padding:34px 0 0}
+.intro-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.intro-links a{font-size:.86rem;font-weight:600;color:var(--wine);background:rgba(122,46,57,.08);padding:9px 18px;border-radius:999px;transition:background .25s ease,color .25s ease,transform .25s ease}
+.intro-links a:hover{background:var(--wine);color:#fff;transform:translateY(-2px)}
+.apt-tag.estate{background:rgba(224,164,64,.92);color:#3A151B}
+.ravina-cta{margin:30px 0 0}
+
+/* Marquee editoriale */
+.marquee{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:20px 0;background:var(--paper)}
+.marquee-track{display:flex;gap:56px;width:max-content;animation:marq 48s linear infinite;font-family:var(--serif);font-style:italic;font-size:1.2rem;color:var(--wine);white-space:nowrap}
+.marquee-track span{opacity:.85}
+.marquee-track i{font-style:normal;opacity:.4}
+@keyframes marq{to{transform:translateX(-50%)}}
+
+/* Tab stagioni */
+.season-tabs{display:flex;flex-wrap:wrap;gap:10px;margin-top:36px}
+.season-tab{padding:11px 24px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--charcoal);font-weight:600;font-size:.94rem;letter-spacing:.02em;cursor:pointer;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .25s ease}
+.season-tab:hover{border-color:var(--wine);color:var(--wine);transform:translateY(-1px)}
+.season-tab.active{background:var(--wine);border-color:var(--wine);color:#fff}
+@keyframes cardIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.season-pop{animation:cardIn .55s cubic-bezier(.2,.7,.2,1) both}
+
+/* Sezione bus (mappa) */
+.bus-sec{background:var(--paper-2);padding:clamp(70px,8vw,110px) 0}
+.bus-sec h2 em{color:var(--wine);font-style:italic}
+.bus-sec .lead{color:var(--muted);max-width:640px;font-size:1.05rem;line-height:1.7;margin:14px 0 0}
+.bus-sec .grid-cards{padding:34px 0 0}
+.bus-note{margin-top:44px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:clamp(24px,3vw,34px);box-shadow:var(--shadow-soft)}
+.bus-note p{color:var(--charcoal);margin:0 0 20px;max-width:72ch}
+.bus-actions{display:flex;gap:14px;flex-wrap:wrap}
+
+@media (prefers-reduced-motion:reduce){
+  .marquee-track{animation:none}
+  .season-pop{animation:none}
+}
+
+/* Menu più fitto con le nuove voci (prima del passaggio al burger) */
+@media (min-width:881px) and (max-width:1180px){
+  .nav-links a{padding:10px 10px;font-size:.88rem}
+  .nav-links .nav-cta{padding:10px 16px !important;margin-left:6px}
+}
