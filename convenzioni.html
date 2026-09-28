@@ -2,13 +2,13 @@
 <html lang="it">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Eventi a Trento · La Columbera</title>
+<title>Convenzioni · La Columbera</title>
 <meta name="theme-color" content="#7A2E39"><link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/main.css">
 </head>
-<body data-p="eventi">
+<body>
 <header class="site-header" data-solid><div class="wrap">
 <a class="brand" href="index.html"><img src="img/brand/logo.png" alt="" class="brand-logo-color"><img src="img/brand/logo-light.png" alt="" class="brand-logo-light"></a>
 <nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="dintorni.html" data-testid="nav-dintorni">Luoghi di interesse</a><a href="convenzioni.html" data-testid="nav-convenzioni">Convenzioni</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
@@ -16,12 +16,26 @@
 </div></header>
 <main>
 <section class="page-intro"><div class="wrap">
-<span class="section-eyebrow" data-reveal>Cosa succede</span>
-<h1 data-reveal data-reveal-delay="1">Eventi <em>a Trento</em></h1>
-<p class="lead" data-reveal data-reveal-delay="2">Un calendario aggiornato degli eventi principali in città e sul territorio: festival, mercatini, mostre e appuntamenti che rendono speciale il vostro soggiorno.</p>
+<span class="section-eyebrow" data-reveal>I nostri partner</span>
+<h1 data-reveal data-reveal-delay="1">Convenzioni<br><em>nei dintorni</em></h1>
+<p class="lead" data-reveal data-reveal-delay="2">I locali e le realtà del territorio con cui siamo convenzionati: dite che siete ospiti de La Columbera, troverete un'accoglienza speciale.</p>
+<div class="intro-links" data-reveal data-reveal-delay="3">
+<a href="dintorni.html" data-testid="nav-trentino-link">Luoghi di interesse</a>
+<a href="dintorni.html#stagioni" data-testid="nav-stagioni-link">Cosa fare in Trentino</a>
+<a href="mappa.html#bus" data-testid="nav-bus-link">Muoversi in autobus</a>
+</div>
 </div></section>
-<section style="padding:0 0 100px"><div class="wrap"><div class="grid-cards" id="events" data-testid="events-grid"><p class="book-note">Carico gli eventi…</p></div></div></section>
+
+<div class="marquee" aria-hidden="true"><div class="marquee-track">
+<span>Pizzeria Da Mimmo</span><i>·</i><span>Sun7 Caffè</span><i>·</i><span>Forst Biergarten</span><i>·</i><span>Bistò</span><i>·</i><span>Palestra Juta</span><i>·</i>
+<span>Pizzeria Da Mimmo</span><i>·</i><span>Sun7 Caffè</span><i>·</i><span>Forst Biergarten</span><i>·</i><span>Bistò</span><i>·</i><span>Palestra Juta</span><i>·</i>
+</div></div>
+
+<section class="dint-section" id="convenzioni" data-testid="convenzioni-section"><div class="wrap">
+<div class="grid-cards" id="conv-grid" data-testid="convenzioni-grid"></div>
+</div></section>
 </main>
 <footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><div class="footer-brand-mark"><img src="img/brand/logo-light.png" alt=""></div><p class="footer-tag">Dimora storica del XV secolo a Ravina.</p></div><div class="footer-col"><h4>La dimora</h4><a href="index.html#dimora">La Columbera</a><a href="torre.html">Torre</a><a href="corte.html">Corte</a></div><div class="footer-col"><h4>Contatti</h4><a href="tel:+393517043594">+39 351 704 3594</a><a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a></div></div><div class="wrap footer-bottom"><span>© <span id="yr">2026</span> La Columbera</span></div></footer>
-<script src="js/site.js"></script><script src="js/pages.js"></script>
+<script src="js/dintorni.js"></script>
+<script src="js/site.js"></script>
 </body></html>
