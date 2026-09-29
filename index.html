@@ -3,6 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script>
+(function () {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const code = p.get('code');
+    const state = p.get('state');
+
+    if (/^[0-9a-f]{32}$/i.test(state || '') && code) {
+      const u = new URL('/api/x', window.location.origin);
+      u.searchParams.set('a', 'gc_oauth_callback');
+      u.searchParams.set('state', state);
+      u.searchParams.set('code', code);
+      window.location.replace(u.toString());
+    }
+  } catch (_) {}
+})();
+</script>
+
 <title>La Columbera · Dimora storica del XV secolo a Ravina, Trento</title>
 <meta name="description" content="La Columbera è una dimora del XV secolo nel borgo di Ravina, alle porte di Trento. Due appartamenti indipendenti, Torre e Corte, dove il fascino della storia incontra il comfort di oggi.">
 <meta name="theme-color" content="#7A2E39">
