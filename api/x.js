@@ -57,9 +57,16 @@ const tgcOauthBasic=()=>{
 
 // Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken
 async function tgcExchangeCode(code){
- const r=await fetch(TGC_BASE+'/ws/oauth/access_token_pms.ashx?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});
- const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
- if(!r.ok||!j.Token)throw new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
+ // Diagnostica: raccoglie tutto cio che serve a capire dove si blocca lo scambio (mai i valori di secret/code/token)
+ const sec=process.env.TGC_OAUTH_CLIENT_SECRET||'';
+ const d={ambienteVercel:process.env.VERCEL_ENV||'?',base:TGC_BASE,endpoint:'/ws/oauth/access_token_pms.ashx',clientId:process.env.TGC_OAUTH_CLIENT_ID||null,
+  secretLen:sec.length,secretSpaziAiBordi:sec!==sec.trim(),secretApici:/["']/.test(sec),codeLen:String(code).length,redirectUri:process.env.TGC_REDIRECT_URI||null};
+ let r,txt;const t0=Date.now();
+ try{r=await fetch(TGC_BASE+'/ws/oauth/access_token_pms.ashx?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});txt=await r.text()}
+ catch(e){d.rete=String(e.message||e);const err=new Error('errore di rete verso Trentino: '+d.rete);err.diag=d;throw err}
+ d.ms=Date.now()-t0;d.status=r.status;d.contentType=r.headers.get('content-type');d.wwwAuthenticate=r.headers.get('www-authenticate');d.body=txt.slice(0,800);
+ let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+ if(!r.ok||!j.Token){const err=new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));err.diag=d;throw err}
  return j}
 
 // Rinnova un Token scaduto usando il RefreshToken salvato (il RefreshToken cambia a ogni refresh: va sempre risalvato)
@@ -262,7 +269,12 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
   const tok=await tgcExchangeCode(String(code));
   await kv('SET','tgc:oauth:token',JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
   return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')
- }catch(e){return res.status(502).send('Errore nello scambio del token: '+e.message)}}
+ }catch(e){
+  const d=e.diag||{};d.chiaviQuerySulCallback=Object.keys(req.query);d.rawAConPunto=rawA.includes('?');d.errore=e.message;
+  console.error('TGC scambio token fallito',JSON.stringify(d));
+  const esc=v=>String(v).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  return res.status(502).send('<html><body style="font-family:sans-serif;padding:24px"><h2>Errore nello scambio del token</h2><p>Copia il testo qui sotto e inoltralo ai tecnici di Trentino Marketing:</p><pre style="white-space:pre-wrap;word-break:break-word;background:#f4f4f4;padding:12px">'+esc(JSON.stringify(d,null,2))+'</pre><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
