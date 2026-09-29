@@ -37,10 +37,11 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) — autenticazione OAuth Bearer Token (pag.17-20) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
 //
-// PERCORSO ATTIVO: OAuth Bearer Token. Le credenziali di produzione inviate da Trentino Marketing
-// (PMS_Lacolumbera + GUID) sono client_id / client_secret OAuth: NON funzionano come Basic Auth diretta
-// sulle API (davano 401 "invalid PMS"), vanno usate solo per scambio code e refresh del token.
-// Env su Vercel: TGC_OAUTH_CLIENT_ID, TGC_OAUTH_CLIENT_SECRET, TGC_REDIRECT_URI, TGC_CARD_TYPE_ID,
+// PERCORSO ATTIVO: OAuth Bearer Token. Il client_id OAuth di produzione è "PMSOauth_Lacolumbera" (indicato da
+// Trentino Marketing il 28/09/2026); la sola coppia PMS_Lacolumbera + GUID inviata via email NON funziona come Basic Auth
+// diretta sulle API (401 "invalid PMS"). Il client_secret va usato solo per scambio code e refresh del token.
+// Env su Vercel: TGC_OAUTH_CLIENT_ID (= PMSOauth_Lacolumbera, indicato da Trentino Marketing), TGC_OAUTH_CLIENT_SECRET,
+// TGC_REDIRECT_URI (= https://la-columbera.vercel.app, solo dominio), TGC_CARD_TYPE_ID,
 // TGC_BASE_URL (opzionale, default produzione). TGC_BASIC_USER/PASS e TGC_USERNAME/PASSWORD NON servono più:
 // username e password della struttura si digitano sulla pagina di login di Trentino Marketing, non nel codice.
 // Flusso: admin clicca "Autorizza" (gc_oauth_start) → login struttura su ricettivo.guestcard.info → redirect
@@ -51,6 +52,9 @@ const TGC_BASE=(process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info').re
 // Le card demo e quelle di produzione sono salvate con chiavi diverse: una card di prova non blocca mai l'emissione reale per lo stesso codice.
 const GCK=code=>(/demoricettivo|hi-logic/i.test(TGC_BASE)?'gc:demo:':'gc:')+code;
 const ymd=s=>String(s).replace(/-/g,'');
+// Token salvato con chiave diversa per demo e produzione: passare da un ambiente all'altro non fa mai usare un token dell'altro.
+const TK='tgc:oauth:token'+(/demoricettivo|hi-logic/i.test(TGC_BASE)?':demo':'');
+let tgcLast=null; // ultima chiamata Guest Card (solo per la diagnostica admin: mai token o segreti)
 const tgcOauthBasic=()=>{
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_OAUTH_CLIENT_SECRET)throw new Error('Mancano TGC_OAUTH_CLIENT_ID/TGC_OAUTH_CLIENT_SECRET su Vercel');
  return 'Basic '+Buffer.from(process.env.TGC_OAUTH_CLIENT_ID+':'+process.env.TGC_OAUTH_CLIENT_SECRET).toString('base64')};
@@ -73,15 +77,15 @@ async function tgcRefreshToken(refreshToken){
 // Ritorna un Bearer Token valido; lo rinnova se scaduto/vicino alla scadenza (margine 60s) o se force=true.
 // Se un'altra richiesta ha già rinnovato nel frattempo (RefreshToken monouso) usa il token più recente su KV.
 async function tgcGetToken(force){
- let t=await jg('tgc:oauth:token');
+ let t=await jg(TK);
  if(!t||!t.RefreshToken)throw new Error('Guest Card non ancora autorizzata: in admin clicca "Autorizza Trentino Guest Card"');
  if(force||!(Date.parse(t.expiresAt)>Date.now()+6e4)){
   try{
    const fresh=await tgcRefreshToken(t.RefreshToken);
    t={Token:fresh.Token,RefreshToken:fresh.RefreshToken,expiresAt:fresh.expiresAt};
-   await kv('SET','tgc:oauth:token',JSON.stringify(t))}
+   await kv('SET',TK,JSON.stringify(t))}
   catch(e){
-   const cur=await jg('tgc:oauth:token');
+   const cur=await jg(TK);
    if(cur&&cur.RefreshToken&&cur.RefreshToken!==t.RefreshToken)t=cur;
    else throw new Error('Autorizzazione Guest Card scaduta o revocata: in admin clicca "Autorizza Trentino Guest Card" ('+e.message+')')}}
  return t.Token}
@@ -94,6 +98,7 @@ async function tgcCall(path,{method='GET',form}={}){
   if(form){const fd=new FormData();for(const k in form)if(form[k]!=null)fd.set(k,String(form[k]));opt.body=fd}
   const r=await fetch(TGC_BASE+'/ws/Pms/'+path,opt);
   const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+  tgcLast={url:TGC_BASE+'/ws/Pms/'+path,status:r.status,body:txt.slice(0,300)};
   return{r,j,txt}};
  let x=await once(await tgcGetToken());
  if(x.r.status===401)x=await once(await tgcGetToken(true));
@@ -101,6 +106,15 @@ async function tgcCall(path,{method='GET',form}={}){
  if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  if(j.raw!==undefined)throw new Error('Risposta non valida da Trentino Guest Card: '+txt.slice(0,200));
  return j}
+
+// Diagnostica per l'admin (nessun token/segreto): ambiente, stato e claim del token, ultima chiamata, risposta senza token.
+async function tgcDiag(){
+ const t=await jg(TK),d={base:TGC_BASE,clientId:process.env.TGC_OAUTH_CLIENT_ID||null,redirectUri:process.env.TGC_REDIRECT_URI||null,ultimaChiamata:tgcLast};
+ if(t&&t.Token){let cl=null;try{const p=JSON.parse(Buffer.from(String(t.Token).split('.')[1],'base64url').toString());cl={idLogin:p.idLogin,exp:p.exp,iss:p.iss,aud:p.aud}}catch{}
+  d.token={presente:true,expiresAt:t.expiresAt,secondiRimasti:Math.round((Date.parse(t.expiresAt)-Date.now())/1e3),claims:cl}}
+ else d.token={presente:false};
+ try{const r=await fetch(TGC_BASE+'/ws/Pms/TipologieCard.ashx');d.senzaToken={status:r.status,body:(await r.text()).slice(0,200)}}catch(e){d.senzaToken={errore:e.message}}
+ return d}
 
 // Emissione essenziale (opzione consigliata dal doc, pag.5) via Bearer
 async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
@@ -182,24 +196,6 @@ const feed=async()=>{
 
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body||{};res.setHeader('Cache-Control','no-store');
 try{
-if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata dalle schede di Luoghi, Convenzioni e Come trovarci
- // siti ammessi (anti-abuso). Per aggiungere il sito di un partner: variabile Vercel OG_HOSTS, es. "sun7caffe.it,bistro.it"
- const HOSTS=['visittrentino.info','visittrento.it','montebondone.it','gardatrentino.it','visitvaldinon.it','tastetrentino.it','muse.it','buonconsiglio.it','casteltoblino.it','trentinotrasporti.it'].concat((process.env.OG_HOSTS||'').split(',').map(s=>s.trim().toLowerCase().replace(/^www\./,'')).filter(Boolean));
- let u;try{u=new URL(String(req.query.u||''))}catch{return res.status(400).end()}
- const h=u.hostname.toLowerCase();
- if(u.protocol!=='https:'||!HOSTS.some(d=>h===d||h.endsWith('.'+d)))return res.status(400).end();
- try{
-  const r=await fetch(u.href,{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'},redirect:'follow'});
-  if(!r.ok)return res.status(404).end();
-  const html=(await r.text()).slice(0,300000);
-  const m=html.match(/<meta[^>]+(?:property|name)=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["']/i)||html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']og:image(?::secure_url)?["']/i);
-  if(!m)return res.status(404).end();
-  const img=new URL(m[1].replace(/&amp;/g,'&'),u.href);
-  if(img.protocol!=='https:')return res.status(404).end();
-  res.setHeader('Cache-Control','public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000');
-  res.setHeader('Location',img.href);return res.status(302).end();
- }catch{return res.status(502).end()}
-}
 if(a==='cfg')return res.json(await cfg(req));
 if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
 if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
@@ -260,9 +256,9 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
  await kv('DEL','tgc:oauth:state:'+state);
  try{
   const tok=await tgcExchangeCode(String(code));
-  await kv('SET','tgc:oauth:token',JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
-  return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')
- }catch(e){return res.status(502).send('Errore nello scambio del token: '+e.message)}}
+  await kv('SET',TK,JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
+  res.setHeader('Location','/admin.html?gc_auth=ok');return res.status(302).send('')
+ }catch(e){res.setHeader('Location','/admin.html?gc_auth=err&msg='+encodeURIComponent(e.message));return res.status(302).send('')}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
@@ -271,11 +267,13 @@ if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Ca
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
  const state=c.randomBytes(16).toString('hex');
  await kv('SET','tgc:oauth:state:'+state,'1','EX','600');
- const qs=new URLSearchParams({client_id:process.env.TGC_OAUTH_CLIENT_ID,redirect_uri:process.env.TGC_REDIRECT_URI,state});
- return res.json({url:TGC_BASE+'/loginricettivo.aspx?'+qs})}
+ // Formato esatto indicato da Trentino Marketing: redirect_uri = SOLO il dominio (https://la-columbera.vercel.app), codifica %3a%2f%2f;
+ // Trentino rimanda alla home con ?code=..&state=.. e index.html inoltra a gc_oauth_callback.
+ const enc=v=>encodeURIComponent(v).replace(/%[0-9A-F]{2}/g,m=>m.toLowerCase());
+ return res.json({url:TGC_BASE+'/loginricettivo.aspx?client_id='+enc(process.env.TGC_OAUTH_CLIENT_ID)+'&redirect_uri='+enc(String(process.env.TGC_REDIRECT_URI).replace(/\/+$/,''))+'&state='+state})}
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
  try{return res.json(await tgcCall('TipologieCard.ashx'))}
- catch(e){return res.status(502).json({err:e.message})}}
+ catch(e){return res.json({errore:e.message,diag:await tgcDiag()})}}
 if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede idAttributo
  const idTipologiaCard=req.query.idTipologiaCard||b.idTipologiaCard;
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
