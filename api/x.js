@@ -101,7 +101,11 @@ async function tgcCall(path,{method='GET',form}={}){
   tgcLast={url:TGC_BASE+'/ws/Pms/'+path,status:r.status,body:txt.slice(0,300)};
   return{r,j,txt}};
  let x=await once(await tgcGetToken());
- if(x.r.status===401)x=await once(await tgcGetToken(true));
+ if(x.r.status===401){
+  const prima='HTTP 401 '+x.txt.slice(0,200); // risposta della chiamata originale, col token che tgcGetToken riteneva valido
+  try{x=await once(await tgcGetToken(true))}
+  catch(e){throw new Error('Chiamata rifiutata ('+prima+') e refresh del token fallito: '+e.message)}
+  if(x.r.status===401)throw new Error('Chiamata rifiutata anche dopo il refresh ('+prima+' → nuovo tentativo: HTTP 401 '+x.txt.slice(0,200)+')')}
  const{r,j,txt}=x;
  if(!r.ok||j.esito===false)throw new Error((j.motivo||[]).join(', ')||j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  if(j.raw!==undefined)throw new Error('Risposta non valida da Trentino Guest Card: '+txt.slice(0,200));
