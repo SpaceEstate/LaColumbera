@@ -11,7 +11,7 @@
 <body>
 <header class="site-header" data-solid><div class="wrap">
 <a class="brand" href="index.html"><img src="img/brand/logo.png" alt="" class="brand-logo-color"><img src="img/brand/logo-light.png" alt="" class="brand-logo-light"></a>
-<nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="dintorni.html" data-testid="nav-dintorni">Luoghi di interesse</a><a href="convenzioni.html" data-testid="nav-convenzioni">Convenzioni</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
+<nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="dintorni.html" data-testid="nav-dintorni">Luoghi di interesse</a><a href="convenzioni.html" data-testid="nav-convenzioni">Convenzioni</a><a href="mappa.html" data-testid="nav-mappa">Come trovarci</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
 <button class="menu-toggle" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
 </div></header>
 <main>
@@ -22,7 +22,106 @@
 </div></section>
 <section class="map-wrap"><div class="wrap">
 <div class="map-illustration" data-testid="mappa-svg" data-reveal>
-<img src="img/mappa.webp" width="1584" height="993" alt="Mappa per raggiungere La Columbera: dall'uscita A22 Trento Sud a Ravina, Via Centrale 48, con il parcheggio in Via Val Gola 22" decoding="async">
+<svg class="map-svg" viewBox="0 0 1602 742" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="map-t map-d" preserveAspectRatio="xMidYMid meet">
+<title id="map-t">Come raggiungere La Columbera da Trento Sud</title>
+<desc id="map-d">Dal casello A22 Trento Sud si imbocca il raccordo, si sale lungo Via Stella verso nord e si svolta a sinistra in Via delle Masere fino a Ravina: 2,4 km, circa 4 minuti. Il parcheggio in Via Val Gola 22 è a 50 metri dalla struttura.</desc>
+<style>
+.map-svg .l{font:600 22px Manrope,system-ui,sans-serif;fill:#5E5148;paint-order:stroke;stroke:#F6F0E2;stroke-width:6px;stroke-linejoin:round}
+.map-svg .s{font:italic 500 20px Manrope,system-ui,sans-serif;fill:#8A7C6E;paint-order:stroke;stroke:#F6F0E2;stroke-width:5px;stroke-linejoin:round}
+.map-svg .b{font:700 22px Manrope,system-ui,sans-serif}
+.map-svg .fr{font:italic 400 34px Fraunces,Georgia,serif;fill:#3F7C9C}
+.map-svg .sc{font:400 66px 'Pinyon Script','Great Vibes',cursive;fill:#7A2E39;paint-order:stroke;stroke:#F6F0E2;stroke-width:8px;stroke-linejoin:round}
+</style>
+<defs>
+ <g id="bus"><rect x="-15" y="-15" width="30" height="30" rx="8" fill="#3B5F94" stroke="#fff" stroke-width="3"/><path d="M-8-7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-1v3h-3v-3h-8v3h-3v-3h-1a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zm1 3v5h14v-5z" fill="#fff" fill-rule="evenodd"/></g>
+ <g id="fork"><circle r="15" fill="#E07B2E" stroke="#fff" stroke-width="3"/><path d="M-5-8v6a2 2 0 0 0 4 0v-6M-3-8v16M5-8c-3 2-3 7 0 8v8" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
+</defs>
+
+<!-- terreno -->
+<rect width="1602" height="742" fill="#F5EEDC"/>
+<path d="M0 0H360L330 60L205 130L150 215L0 205Z" fill="#DCEBD3"/>
+<path d="M0 205L150 215L190 250L330 262L470 292C505 350 530 430 560 540L640 742H0Z" fill="#D2E3BC"/>
+<path d="M330 262L470 292C505 350 530 430 560 540L600 640C540 600 430 520 380 430C350 370 340 310 330 262Z" fill="#C6DCAA" opacity=".55"/>
+<path d="M880 742L928 640L1000 690L1100 702L1200 655L1335 742Z" fill="#D2E3BC"/>
+<path d="M800 372L990 440L1210 432L1330 500L1345 742L1300 742L1185 700L1080 692L965 652L905 560L800 522L762 472Z" fill="#EDE3CB"/>
+<path d="M525 213L594 213L581 318L523 311Z" fill="#B4E0BB"/>
+
+<!-- Adige e A22 -->
+<path d="M1385 0H1492C1525 120 1565 240 1588 340C1602 420 1602 520 1602 600V742H1522C1512 600 1502 480 1472 360C1442 240 1412 120 1385 0Z" fill="#A9D4E8"/>
+<path d="M1222 0C1290 190 1345 400 1388 742" fill="none" stroke="#8C9BB1" stroke-width="34"/>
+<path d="M1222 0C1290 190 1345 400 1388 742" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="14 12" opacity=".7"/>
+<path d="M1420 742C1440 660 1470 560 1467 477" fill="none" stroke="#8C9BB1" stroke-width="22"/>
+
+<!-- strade secondarie -->
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+ <g stroke="#E3D8BF" stroke-width="13">
+  <path d="M462 50L470 178"/><path d="M655 20L610 125L572 162"/><path d="M300 182L420 130L525 108"/><path d="M330 212L480 182"/><path d="M395 100L440 142"/><path d="M400 60L525 86"/>
+  <path d="M730 236L800 216L925 190"/><path d="M935 150L1040 138L1210 125"/><path d="M1010 300L1052 332L1092 352"/><path d="M950 388L1060 364L1182 382"/>
+  <path d="M630 190C650 260 705 330 742 500C748 560 772 620 792 700"/><path d="M1172 600L1212 500L1232 420"/><path d="M745 516L800 492L930 456"/><path d="M700 130L740 236"/>
+ </g>
+ <g stroke="#FFFDF7" stroke-width="8">
+  <path d="M462 50L470 178"/><path d="M655 20L610 125L572 162"/><path d="M300 182L420 130L525 108"/><path d="M330 212L480 182"/><path d="M395 100L440 142"/><path d="M400 60L525 86"/>
+  <path d="M730 236L800 216L925 190"/><path d="M935 150L1040 138L1210 125"/><path d="M1010 300L1052 332L1092 352"/><path d="M950 388L1060 364L1182 382"/>
+  <path d="M630 190C650 260 705 330 742 500C748 560 772 620 792 700"/><path d="M1172 600L1212 500L1232 420"/><path d="M745 516L800 492L930 456"/><path d="M700 130L740 236"/>
+ </g>
+ <path d="M918 548L852 742" stroke="#C8CFD7" stroke-width="20"/><path d="M918 548L852 742" stroke="#DDE2E8" stroke-width="12"/>
+</g>
+
+<!-- percorso in auto -->
+<path id="rotta" d="M1467 477C1490 462 1490 430 1462 424C1440 420 1420 438 1405 450L1300 482C1260 492 1235 510 1215 530C1190 556 1160 600 1130 635C1105 665 1080 684 1050 682C1010 678 975 655 950 628C932 608 926 585 927 552L931 535C938 515 942 490 945 460L950 390L948 320L942 240L934 180L918 110L900 50L888 6L780 52L700 92L620 132L540 172L492 193L455 208L370 233L330 246L300 256C270 258 240 240 215 236L192 240" fill="none" stroke="#5F222B" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>
+<path d="M1467 477C1490 462 1490 430 1462 424C1440 420 1420 438 1405 450L1300 482C1260 492 1235 510 1215 530C1190 556 1160 600 1130 635C1105 665 1080 684 1050 682C1010 678 975 655 950 628C932 608 926 585 927 552L931 535C938 515 942 490 945 460L950 390L948 320L942 240L934 180L918 110L900 50L888 6L780 52L700 92L620 132L540 172L492 193L455 208L370 233L330 246L300 256C270 258 240 240 215 236L192 240" fill="none" stroke="#7A2E39" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1467 477C1490 462 1490 430 1462 424C1440 420 1420 438 1405 450L1300 482C1260 492 1235 510 1215 530C1190 556 1160 600 1130 635C1105 665 1080 684 1050 682C1010 678 975 655 950 628C932 608 926 585 927 552L931 535C938 515 942 490 945 460L950 390L948 320L942 240L934 180L918 110L900 50L888 6L780 52L700 92L620 132L540 172L492 193L455 208L370 233L330 246L300 256C270 258 240 240 215 236L192 240" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="3 14" stroke-linecap="round"/>
+
+<!-- etichette strade -->
+<text class="s" transform="translate(742 44) rotate(-25)" text-anchor="middle">Via delle Masere</text>
+<text class="s" transform="translate(916 318) rotate(-88)" text-anchor="middle">Via Stella</text>
+<text class="s" transform="translate(1158 640) rotate(-46)" text-anchor="middle">Raccordo al Casello Sud</text>
+<text class="s" transform="translate(640 66) rotate(-62)" text-anchor="middle">Via della Croce</text>
+<text class="s" transform="translate(487 86) rotate(88)" text-anchor="middle">Via per Belvedere</text>
+<text class="s" transform="translate(826 210) rotate(-11)" text-anchor="middle">Via Filari Longhi</text>
+<text class="s" transform="translate(1080 128) rotate(-3)" text-anchor="middle">Via Provina</text>
+<text class="s" transform="translate(690 380) rotate(72)" text-anchor="middle">Via Santa Marina</text>
+<text class="s" transform="translate(862 476) rotate(-12)" text-anchor="middle">Via Santa Marina</text>
+<text class="s" transform="translate(1192 500) rotate(-72)" text-anchor="middle">Via dell'Impresa</text>
+<rect x="866" y="586" width="50" height="24" rx="5" fill="#2F6DB5"/><text x="891" y="604" text-anchor="middle" font-size="16" font-weight="700" fill="#fff" font-family="Manrope,sans-serif">SP90</text>
+<rect x="1352" y="574" width="44" height="26" rx="13" fill="#3C8A4B"/><text x="1374" y="593" text-anchor="middle" font-size="16" font-weight="700" fill="#fff" font-family="Manrope,sans-serif">A22</text>
+<rect x="1266" y="78" width="44" height="26" rx="13" fill="#3C8A4B"/><text x="1288" y="97" text-anchor="middle" font-size="16" font-weight="700" fill="#fff" font-family="Manrope,sans-serif">A22</text>
+<text class="fr" transform="translate(1548 590) rotate(-90)" text-anchor="middle">fiume Adige</text>
+
+<!-- luoghi vicini -->
+<g><circle cx="1061" cy="91" r="14" fill="#6E7883" stroke="#fff" stroke-width="3"/><text class="l" x="1082" y="98">Unifarm S.p.A.</text></g>
+<g><circle cx="970" cy="278" r="14" fill="#2F6FBF" stroke="#fff" stroke-width="3"/><text class="l" x="992" y="276">Renault Trento</text><text class="l" x="992" y="300">Autoindustriale</text></g>
+<g><circle cx="1231" cy="347" r="14" fill="#2F6FBF" stroke="#fff" stroke-width="3"/><text class="l" x="1208" y="355" text-anchor="end">Autoindustriale</text></g>
+<g><circle cx="1077" cy="563" r="14" fill="#6E7883" stroke="#fff" stroke-width="3"/><text class="l" x="1056" y="572" text-anchor="end">Barison Industry</text></g>
+<use href="#fork" x="551" y="459"/><text class="l" x="576" y="458">La Torre –</text><text class="l" x="576" y="482">Biergarten Forst</text>
+<g><circle cx="207" cy="652" r="14" fill="#C2348B" stroke="#fff" stroke-width="3"/><text class="l" x="66" y="646">Agriturismo</text><text class="l" x="66" y="670">Margone Trento</text></g>
+<g><circle cx="565" cy="708" r="14" fill="#C2348B" stroke="#fff" stroke-width="3"/><text class="l" x="424" y="716">Agritur Gasadòr</text></g>
+<use href="#fork" x="324" y="180"/><text class="l" x="346" y="176">Pizzeria</text><text class="l" x="346" y="200">Da Mimmo</text>
+
+<!-- fermate bus -->
+<use href="#bus" x="929" y="172"/><use href="#bus" x="929" y="232"/><use href="#bus" x="949" y="389"/><use href="#bus" x="567" y="165"/>
+<path d="M492 208L470 292" stroke="#3B5F94" stroke-width="3" fill="none"/>
+<use href="#bus" x="492" y="193"/>
+<g><rect x="308" y="288" width="232" height="58" rx="14" fill="#fff" stroke="#3B5F94" stroke-width="2.5"/><text class="b" x="424" y="313" text-anchor="middle" fill="#3B5F94">Fermata bus</text><text class="b" x="424" y="337" text-anchor="middle" fill="#3B5F94">Ravina Masere</text></g>
+
+<!-- casello: partenza -->
+<g transform="translate(1467 477)"><path d="M0 0C-26 -28 -20 -60 0 -60C20 -60 26 -28 0 0Z" fill="#6E9150" stroke="#fff" stroke-width="3" transform="translate(0 -4)"/><circle cy="-46" r="9" fill="#fff"/></g>
+<g><rect x="1352" y="500" width="196" height="36" rx="18" fill="#fff" opacity=".92"/><text class="b" x="1450" y="525" text-anchor="middle" fill="#4E6B37">Casello Trento Sud</text></g>
+
+<!-- arrivo: parcheggio e La Columbera -->
+<path d="M186 238L226 196" fill="none" stroke="#7A2E39" stroke-width="4" stroke-dasharray="2 9" stroke-linecap="round"/>
+<g><rect x="146" y="240" width="46" height="46" rx="12" fill="#E8C36B" stroke="#fff" stroke-width="3"/><text x="169" y="274" text-anchor="middle" font-family="Manrope,sans-serif" font-size="30" font-weight="800" fill="#3A151B">P</text></g>
+<text class="l" x="40" y="322" style="fill:#7A2E39">Parcheggio</text>
+<text class="l" x="40" y="346" style="fill:#7A2E39">Via Val Gola 22</text>
+<text class="s" x="40" y="372">a 50 m dalla struttura</text>
+<g transform="translate(245 190)"><path d="M0 0C-30 -32 -24 -68 0 -68C24 -68 30 -32 0 0Z" fill="#7A2E39" stroke="#fff" stroke-width="3.5"/><g fill="#fff"><path d="M-12 -46h24v-4h-4v-4h-4v4h-4v-4h-4v4h-4v-4h-4z" transform="translate(0 2)"/><rect x="-12" y="-46" width="24" height="16"/></g><path d="M-3 -30v-8a3 3 0 0 1 6 0v8z" fill="#7A2E39"/></g>
+<text class="sc" x="30" y="66">La Columbera</text>
+<text class="l" x="36" y="100" style="fill:#7A2E39">Via Centrale 48 · Ravina, Trento</text>
+
+<!-- durata -->
+<g><rect x="590" y="640" width="198" height="62" rx="16" fill="#fff" stroke="#7A2E39" stroke-width="2.5"/><text class="b" x="689" y="668" text-anchor="middle" fill="#7A2E39" font-size="26">≈ 4 min</text><text class="l" x="689" y="692" text-anchor="middle" style="stroke:none;fill:#6C5F55;font-size:20px">2,4 km in auto</text></g>
+</svg>
+
 </div>
 <div class="map-legend" data-testid="map-legend">
   <div><span class="pin castle"></span><b>La Columbera</b> — Via Centrale 48, 38123 Ravina (Trento)</div>
@@ -39,19 +138,8 @@
 <section class="bus-sec" id="bus" data-testid="bus-section"><div class="wrap">
 <span class="section-eyebrow" data-reveal>Senza auto</span>
 <h2 data-reveal data-reveal-delay="1">Muoversi <em>in autobus</em></h2>
-<p class="lead" data-reveal data-reveal-delay="2">Ravina è collegata al centro di Trento e alla stazione dalle linee urbane di <b>Trentino Trasporti</b>. La fermata di riferimento è <b>Ravina (chiesa / piazza)</b>, a due minuti a piedi dalla dimora.</p>
-<div class="grid-cards" data-testid="bus-grid">
-<article class="apt-card" data-testid="bus-line-12-card" data-reveal data-reveal-delay="1">
-<figure><img src="https://images.unsplash.com/photo-1570125909232-eb263c188f7e?crop=entropy&cs=srgb&fm=jpg&q=85" alt="Autobus in viaggio tra le strade del Trentino" loading="lazy"><span class="apt-tag">Urbana</span></figure>
-<div class="body"><h3>Linea 12</h3><div class="meta"><span>Piazza Dante · Stazione FS ↔ Ravina ↔ Romagnano</span></div><p>Il collegamento principale con il centro: da Piazza Dante e dalla stazione ferroviaria di Trento fino a Ravina e Romagnano, con passaggi frequenti nei giorni feriali.</p><div class="cta"><a class="cta-link" href="https://www.trentinotrasporti.it/it/viaggia-con-noi/urbano/trento" target="_blank" rel="noopener noreferrer" data-testid="trentino-trasporti-official-link">Orari ufficiali <span aria-hidden="true">↗</span></a></div></div>
-</article>
-<article class="apt-card" data-testid="bus-line-14-card" data-reveal data-reveal-delay="2">
-<div class="body"><h3>Linea 14</h3><div class="meta"><span>Piazza Dante ↔ Ravina ↔ Belvedere</span></div><p>L'altra linea urbana che serve Ravina: dal centro di Trento, passando per via Sanseverino, fino a Ravina e poi verso il Belvedere.</p><div class="cta"><a class="cta-link" href="https://www.trentinotrasporti.it/it/viaggia-con-noi/urbano/trento" target="_blank" rel="noopener noreferrer" data-testid="trentino-trasporti-link-14">Orari ufficiali <span aria-hidden="true">↗</span></a></div></div>
-</article>
-<article class="apt-card" data-testid="bus-extra-card" data-reveal data-reveal-delay="3">
-<div class="body"><h3>Linee extraurbane</h3><div class="meta"><span>B302 · B311</span><span>Valle dei Laghi · altopiani</span></div><p>Dalle fermate di Ravina e Romagnano partono anche i collegamenti extraurbani verso la Valle dei Laghi e gli altopiani: comodi per una gita senza auto.</p><div class="cta"><a class="cta-link" href="https://www.trentinotrasporti.it" target="_blank" rel="noopener noreferrer" data-testid="trentino-trasporti-link-extra">Tutte le direttrici <span aria-hidden="true">↗</span></a></div></div>
-</article>
-</div>
+<p class="lead" data-reveal data-reveal-delay="2">Ravina è collegata al centro di Trento e alla stazione dalle linee urbane di <b>Trentino Trasporti</b>. La fermata di riferimento è <b>Ravina Masere</b>, a due minuti a piedi dalla dimora: cliccate una scheda per aprirla su Google Maps.</p>
+<div class="grid-cards" id="bus-grid" data-testid="bus-grid"></div>
 <div class="bus-note" data-reveal>
 <p><b>Orari e avvisi.</b> Gli orari cambiano tra feriale, sabato e festivo e possono subire variazioni: prima di partire consultate sempre gli orari ufficiali e gli avvisi di servizio di Trentino Trasporti — oppure chiedeteci al check-in, vi aiutiamo volentieri.</p>
 <div class="bus-actions">
@@ -63,4 +151,5 @@
 </main>
 <footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><div class="footer-brand-mark"><img src="img/brand/logo-light.png" alt=""></div><p class="footer-tag">Dimora storica del XV secolo a Ravina.</p></div><div class="footer-col"><h4>La dimora</h4><a href="index.html#dimora">La Columbera</a><a href="torre.html">Torre</a><a href="corte.html">Corte</a></div><div class="footer-col"><h4>Contatti</h4><a href="tel:+393517043594">+39 351 704 3594</a><a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a></div></div><div class="wrap footer-bottom"><span>© <span id="yr">2026</span> La Columbera</span></div></footer>
 <script src="js/site.js"></script>
+<script src="js/mappa.js"></script>
 </body></html>

@@ -2,13 +2,6 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<script>
-// Se il redirect_uri registrato su Trentino Guest Card è il dominio nudo (non /api/x?a=gc_oauth_callback),
-// dopo il login l'utente atterra qui con ?code=...&state=... nell'indirizzo. Senza questo, quei due
-// parametri andrebbero persi sulla home e l'autorizzazione non si completerebbe mai. Ricostruiamo l'url
-// con "&" (non concateniamo mai un secondo "?": è esattamente il bug che stiamo aggirando).
-(function(){var p=new URLSearchParams(location.search);if(p.has('code')&&p.has('state'))location.replace('/api/x?a=gc_oauth_callback&'+p.toString())})();
-</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>La Columbera · Dimora storica del XV secolo a Ravina, Trento</title>
 <meta name="description" content="La Columbera è una dimora del XV secolo nel borgo di Ravina, alle porte di Trento. Due appartamenti indipendenti, Torre e Corte, dove il fascino della storia incontra il comfort di oggi.">
@@ -33,7 +26,7 @@
       <img src="img/brand/logo-light.png" alt="" aria-hidden="true" class="brand-logo-light">
       <span class="brand-word">La Columbera</span>
     </a>
-    <nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="eventi.html" data-testid="nav-eventi">Eventi</a><a href="mappa.html" data-testid="nav-mappa">Mappa</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
+    <nav class="nav-links" id="nav-links" data-testid="primary-nav"><a href="index.html" data-testid="nav-home">Home</a><a href="index.html#appartamenti" data-testid="nav-appartamenti">Appartamenti</a><a href="dintorni.html" data-testid="nav-dintorni">Luoghi di interesse</a><a href="convenzioni.html" data-testid="nav-convenzioni">Convenzioni</a><a href="mappa.html" data-testid="nav-mappa">Come trovarci</a><a href="torre.html" class="only-mobile" data-testid="nav-app-torre">App. Torre</a><a href="corte.html" class="only-mobile" data-testid="nav-app-corte">App. Corte</a><a class="nav-cta" href="area-clienti.html" data-testid="nav-cta-area">Area clienti</a></nav>
     <button class="menu-toggle" aria-label="Apri il menu" aria-expanded="false" aria-controls="nav-links" data-testid="menu-toggle">
       <span></span><span></span><span></span>
     </button>
@@ -196,6 +189,9 @@
             <div class="fact"><b>XV sec.</b><span>anno di costruzione della dimora</span></div>
             <div class="fact"><b>2</b><span>appartamenti indipendenti</span></div>
           </div>
+          <p class="ravina-cta" data-reveal data-reveal-delay="4">
+            <a class="btn btn-line" href="dintorni.html" data-testid="ravina-cta-dintorni">Dintorni, convenzioni e stagioni <span class="arrow">→</span></a>
+          </p>
         </div>
         <figure class="fig" data-reveal data-reveal-delay="2">
           <img src="img/Trento1.jpg" alt="Piazza Duomo a Trento, con la torre civica e la fontana del Nettuno">

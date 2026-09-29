@@ -988,3 +988,27 @@ table.data th{white-space:nowrap}
   .nav-links a{padding:10px 10px;font-size:.88rem}
   .nav-links .nav-cta{padding:10px 16px !important;margin-left:6px}
 }
+
+
+/* ===== Schede cliccabili + foto reali (Luoghi, Eventi per stagione, Convenzioni, Come trovarci) ===== */
+.grid-cards a.apt-card{cursor:pointer;text-decoration:none;color:inherit}
+.apt-card:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.apt-card figure{background:linear-gradient(135deg,var(--paper-2),var(--stone))}
+.apt-card figure img{transition:transform .8s ease,opacity .5s ease}
+.apt-card figure img:not([src]){opacity:0}
+.apt-card figure.no-photo{display:flex;align-items:center;justify-content:center}
+.apt-card figure.no-photo img{display:none}
+.apt-card figure.no-photo::before{content:"";width:64px;height:64px;border-radius:50%;background:rgba(122,46,57,.09) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A2E39' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z'/%3E%3Ccircle cx='12' cy='10' r='2.4'/%3E%3C/svg%3E") center/34px no-repeat}
+.card-link .stretched::after{content:"";position:absolute;inset:0;z-index:1}
+.card-link .cta{flex-wrap:wrap;row-gap:10px}
+.card-link .cta-sub{position:relative;z-index:2;font-size:.82rem;font-weight:600;color:var(--wine);text-decoration:underline;text-underline-offset:3px}
+.card-link .cta-sub:hover{color:var(--wine-2)}
+.photo-note{margin:26px 0 0;font-size:.78rem;color:var(--muted)}
+.map-svg{width:100%;height:auto;display:block}
+.map-legend .pin.bus{background:#3B5F94;border-radius:4px}
+.route-steps{margin:0;padding-left:1.2em;color:var(--muted);font-size:.98rem;line-height:1.7}
+.route-steps li{margin:2px 0}
+@media (max-width:760px){
+  .map-illustration{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .map-svg{min-width:860px}
+}
