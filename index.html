@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Ritorno dal login OAuth di Trentino Guest Card: il redirect registrato presso Trentino Marketing è la home,
+// quindi arriva qui con ?state=…&code=…  Inoltra subito (senza mostrare la home) all'endpoint di callback.
+(function(){
+  var q=new URLSearchParams(location.search),c=q.get('code'),s=q.get('state');
+  if(c&&s)location.replace('/api/x?a=gc_oauth_callback&state='+encodeURIComponent(s)+'&code='+encodeURIComponent(c));
+})();
+</script>
 <title>La Columbera · Dimora storica del XV secolo a Ravina, Trento</title>
 <meta name="description" content="La Columbera è una dimora del XV secolo nel borgo di Ravina, alle porte di Trento. Due appartamenti indipendenti, Torre e Corte, dove il fascino della storia incontra il comfort di oggi.">
 <meta name="theme-color" content="#7A2E39">
