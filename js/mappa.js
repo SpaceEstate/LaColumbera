@@ -1,6 +1,6 @@
 // La Columbera · "Come trovarci": schede cliccabili delle linee bus che servono Ravina.
 // Il link di ogni scheda apre la fermata "Ravina Piazza" su Google Maps.
-// Foto: file propri in img/ (bus-12.jpg, bus-14.jpg, bus-b302.jpg). Per cambiarle basta sostituire il file.
+// Foto: file propri in img/ (bus-12.jpg, bus-14.jpg). Per cambiarle basta sostituire il file.
 (function(){
   var grid=document.getElementById('bus-grid');
   if(!grid)return;
@@ -14,10 +14,7 @@
      local:'img/bus-12.jpg',alt:'Autobus Trentino Trasporti della linea 12 diretto a Ravina'},
     {id:'14',tag:'Urbana · linea 14',t:'Linea 14',meta:['Ravina ↔ Stazione FS · Piazza Dante'],
      d:'L\u2019altra linea urbana che serve Ravina: da Ravina Piazza alla stazione ferroviaria e a Piazza Dante, nel cuore di Trento. Dall\u2019altra parte la linea prosegue verso il Belvedere. Stessa flotta della linea 12.',
-     local:'img/bus-14.jpg',alt:'Autobus Trentino Trasporti della linea 14 diretto a Ravina'},
-    {id:'extra',tag:'Extraurbana',t:'Linee B302 · B311',meta:['Ravina Piazza','Valle dei Laghi · altopiani'],
-     d:'Dalla stessa fermata di Ravina Piazza partono anche i collegamenti extraurbani verso la Valle dei Laghi (Toblino, Cavedine) e gli altopiani: comodi per una gita senza auto.',
-     local:'img/bus-b302.jpg',alt:'Autobus extraurbano Trentino Trasporti, linea B302'}
+     local:'img/bus-14.jpg',alt:'Autobus Trentino Trasporti della linea 14 diretto a Ravina'}
   ];
 
   grid.innerHTML=LINEE.map(function(l){
