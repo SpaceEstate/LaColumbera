@@ -1010,10 +1010,7 @@ table.data th{white-space:nowrap}
 .map-legend .pin.bus{background:#3B5F94;border-radius:4px}
 .route-steps{margin:0;padding-left:1.2em;color:var(--muted);font-size:.98rem;line-height:1.7}
 .route-steps li{margin:2px 0}
-@media (max-width:760px){
-  .map-illustration{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .map-svg{min-width:860px}
-}
+/* Mappa: su telefono si ridimensiona alla larghezza dello schermo (nessuno scorrimento), vedi gli stili nell'SVG di mappa.html */
 
 /* ===== Gestione (admin) a sezioni ===== */
 .adm-top-actions{display:flex;gap:10px;flex-wrap:wrap}
@@ -1079,4 +1076,52 @@ table.data th{white-space:nowrap}
   .adm-nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding:8px;-webkit-overflow-scrolling:touch}
   .adm-nav .grp{display:none}
   .adm-nav a{white-space:nowrap;flex:0 0 auto}
+}
+
+/* ===== Linee bus: con due schede si dividono la riga ===== */
+#bus-grid{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+/* ===== Guest Card (pagina pubblica): riepilogo prenotazione ===== */
+/* le celle erano stilate solo dentro .booking-card: nella pagina guest-card restavano senza stile e i campi si accavallavano */
+.bc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;margin:14px 0 16px}
+.bc-cell{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bc-cell span{font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.bc-cell b{font-size:.98rem;color:var(--charcoal);overflow-wrap:anywhere}
+
+/* ===== Admin · Prenotazioni: righe a griglia, si vede tutto senza scorrere in orizzontale ===== */
+.table-wrap.tw-bk{container-type:inline-size;overflow:visible;background:none;border:0;box-shadow:none;border-radius:0}
+table.data.bkt,table.data.bkt tbody{display:block;width:100%}
+table.data.bkt thead{display:none}
+table.data.bkt tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"cod app" "dal al" "osp tot" "cli cli" "sta sta" "azi azi";gap:0 14px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 16px 14px;margin-bottom:12px}
+table.data.bkt td{display:block;min-width:0;padding:7px 0;border:0;font-size:.9rem;line-height:1.4;overflow-wrap:anywhere}
+table.data.bkt td::before{content:attr(data-label);display:block;margin-bottom:2px;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--wine)}
+table.data.bkt td[data-label="Codice"]{grid-area:cod}
+table.data.bkt td[data-label="App."]{grid-area:app}
+table.data.bkt td[data-label="Dal"]{grid-area:dal}
+table.data.bkt td[data-label="Al"]{grid-area:al}
+table.data.bkt td[data-label="Ospiti"]{grid-area:osp}
+table.data.bkt td[data-label="Totale"]{grid-area:tot}
+table.data.bkt td.td-cliente{grid-area:cli;border-top:1px solid var(--line);margin-top:6px;padding-top:10px}
+table.data.bkt td[data-label="Stato"]{grid-area:sta}
+table.data.bkt td.td-azioni{grid-area:azi;align-self:end;padding-top:6px}
+table.data.bkt td.td-azioni::before{display:none}
+table.data.bkt td.td-empty{grid-area:auto;grid-column:1/-1;text-align:center;color:var(--muted);padding:14px 0}
+table.data.bkt td.td-empty::before{display:none}
+table.data.bkt .stato-select{width:100%;padding:10px 12px;font-size:.9rem}
+@container (min-width:680px){
+  table.data.bkt tr{grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"cod app dal al osp tot" "cli cli cli sta sta azi";row-gap:6px;padding:12px 18px 14px}
+  table.data.bkt td.td-cliente{border-top:0;margin-top:0;padding-top:7px}
+}
+@media (max-width:760px){
+  table.data.bkt .stato-select{font-size:16px}
+}
+
+/* ===== Admin · Emetti Guest Card su telefono: un campo per riga, niente sovrapposizioni ===== */
+@media (max-width:760px){
+  #gcf .fields-grid{grid-template-columns:minmax(0,1fr);gap:0}
+  #gcf .field{min-width:0}
+  #gcf input,#gcf select{width:100%;max-width:100%;min-width:0;min-height:46px}
+  #gcf input[type=date]{-webkit-appearance:none;appearance:none;display:block}
+  #gcf .btn{width:100%;justify-content:center}
+  #gc-msg{display:block;margin:10px 0 0}
 }
