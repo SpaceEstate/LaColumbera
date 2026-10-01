@@ -1,5 +1,8 @@
 // Orari della fermata "Ravina Piazza" per le linee urbane 12 e 14 di Trentino Trasporti.
 //
+// ATTENZIONE: questo file deve restare in api/ (api/orari.js). Vercel espone come endpoint
+// solo i file della cartella api/: se sta altrove (es. js/) /api/orari risponde 404.
+//
 // I PDF di fermata hanno il codice della stagione nel nome (es. T26I = orario invernale 2026-27,
 // T27E = orario estivo 2027) e cambiano due volte l'anno. Invece di tenere un link fisso che scade,
 // questo endpoint cerca ogni volta il PDF in vigore sul sito di Trentino Trasporti e fa un redirect.
@@ -11,10 +14,13 @@
 const TT = 'https://www.trentinotrasporti.it';
 const FERMATA = '27045'; // codice della fermata Ravina Piazza (uguale per le due linee)
 
-const PAGINA = (andata, ritorno) =>
-  TT + '/it/linea-urbana?idBacinoCitta=%2Fit%2Fviaggia-con-noi%2Furbano%2Ftrento%3Fstagione%3D%23andata'
-     + '&idLineaAndata=' + andata + '&idLineaRitorno=' + ritorno + '#ritorno';
-const LINEE = { '12': PAGINA(624, 625), '14': PAGINA(626, 627) };
+// Pagine ufficiali delle linee: cliccando "Ravina Piazza" si aprono gli orari della fermata.
+const PAGINA_BASE = TT + '/it/linea-urbana?idLineaAndata=';
+const PAGINA_FINE = '&stagione=&idBacinoCitta=/it/viaggia-con-noi/urbano/trento?stagione=%23andata#ritorno';
+const LINEE = {
+  '12': PAGINA_BASE + '624&idLineaRitorno=625' + PAGINA_FINE,
+  '14': PAGINA_BASE + '626&idLineaRitorno=627' + PAGINA_FINE
+};
 
 // Stagioni da provare, in ordine: quella in corso secondo la data, poi la successiva, poi la precedente.
 // Orario invernale: da metà settembre a inizio giugno · orario estivo: da inizio giugno a metà settembre.
