@@ -12,6 +12,11 @@ const iso=d=>d.toISOString().slice(0,10);
 const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
 const addDays=(s,n)=>{const d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return iso(d)};
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
+// supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
+const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
+// notti minime: vale la regola del periodo che contiene la data di arrivo, altrimenti il minimo generale
+const minFor=(p,da)=>{const r=(p.minPeriodi||[]).find(q=>q.da&&q.a&&da>=q.da&&da<=q.a);return+(r?r.min:p.min)||1};
+const blockedDays=(config,id)=>{const p=(config.apts||[]).find(x=>x.id===id);return p&&p.blocked?Object.keys(p.blocked).filter(k=>p.blocked[k]):[]};
 const F=s=>s.replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3');
 const F2=s=>{const m=/(\d{4})-(\d\d)-(\d\d)/.exec(s);return m?m[3]+'/'+m[2]+'/'+m[1]:s};
 const APT_LABEL={torre:'La Columbera - Torre, Appartamento con 2 camere da letto',corte:'La Columbera - Corte, Appartamento con 1 camere da letto'};
@@ -57,16 +62,9 @@ const tgcOauthBasic=()=>{
 
 // Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken
 async function tgcExchangeCode(code){
- // Diagnostica: raccoglie tutto cio che serve a capire dove si blocca lo scambio (mai i valori di secret/code/token)
- const sec=process.env.TGC_OAUTH_CLIENT_SECRET||'';
- const d={ambienteVercel:process.env.VERCEL_ENV||'?',base:TGC_BASE,endpoint:'/ws/oauth/access_token_pms.ashx',clientId:process.env.TGC_OAUTH_CLIENT_ID||null,
-  secretLen:sec.length,secretSpaziAiBordi:sec!==sec.trim(),secretApici:/["']/.test(sec),codeLen:String(code).length,redirectUri:process.env.TGC_REDIRECT_URI||null};
- let r,txt;const t0=Date.now();
- try{r=await fetch(TGC_BASE+'/ws/oauth/access_token_pms.ashx?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});txt=await r.text()}
- catch(e){d.rete=String(e.message||e);const err=new Error('errore di rete verso Trentino: '+d.rete);err.diag=d;throw err}
- d.ms=Date.now()-t0;d.status=r.status;d.contentType=r.headers.get('content-type');d.wwwAuthenticate=r.headers.get('www-authenticate');d.body=txt.slice(0,800);
- let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
- if(!r.ok||!j.Token){const err=new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));err.diag=d;throw err}
+ const r=await fetch(TGC_BASE+'/ws/oauth/access_token_pms.ashx?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});
+ const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+ if(!r.ok||!j.Token)throw new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
 // Rinnova un Token scaduto usando il RefreshToken salvato (il RefreshToken cambia a ogni refresh: va sempre risalvato)
@@ -121,7 +119,7 @@ const PEND_MS=18e5; // 30 minuti
 const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.length;bk=bk.filter(x=>!(x.stato==='in_attesa'&&now-Date.parse(x.creato)>PEND_MS));if(bk.length!==n)await kv('SET','bk',JSON.stringify(bk));return bk};
 
 const closedDays=(config,id)=>{if(!(config.closed&&config.closed[id]))return[];const o=[],s=new Date();for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
-const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id)])};
+const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id),...blockedDays(config,id)])};
 // Rete di sicurezza SOLO lato ospite (calendario sul sito + checkout): oltre questo orizzonte le date sono
 // considerate chiuse per default, anche se il feed iCal non dice nulla (es. Booking non ancora aperto così avanti).
 // Non tocca busy()/l'export a==='ical' verso Booking/Airbnb, per non segnalare loro come occupate date che
@@ -191,13 +189,18 @@ const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('
 try{
 if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata dalle schede di Luoghi, Convenzioni e Come trovarci
  // siti ammessi (anti-abuso). Per aggiungere il sito di un partner: variabile Vercel OG_HOSTS, es. "sun7caffe.it,bistro.it"
- const HOSTS=['visittrentino.info','visittrento.it','montebondone.it','gardatrentino.it','visitvaldinon.it','tastetrentino.it','muse.it','buonconsiglio.it','casteltoblino.it','trentinotrasporti.it'].concat((process.env.OG_HOSTS||'').split(',').map(s=>s.trim().toLowerCase().replace(/^www\./,'')).filter(Boolean));
+ const HOSTS=['visittrentino.info','visittrento.it','gardatrentino.it','visitvaldinon.it','tastetrentino.it','muse.it','buonconsiglio.it','casteltoblino.it','trentinotrasporti.it','provincia.tn.it','forst.it','palestra-trento-juta.it'].concat((process.env.OG_HOSTS||'').split(',').map(s=>s.trim().toLowerCase().replace(/^www\./,'')).filter(Boolean));
  let u;try{u=new URL(String(req.query.u||''))}catch{return res.status(400).end()}
  const h=u.hostname.toLowerCase();
  if(u.protocol!=='https:'||!HOSTS.some(d=>h===d||h.endsWith('.'+d)))return res.status(400).end();
  try{
   const r=await fetch(u.href,{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'},redirect:'follow'});
   if(!r.ok)return res.status(404).end();
+  const ct=r.headers.get('content-type')||'';
+  if(ct.startsWith('image/')){ // il link punta già a un file immagine (pagina senza tag og:image): lo si inoltra direttamente
+   res.setHeader('Cache-Control','public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000');
+   res.setHeader('Location',r.url||u.href);return res.status(302).end();
+  }
   const html=(await r.text()).slice(0,300000);
   const m=html.match(/<meta[^>]+(?:property|name)=["']og:image(?::secure_url)?["'][^>]*content=["']([^"']+)["']/i)||html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']og:image(?::secure_url)?["']/i);
   if(!m)return res.status(404).end();
@@ -215,11 +218,11 @@ if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res
 if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
  if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
- const g=days(b.da,b.a);if(g.length<p.min||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+p.min+' notti)'});
+ const g=days(b.da,b.a);const mn=minFor(p,b.da);if(g.length<mn||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+mn+' notti per queste date)'});
  const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=await getBk(),occ=await guestBusy(config,p.id,bk);
  if(g.some(d=>occ.has(d)))return res.status(409).json({err:'Date non più disponibili'});
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
- const totale=g.reduce((s,d)=>s+np(p,d)+Math.max(0,n-p.inclusi)*p.extra,0);
+ const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
  const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
  const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host;
  let session;
@@ -269,12 +272,7 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
   const tok=await tgcExchangeCode(String(code));
   await kv('SET','tgc:oauth:token',JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
   return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')
- }catch(e){
-  const d=e.diag||{};d.chiaviQuerySulCallback=Object.keys(req.query);d.rawAConPunto=rawA.includes('?');d.errore=e.message;
-  console.error('TGC scambio token fallito',JSON.stringify(d));
-  const esc=v=>String(v).replace(/[&<>]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
-  res.setHeader('Content-Type','text/html; charset=utf-8');
-  return res.status(502).send('<html><body style="font-family:sans-serif;padding:24px"><h2>Errore nello scambio del token</h2><p>Copia il testo qui sotto e inoltralo ai tecnici di Trentino Marketing:</p><pre style="white-space:pre-wrap;word-break:break-word;background:#f4f4f4;padding:12px">'+esc(JSON.stringify(d,null,2))+'</pre><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')}}
+ }catch(e){return res.status(502).send('Errore nello scambio del token: '+e.message)}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
@@ -285,6 +283,18 @@ if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Ca
  await kv('SET','tgc:oauth:state:'+state,'1','EX','600');
  const qs=new URLSearchParams({client_id:process.env.TGC_OAUTH_CLIENT_ID,redirect_uri:process.env.TGC_REDIRECT_URI,state});
  return res.json({url:TGC_BASE+'/loginricettivo.aspx?'+qs})}
+if(a==='gc_manual_issue'){ // solo admin: emette una Guest Card per date/ospiti scelti a mano, senza prenotazione sul sito
+ const R=/^\d{4}-\d\d-\d\d$/,email=String(b.email||'').trim().toLowerCase(),personeMax=Math.min(Math.max(+b.ospiti||1,1),12);
+ if(!R.test(b.da)||!R.test(b.a)||b.a<=b.da)return res.status(400).json({err:'Date non valide'});
+ if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'});
+ if(!process.env.TGC_CARD_TYPE_ID)return res.status(500).json({err:'Guest Card non configurata sul server (manca TGC_CARD_TYPE_ID su Vercel)'});
+ const codice='MAN-'+c.randomBytes(3).toString('hex').toUpperCase();let tgc;
+ try{tgc=await emettiGuestCardTGC({dal:b.da,al:b.a,email,personeMax,codice})}
+ catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
+ const rec={codice,gc_id:tgc.QrCode||'',nome:String(b.nome||'').slice(0,80),email,da:b.da,a:b.a,ospiti:personeMax,apt:String(b.apt||'').slice(0,20),note:String(b.note||'').slice(0,200),creato:new Date().toISOString()};
+ const list=(await jg('gc:manual'))||[];list.unshift(rec);await kv('SET','gc:manual',JSON.stringify(list.slice(0,300)));
+ return res.json(rec)}
+if(a==='gc_manual_list')return res.json((await jg('gc:manual'))||[]);
 if(a==='gc_tipologie'){ // solo admin: elenco tipologie card, serve una volta per trovare il TGC_CARD_TYPE_ID da mettere su Vercel
  try{return res.json(await tgcCall('TipologieCard.ashx'))}
  catch(e){return res.status(502).json({err:e.message})}}
@@ -302,7 +312,7 @@ if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)ret
 if(a==='event_del'){let list=(await jg('events'))||[];list=list.filter(x=>x.id!==b.id);await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
 if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img||'');if(!m)return res.status(400).json({err:'Immagine non valida'});
  const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
-if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,max:+p.max||1,min:+p.min||1,foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
+if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
  for(const k of Object.keys(b.ical||{}))n.ical[k]=String(b.ical[k]||'');
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
  const keep=new Set(n.apts.flatMap(p=>p.foto));

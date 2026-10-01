@@ -19,7 +19,7 @@
      alt:'Castel Toblino sul lago di Toblino',link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
     {id:'bondone',t:'Monte Bondone',meta:['20 min','ciclabile · sci · sentieri'],
      d:'La montagna di Trento: percorsi facili in estate, piste da sci in inverno, panorami sulla città e sulla valle dell\u2019Adige.',
-     alt:'Monte Bondone',link:'https://www.montebondone.it',lt:'montebondone.it'},
+     alt:'Monte Bondone',link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
     {id:'cantine',t:'Cantine e produttori locali',meta:['2-15 min','vino · miele · formaggi'],
      d:'Le cantine di Ravina e della Valle dell\u2019Adige: Trentodoc, Teroldego, Nosiola. Chiedeteci per visite guidate e degustazioni.',
      alt:'Vigneti e vini del Trentino',link:VT+'gusto/vini-del-trentino',lt:'Vini del Trentino'},
@@ -34,7 +34,8 @@
      alt:'Val di Non',link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it'},
     {id:'convenzioni',t:'Ristoranti e locali convenzionati',meta:['a Ravina e dintorni','partner de La Columbera'],
      d:'Pizzerie, caffè, birrerie e palestre: le realtà del territorio che consigliamo e con cui siamo convenzionati.',
-     link:'convenzioni.html',lt:'Scopri le convenzioni',noPhoto:true}
+     alt:'Alcuni dei nostri locali convenzionati',link:'convenzioni.html',lt:'Scopri le convenzioni',
+     quad:['img/convenzioni/forst-biergarten.jpg','img/convenzioni/palestra-juta.jpg','img/convenzioni/pizzeria-da-mimmo.jpg','img/convenzioni/sun7-caffe.jpg']}
   ];
 
   // ---------- Convenzioni ----------
@@ -46,11 +47,11 @@
      d:'La pizzeria del borgo, a due passi dalla dimora: impasto curato, forno a legna e piatti della tradizione.'},
     {id:'sun7-caffe',nome:'Sun7 Caffè',cat:'Caffè · Colazioni & aperitivi',zona:'Ravina',badge:'Convenzionato',sito:'',maps:'Sun7 Caffè, Ravina, Trento',
      d:'Il punto di riferimento per la colazione e l\u2019aperitivo: caffetteria, brioche e un dehor dove fermarsi con calma.'},
-    {id:'forst-biergarten',nome:'La Torre · Biergarten Forst',cat:'Birreria · Giardino',zona:'Nei dintorni',badge:'Solo estate',estate:true,sito:'',maps:'La Torre Biergarten Forst, Trento',
+    {id:'forst-biergarten',nome:'La Torre · Biergarten Forst',cat:'Birreria · Giardino',zona:'Nei dintorni',badge:'Solo estate',estate:true,sito:'https://www.forst.it/it/locali/la-torre-biergarten-forst/',maps:'La Torre Biergarten Forst, Trento',
      d:'Il giardino estivo all\u2019aperto: birre Forst alla spina, piatti tirolesi e lunghe serate sotto gli alberi. Aperto nella bella stagione.'},
     {id:'bisto',nome:'Bistò',cat:'Bistrot · Cucina & drink',zona:'Nei dintorni',badge:'Convenzionato',sito:'',maps:'Bistò, Trento',
      d:'Bistrot moderno dove la cucina di stagione incontra una drink list curata: perfetto per una cena diversa dal solito.'},
-    {id:'palestra-juta',nome:'Palestra Juta',cat:'Sport · Fitness',zona:'Nei dintorni',badge:'Convenzionata',sito:'',maps:'Palestra Juta, Trento',
+    {id:'palestra-juta',nome:'Palestra Juta',cat:'Sport · Fitness',zona:'Nei dintorni',badge:'Convenzionata',sito:'https://www.palestra-trento-juta.it/palestra-a-ravina/',maps:'Palestra Juta, Trento',
      d:'Per chi non rinuncia all\u2019allenamento in vacanza: sala attrezzi e corsi a pochi minuti dalla struttura.'}
   ];
 
@@ -70,7 +71,7 @@
     estate:[
       {t:'Monte Bondone e le Viotte',m:'20 min · giugno – settembre',alt:'Monte Bondone',
        d:'Le camminate sulle Tre Cime del Bondone e il Giardino Botanico Le Viotte, tra i più belli d\u2019Europa.',
-       link:'https://www.montebondone.it',lt:'montebondone.it'},
+       link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
       {t:'Lago di Toblino e Valle dei Laghi',m:'25 min',alt:'Castel Toblino sul lago',
        d:'Il castello sull\u2019acqua, una passeggiata lungolago e una sosta nelle cantine della valle.',
        link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
@@ -92,10 +93,11 @@
     inverno:[
       {t:'Sci e ciaspole sul Monte Bondone',m:'20 min · dicembre – marzo',alt:'Piste da sci in Trentino',
        d:'Piste sopra Trento con vista sulla valle dell\u2019Adige, sci in notturna e ciaspolate nella neve.',
-       link:'https://www.montebondone.it',lt:'montebondone.it'},
+       link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
       {t:'I Mercatini di Natale di Trento',m:'10 min · fine novembre – 6 gennaio',alt:'Mercatino di Natale di Trento',
        d:'Tra i mercatini più amati d\u2019Italia: casette di legno, luci e profumi in Piazza Fiera e dintorni.',
-       link:'https://natale.visittrento.it/mercatino',lt:'natale.visittrento.it'},
+       link:'https://natale.visittrento.it/mercatino',lt:'natale.visittrento.it',
+       og:'https://natale.visittrento.it/wp-content/uploads/2024/10/natale-a-trento-mercatino-ph-marco.gober_.jpg'},
       {t:'Trento d\u2019inverno: musei e portici',m:'10 min',alt:'Trento in inverno',
        d:'Il centro storico d\u2019inverno ha un fascino speciale: musei, cioccolata calda e shopping sotto i portici.',
        link:'https://www.visittrento.it',lt:'visittrento.it'}
@@ -107,22 +109,33 @@
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
   var ext=function(l){return /^https?:/.test(l)};
 
-  // Scheda cliccabile: <a> se c'è un link, altrimenti <article>. Gestisce sia il badge sulla foto (tag)
-  // sia la riga di meta sotto il titolo (meta[]), per coprire luoghi, stagioni e convenzioni con lo stesso markup.
+  // Scheda cliccabile: <a> se c'è un link, altrimenti <article>. Gestisce il badge sulla foto (tag),
+  // la riga di meta sotto il titolo (meta[]), una griglia di 4 foto al posto di una singola (quad[]),
+  // e — quando serve un sito ufficiale come link principale ma anche un piccolo link separato alla
+  // mappa (secondaryLink) — una scheda non cliccabile per intero ma con due link distinti al suo interno.
   function card(o){
     var link=o.link||'',isExt=ext(link);
-    var og=o.noPhoto?'':(o.og||(isExt?link:''));
-    var hasImg=!!(o.local||og);
-    var fig='<figure'+(hasImg?'':' class="no-photo"')+'>'
-      +(hasImg?'<img alt="'+esc(o.alt)+'" width="640" height="512" loading="lazy" decoding="async"'
-        +(o.local?' data-local="'+esc(o.local)+'"':'')+(og?' data-og="'+esc(og)+'"':'')+'>':'')
-      +(o.tag?'<span class="apt-tag'+(o.estate?' estate':'')+'">'+esc(o.tag)+'</span>':'')+'</figure>';
+    var og=o.noPhoto||o.quad?'':(o.og||(isExt?link:''));
+    var hasImg=!!(o.local||og||o.quad);
+    var fig=o.quad
+      ? '<figure class="quad">'+o.quad.map(function(src){return '<img src="'+esc(src)+'" alt="'+esc(o.alt)+'" loading="lazy" decoding="async">'}).join('')+'</figure>'
+      : '<figure'+(hasImg?'':' class="no-photo"')+'>'
+        +(hasImg?'<img alt="'+esc(o.alt)+'" width="640" height="512" loading="lazy" decoding="async"'
+          +(o.local?' data-local="'+esc(o.local)+'"':'')+(og?' data-og="'+esc(og)+'"':'')+'>':'')
+        +(o.tag?'<span class="apt-tag'+(o.estate?' estate':'')+'">'+esc(o.tag)+'</span>':'')+'</figure>';
+    var ctaMain=link?'<a class="cta-link stretched" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')+'>'+esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span></a>':'';
+    var ctaSub=o.secondaryLink?'<a class="cta-sub" href="'+esc(o.secondaryLink)+'" target="_blank" rel="noopener noreferrer">'+esc(o.secondaryLt||'Apri su Google Maps')+' ↗</a>':'';
     var body='<div class="body"><h3>'+esc(o.t)+'</h3>'
       +(o.meta&&o.meta.length?'<div class="meta">'+o.meta.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div>':'')
       +'<p>'+esc(o.d)+'</p>'
-      +(link?'<div class="cta"><span class="cta-link">'+esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span></span></div>':'')
+      +(link||ctaSub?'<div class="cta">'+ctaMain+ctaSub+'</div>':'')
       +'</div>';
     var cls='apt-card'+(o.cls?' '+o.cls:'');
+    if(o.secondaryLink&&link){
+      // due link distinti: la scheda stessa non è un <a> (eviterebbe link annidati), ma il link
+      // principale copre comunque l'intera scheda grazie a .stretched, mentre quello piccolo resta sopra.
+      return '<div class="'+cls+' card-link" data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</div>';
+    }
     if(!link)return '<article class="'+cls+'" data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</article>';
     return '<a class="'+cls+'" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')
       +' aria-label="'+esc(o.t)+(isExt?' (si apre in una nuova scheda)':'')+'" data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</a>';
@@ -133,7 +146,7 @@
   var lg=document.getElementById('luoghi-grid');
   if(lg){
     lg.innerHTML=LUOGHI.map(function(p){
-      return card({tid:'d-'+p.id,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:p.link,lt:p.lt,local:p.local,noPhoto:p.noPhoto});
+      return card({tid:'d-'+p.id,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:p.link,lt:p.lt,local:p.local,noPhoto:p.noPhoto,quad:p.quad});
     }).join('');
   }
 
@@ -144,8 +157,9 @@
       var maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.maps);
       var site=p.sito?p.sito:'';
       return card({tid:'partner-card-'+p.id,t:p.nome,meta:[p.cat,p.zona],d:p.d,alt:p.nome,tag:p.badge,estate:p.estate,
-        link:site||maps,lt:site?'Sito ufficiale':'Apri su Google Maps',
-        local:'img/convenzioni/'+p.id+'.jpg',og:site||''});
+        local:'img/convenzioni/'+p.id+'.jpg',
+        link:site||maps,lt:site?'Sito ufficiale':'Apri su Google Maps',og:site||'',
+        secondaryLink:site?maps:'',secondaryLt:'Mappa'});
     }).join('');
   }
 

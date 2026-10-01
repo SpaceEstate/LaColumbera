@@ -9,12 +9,12 @@
   var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 
   var LINEE=[
-    {id:'12',tag:'Urbana',t:'Linea 12',meta:['Piazza Dante · Stazione FS ↔ Ravina ↔ Romagnano'],
+    {id:'12',tag:'Urbana · linea 12',t:'Linea 12',meta:['Piazza Dante · Stazione FS ↔ Ravina ↔ Romagnano'],
      d:'Il collegamento principale con il centro: da Piazza Dante e dalla stazione ferroviaria di Trento fino a Ravina e Romagnano, con passaggi frequenti nei giorni feriali. Scende proprio alla fermata Ravina Masere.',
-     local:'img/Trento1.jpg',alt:'Centro di Trento, da cui parte la linea 12'},
+     local:'img/bus-ravina.jpg',alt:'Autobus Trentino Trasporti della linea 12 diretto a Ravina'},
     {id:'14',tag:'Urbana',t:'Linea 14',meta:['Piazza Dante ↔ Ravina ↔ Belvedere'],
-     d:'L\u2019altra linea urbana che serve Ravina: dal centro di Trento fino a Ravina Masere e poi verso il Belvedere.',
-     local:'img/Trento1.jpg',alt:'Centro di Trento, da cui parte la linea 14'},
+     d:'L\u2019altra linea urbana che serve Ravina: dal centro di Trento fino a Ravina Masere e poi verso il Belvedere. Stessa flotta della linea 12.',
+     local:'img/bus-ravina.jpg',alt:'Autobus urbano Trentino Trasporti a Ravina'},
     {id:'extra',tag:'Extraurbana',t:'Linee B302 · B311',meta:['Ravina Masere','Valle dei Laghi · altopiani'],
      d:'Dalla stessa fermata di Ravina Masere partono anche i collegamenti extraurbani verso la Valle dei Laghi (Toblino, Cavedine) e gli altopiani: comodi per una gita senza auto.',
      og:'https://www.visittrentino.info/it/guida/da-vedere/castelli/castel-toblino_md_2454',alt:'Valle dei Laghi, servita dalle linee extraurbane'}

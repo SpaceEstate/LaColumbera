@@ -335,6 +335,8 @@ section{position:relative;padding:clamp(80px,10vw,140px) 0}
 .apt-card:hover::before{opacity:1}
 .apt-card figure{margin:0;overflow:hidden;aspect-ratio:5/4;position:relative}
 .apt-card figure img{width:100%;height:100%;object-fit:cover;transition:transform .8s ease}
+.apt-card figure.quad{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;background:var(--paper-2)}
+.apt-card figure.quad img{display:block}
 .apt-card:hover figure img{transform:scale(1.06)}
 .apt-card .apt-tag{
   position:absolute;top:18px;left:18px;
@@ -1011,4 +1013,70 @@ table.data th{white-space:nowrap}
 @media (max-width:760px){
   .map-illustration{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .map-svg{min-width:860px}
+}
+
+/* ===== Gestione (admin) a sezioni ===== */
+.adm-top-actions{display:flex;gap:10px;flex-wrap:wrap}
+.adm-shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:28px;align-items:start}
+.adm-nav{position:sticky;top:112px;display:flex;flex-direction:column;gap:3px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:var(--shadow-soft)}
+.adm-nav .grp{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 12px 4px}
+.adm-nav a{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;color:var(--ink);text-decoration:none;font-weight:600;font-size:.95rem;transition:background .2s}
+.adm-nav a:hover{background:rgba(122,46,57,.07)}
+.adm-nav a.on{background:var(--wine);color:#fff}
+.adm-badge{background:var(--gold);color:#fff;border-radius:999px;font-size:.72rem;font-weight:700;padding:2px 8px;min-width:22px;text-align:center}
+.adm-body .admin-card:first-child{margin-top:0}
+.adm-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.adm-head h2{margin:0}
+.adm-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 20px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.adm-tabs a{padding:8px 16px;border-radius:999px;color:var(--ink);text-decoration:none;font-weight:600;font-size:.9rem;border:1px solid var(--line);background:#fff}
+.adm-tabs a:hover{border-color:var(--wine)}
+.adm-tabs a.on{background:rgba(122,46,57,.1);color:var(--wine);border-color:var(--wine)}
+.adm-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:10px}
+.adm-stat{background:var(--paper-2);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.adm-stat span{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.adm-stat b{font-family:var(--serif);font-size:1.9rem;font-style:italic;color:var(--wine);line-height:1.15}
+.adm-stat small{color:var(--muted);font-size:.85rem}
+.adm-stat a{margin-top:6px;font-size:.88rem;font-weight:700;color:var(--wine);text-decoration:none}
+.adm-quick{display:flex;flex-wrap:wrap;gap:10px}
+.adm-quick .btn{padding:11px 18px;font-size:.88rem}
+.adm-h4{font-size:1rem;margin:22px 0 8px;color:var(--ink)}
+.adm-rows{display:flex;flex-direction:column;gap:10px;margin:8px 0 12px}
+.adm-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.adm-row>span{min-width:150px;font-size:.95rem}
+.adm-inp{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--muted)}
+.adm-inp input{max-width:150px;padding:9px 11px}
+.adm-prev{margin:14px 0 4px;background:rgba(176,141,60,.1);border:1px solid var(--gold);border-radius:14px;padding:12px 16px}
+.adm-prev-t{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#8a6c22;font-weight:700;margin-bottom:6px}
+.adm-prev-r{display:flex;flex-wrap:wrap;gap:8px 22px}
+.adm-prev-r span{font-size:1rem;color:var(--ink)}
+.adm-prev-r small{color:var(--muted)}
+.adm-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 14px}
+.adm-chips-l{font-size:.85rem;color:var(--muted);margin-right:6px;font-weight:600}
+.adm-chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 13px;font:600 .82rem var(--sans,inherit);text-transform:capitalize;cursor:pointer;color:var(--ink)}
+.adm-chip:hover{border-color:var(--wine)}
+.adm-chip.full{background:var(--wine);border-color:var(--wine);color:#fff}
+.adm-chip.part{background:repeating-linear-gradient(45deg,#f3e9ea,#f3e9ea 5px,#fff 5px,#fff 10px);border-color:var(--wine);color:var(--wine)}
+.adm-chip.na{opacity:.4;cursor:not-allowed}
+.adm-ranges{display:flex;flex-wrap:wrap;gap:8px}
+.adm-range{display:inline-flex;align-items:center;gap:8px;background:#f3e9ea;border:1px solid #c9a2a8;border-radius:999px;padding:6px 8px 6px 14px;font-size:.88rem;font-weight:600;color:var(--wine)}
+.adm-range small{color:var(--muted);font-weight:500}
+.adm-range button{border:0;background:rgba(122,46,57,.15);color:var(--wine);width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:.7rem;line-height:1}
+.adm-copy{display:flex;gap:10px;flex-wrap:wrap}
+.adm-copy input{flex:1;min-width:220px}
+.adm-sum{cursor:pointer;font-weight:700;color:var(--wine);font-size:1.05rem;margin-bottom:10px}
+.adm-ok{margin-top:16px;padding:16px 18px;border-radius:14px;background:#e9f3e6;border:1px solid #9cc38f;color:#2d5a22;line-height:1.7}
+.pcal-sel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 4px}
+.pcal-sel .btn{padding:10px 16px;font-size:.85rem}
+.pcell.blk{background:repeating-linear-gradient(45deg,#f3e9ea,#f3e9ea 6px,#fff 6px,#fff 12px);border-color:#c9a2a8}
+.pcell.blk .pstate,.pcell .pstate.blk-l{color:var(--wine);font-weight:700}
+.pcell .pstate.free-l{color:#9DB28E}
+.pcell.sel.blk{background:var(--wine)}
+.pm-num{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;font-size:.7rem;font-weight:700;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.admin-msg.warn{color:#9a5b00;font-weight:700}
+.admin-msg.ok{color:#2d7a3a;font-weight:700}
+@media (max-width:900px){
+  .adm-shell{grid-template-columns:1fr}
+  .adm-nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding:8px;-webkit-overflow-scrolling:touch}
+  .adm-nav .grp{display:none}
+  .adm-nav a{white-space:nowrap;flex:0 0 auto}
 }
