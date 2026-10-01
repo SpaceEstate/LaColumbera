@@ -171,7 +171,16 @@ function clienti(c){
 
 async function guestcard(c){
   const q=new URLSearchParams(location.search),box=$('#r');
-  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email)}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p><a class="btn btn-wine" onclick="window.print()">Stampa</a></div>`;
+  // Copia negli appunti (con ripiego per i browser che non permettono navigator.clipboard)
+  const copia=async t=>{
+    try{await navigator.clipboard.writeText(t);return true}
+    catch{try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}};
+  box.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-copy]');if(!b)return;
+    const orig=b.dataset.label||(b.dataset.label=b.textContent),ok=await copia(b.dataset.copy);
+    b.textContent=ok?'Codice copiato ✓':'Copia non riuscita';
+    clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent=orig},2200)});
+  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email)}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">Copia codice</button>`:''}</div>`;
   const renderConfirm=x=>{
     box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
       <h2>Prenotazione trovata</h2>
