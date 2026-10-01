@@ -61,9 +61,11 @@
       {t:'I meli in fiore della Val di Non',m:'45 min · aprile – maggio',alt:'Frutteti in fiore in Val di Non',
        d:'Una fioritura che tinge di bianco e rosa intere vallate: passeggiate facili tra i frutteti, magari in bici.',
        link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it'},
+      // foto: scheda ufficiale VisitTrentino del castello (il link resta il sito del museo)
       {t:'Trento e il Castello del Buonconsiglio',m:'10 min · tutto l\u2019anno',alt:'Castello del Buonconsiglio, Trento',
        d:'Il castello dei principi vescovi con la Torre dell\u2019Aquila, poi una passeggiata in Piazza Duomo.',
-       link:'https://www.buonconsiglio.it',lt:'buonconsiglio.it'},
+       link:'https://www.buonconsiglio.it',lt:'buonconsiglio.it',
+       og:VT+'guida/da-vedere/castelli/castello-del-buonconsiglio_md_2625'},
       {t:'Ciclabile della Valle dell\u2019Adige',m:'partenza a 5 min',alt:'Ciclabile in Trentino',
        d:'In primavera la ciclabile dà il meglio: vigneti, frutteti e borghi fino a Rovereto o verso il Garda.',
        link:VT+'guida/attivita-outdoor/ciclabili',lt:'Piste ciclabili del Trentino'}
@@ -113,6 +115,11 @@
   // la riga di meta sotto il titolo (meta[]), una griglia di 4 foto al posto di una singola (quad[]),
   // e — quando serve un sito ufficiale come link principale ma anche un piccolo link separato alla
   // mappa (secondaryLink) — una scheda non cliccabile per intero ma con due link distinti al suo interno.
+  //
+  // ATTENZIONE: in HTML un <a> dentro un altro <a> è invalido. Il browser chiude da solo il primo e
+  // "spezza" la scheda (foto da una parte, testo dall'altra). Per questo il link interno (.stretched) esiste
+  // SOLO quando la scheda esterna è un <div> (caso secondaryLink); altrimenti la call-to-action è un <span>
+  // e l'intera scheda <a> è già cliccabile.
   function card(o){
     var link=o.link||'',isExt=ext(link);
     var og=o.noPhoto||o.quad?'':(o.og||(isExt?link:''));
@@ -123,7 +130,10 @@
         +(hasImg?'<img alt="'+esc(o.alt)+'" width="640" height="512" loading="lazy" decoding="async"'
           +(o.local?' data-local="'+esc(o.local)+'"':'')+(og?' data-og="'+esc(og)+'"':'')+'>':'')
         +(o.tag?'<span class="apt-tag'+(o.estate?' estate':'')+'">'+esc(o.tag)+'</span>':'')+'</figure>';
-    var ctaMain=link?'<a class="cta-link stretched" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')+'>'+esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span></a>':'';
+    var ctaTxt=esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span>';
+    var ctaMain=!link?'':(o.secondaryLink
+      ? '<a class="cta-link stretched" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')+'>'+ctaTxt+'</a>'
+      : '<span class="cta-link">'+ctaTxt+'</span>');
     var ctaSub=o.secondaryLink?'<a class="cta-sub" href="'+esc(o.secondaryLink)+'" target="_blank" rel="noopener noreferrer">'+esc(o.secondaryLt||'Apri su Google Maps')+' ↗</a>':'';
     var body='<div class="body"><h3>'+esc(o.t)+'</h3>'
       +(o.meta&&o.meta.length?'<div class="meta">'+o.meta.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div>':'')
