@@ -49,7 +49,8 @@ const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!co
 // TGC_BASE_URL (opzionale, default produzione). TGC_BASIC_USER/PASS e TGC_USERNAME/PASSWORD NON servono più:
 // username e password della struttura si digitano sulla pagina di login di Trentino Marketing, non nel codice.
 // Flusso: admin clicca "Autorizza" (gc_oauth_start) → login struttura su ricettivo.guestcard.info → redirect
-// a TGC_REDIRECT_URI con code+state (gc_oauth_callback) → code scambiato per Token+RefreshToken, salvati su KV →
+// a TGC_REDIRECT_URI (la home del sito) con code+state → la home inoltra in automatico a gc_oauth_callback →
+// code scambiato per Token+RefreshToken, salvati su KV →
 // tgcCall usa "Bearer" su /ws/Pms/... e rinnova da solo il Token quando scade. Se il RefreshToken scade o
 // viene revocato basta rifare "Autorizza" una volta dal pannello admin.
 const TGC_BASE=(process.env.TGC_BASE_URL||'https://ricettivo.guestcard.info').replace(/\/+$/,'');
@@ -60,10 +61,17 @@ const tgcOauthBasic=()=>{
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_OAUTH_CLIENT_SECRET)throw new Error('Mancano TGC_OAUTH_CLIENT_ID/TGC_OAUTH_CLIENT_SECRET su Vercel');
  return 'Basic '+Buffer.from(process.env.TGC_OAUTH_CLIENT_ID+':'+process.env.TGC_OAUTH_CLIENT_SECRET).toString('base64')};
 
-// Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken
-async function tgcExchangeCode(code){
- const r=await fetch(TGC_BASE+'/ws/oauth/access_token_pms.ashx?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});
+// Scambia il "code" ricevuto dal redirect di login per Token + RefreshToken.
+// Se viene passato "diag" lo riempie con i dettagli della chiamata (il secret NON viene mai mostrato:
+// solo lunghezza e controlli di formato), così quando Trentino Marketing rifiuta lo scambio la pagina di
+// callback mostra esattamente cosa è successo.
+async function tgcExchangeCode(code,diag){
+ const endpoint='/ws/oauth/access_token_pms.ashx',cid=process.env.TGC_OAUTH_CLIENT_ID||'',sec=process.env.TGC_OAUTH_CLIENT_SECRET||'';
+ if(diag)Object.assign(diag,{ambienteVercel:process.env.VERCEL_ENV||'(non su Vercel)',base:TGC_BASE,endpoint,clientId:cid,clientIdSpaziAiBordi:cid!==cid.trim(),secretLen:sec.length,secretSpaziAiBordi:sec!==sec.trim(),secretApici:/^["']|["']$/.test(sec),codeLen:String(code).length,redirectUri:process.env.TGC_REDIRECT_URI||''});
+ const t0=Date.now();
+ const r=await fetch(TGC_BASE+endpoint+'?code='+encodeURIComponent(code),{headers:{Authorization:tgcOauthBasic()}});
  const txt=await r.text();let j;try{j=JSON.parse(txt)}catch{j={raw:txt}}
+ if(diag)Object.assign(diag,{ms:Date.now()-t0,status:r.status,contentType:r.headers.get('content-type')||'',wwwAuthenticate:r.headers.get('www-authenticate')||'',body:txt.slice(0,300)});
  if(!r.ok||!j.Token)throw new Error(j.message||('HTTP '+r.status+' '+txt.slice(0,200)));
  return j}
 
@@ -261,18 +269,26 @@ if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404
  await kv('SET',GCK(x.code),JSON.stringify(card));
  return res.json(card)}
 if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Marketing dopo il login della struttura
- // Trentino accoda "?state=..&code=.." al redirect_uri: se questo contiene già "?a=..." lo stato può finire dentro "a" (rawA)
+ // Il redirect registrato è la home: index.html inoltra qui in automatico (?a=gc_oauth_callback&state=…&code=…).
+ // Per sicurezza si accetta anche il caso in cui Trentino accodi "?state=..&code=.." dentro "a" (rawA).
  const q=new URLSearchParams(rawA.includes('?')?rawA.slice(rawA.indexOf('?')+1):'');
  const code=req.query.code||q.get('code'),state=req.query.state||q.get('state');
  if(!code||!state)return res.status(400).send('Parametri mancanti (code/state)');
  const okState=await jg('tgc:oauth:state:'+state);
  if(!okState)return res.status(400).send('Sessione di autorizzazione scaduta o già usata: riprova dal pannello admin');
  await kv('DEL','tgc:oauth:state:'+state);
+ const diag={},h=s=>String(s).replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
  try{
-  const tok=await tgcExchangeCode(String(code));
+  const tok=await tgcExchangeCode(String(code),diag);
   await kv('SET','tgc:oauth:token',JSON.stringify({Token:tok.Token,RefreshToken:tok.RefreshToken,expiresAt:tok.expiresAt}));
-  return res.send('<html><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p><a href="/admin.html">Torna al pannello admin</a></p></body></html>')
- }catch(e){return res.status(502).send('Errore nello scambio del token: '+e.message)}}
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  return res.send('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="3;url=/admin.html#guestcard"></head><body style="font-family:sans-serif;padding:40px"><h2>Trentino Guest Card autorizzata ✅</h2><p>Ti riporto al pannello admin… <a href="/admin.html#guestcard">Vai subito</a></p></body></html>')
+ }catch(e){
+  // Diagnostica: tutto quello che serve per capire perché Trentino Marketing ha rifiutato lo scambio (mai il secret in chiaro)
+  Object.assign(diag,{chiaviQuerySulCallback:Object.keys(req.query),rawAConPunto:rawA.includes('?'),errore:e.message});
+  console.error('gc_oauth_callback',JSON.stringify(diag));
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  return res.status(502).send('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:sans-serif;padding:40px;max-width:760px"><h2>Autorizzazione Trentino Guest Card non riuscita</h2><p>Il login è andato a buon fine ma lo scambio del codice è stato rifiutato. Dettagli (il secret non viene mai mostrato):</p><pre style="white-space:pre-wrap;word-break:break-word;background:#f4f0e6;padding:16px;border-radius:8px;font-size:14px">'+h(JSON.stringify(diag,null,2))+'</pre><p>Il codice è monouso: per riprovare rifai «Autorizza Trentino Guest Card» dal <a href="/admin.html#guestcard">pannello admin</a>.</p></body></html>')}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
