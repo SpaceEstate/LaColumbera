@@ -193,6 +193,75 @@ const feed=async()=>{
  return curated();
 };
 
+// ---- Google Reviews: cache server-side di 24 ore ----
+const GOOGLE_REVIEWS_KEY='google:reviews';
+const GOOGLE_REVIEWS_TTL=24*60*60*1000;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function googleReviews(req,res){
+ const apiKey=process.env.GOOGLE_MAPS_API_KEY||process.env.GOOGLE_PLACES_API_KEY||'';
+ const placeId=process.env.GOOGLE_PLACE_ID||'';
+ if(!apiKey||!placeId)return res.status(500).json({err:'Google Reviews non configurate: mancano GOOGLE_MAPS_API_KEY e/o GOOGLE_PLACE_ID su Vercel'});
+ let cached=null;
+ try{cached=await jg(GOOGLE_REVIEWS_KEY)}catch{}
+ const age=cached&&cached.fetchedAt?Date.now()-Number(cached.fetchedAt):Infinity;
+ if(cached&&cached.data&&age<GOOGLE_REVIEWS_TTL){
+  res.setHeader('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
+  return res.json(cached.data);
+ }
+ const lockKey='google:reviews:lock';
+ let locked=false;
+ try{locked=(await kv('SET',lockKey,String(Date.now()),'NX','EX','120'))==='OK'}catch{}
+ if(!locked&&cached&&cached.data){
+  res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
+  return res.json(cached.data);
+ }
+ try{
+  const url='https://places.googleapis.com/v1/places/'+encodeURIComponent(placeId);
+  const r=await fetch(url,{headers:{
+   'X-Goog-Api-Key':apiKey,
+   'X-Goog-FieldMask':'id,displayName,rating,userRatingCount,reviews,googleMapsUri',
+   'Accept':'application/json'
+  }});
+  const txt=await r.text();let j;
+  try{j=JSON.parse(txt)}catch{j={}};
+  if(!r.ok||!j.id){
+   if(cached&&cached.data){
+    res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
+    return res.json(cached.data);
+   }
+   return res.status(502).json({err:'Google Places non ha restituito le recensioni'});
+  }
+  const data={
+   placeId:j.id,
+   name:j.displayName&&j.displayName.text||'La Columbera',
+   rating:typeof j.rating==='number'?j.rating:null,
+   userRatingCount:typeof j.userRatingCount==='number'?j.userRatingCount:null,
+   googleMapsUri:j.googleMapsUri||'',
+   reviews:(Array.isArray(j.reviews)?j.reviews:[]).map(r=>({
+    text:r.originalText&&r.originalText.text||r.text&&r.text.text||'',
+    rating:typeof r.rating==='number'?r.rating:null,
+    author:r.authorAttribution&&r.authorAttribution.displayName||'Utente Google',
+    authorUri:r.authorAttribution&&r.authorAttribution.uri||'',
+    photoUri:r.authorAttribution&&r.authorAttribution.photoUri||'',
+    publishTime:r.publishTime||'',
+    relativeTime:r.relativePublishTimeDescription||'',
+    googleMapsUri:r.googleMapsUri||''
+   })).filter(r=>r.text)
+  };
+  await kv('SET',GOOGLE_REVIEWS_KEY,JSON.stringify({fetchedAt:Date.now(),data}));
+  res.setHeader('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
+  return res.json(data);
+ }catch(e){
+  if(cached&&cached.data){
+   res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
+   return res.json(cached.data);
+  }
+  return res.status(502).json({err:'Errore nel recupero delle recensioni Google'});
+ }finally{
+  if(locked)await kv('DEL',lockKey).catch(()=>{});
+ }
+}
+
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body||{};res.setHeader('Cache-Control','no-store');
 try{
 if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata dalle schede di Luoghi, Convenzioni e Come trovarci
@@ -222,7 +291,7 @@ if(a==='cfg')return res.json(await cfg(req));
 if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
 if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
 if(a==='events')return res.json((await jg('events'))||[]);
-if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())}
+if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())}if(a==='google_reviews')return googleReviews(req,res);
 if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
  if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
