@@ -20,15 +20,10 @@
 <h1 data-reveal data-reveal-delay="1">Le nostre <em>recensioni</em></h1>
 <p class="lead" data-reveal data-reveal-delay="2">Una selezione delle recensioni che i nostri ospiti ci hanno lasciato su Booking, Airbnb e Google. Grazie a tutti per averci scelto.</p>
 </div></section>
-<section style="padding:0 0 100px"><div class="wrap"><div class="grid-cards" data-testid="reviews-grid">
-<div class="review-quote" data-testid="rev-1"><span class="stars">★★★★★</span>Dimora storica curatissima e famiglia gentilissima. Le foto rendono poco: dal vivo l'atmosfera è ancora più bella. Torneremo!<span class="author">Marta — Booking · 10/10</span></div>
-<div class="review-quote" data-testid="rev-2"><span class="stars">★★★★★</span>Posizione strategica: 5 minuti dall'autostrada, 5 minuti dal centro di Trento. Appartamento silenzioso, letti comodissimi, cucina attrezzata.<span class="author">Luca — Airbnb · Superhost</span></div>
-<div class="review-quote" data-testid="rev-3"><span class="stars">★★★★★</span>Un salto nel passato con tutti i comfort di oggi. Travi a vista, luce splendida al mattino, e Trento a pochi minuti. Consigliato!<span class="author">Ilaria — Google · 5.0</span></div>
-<div class="review-quote" data-testid="rev-4"><span class="stars">★★★★★</span>Check-in autonomo perfetto, casa impeccabile e la famiglia sempre disponibile per consigli su cosa vedere. Tornerò con gli amici.<span class="author">Andrea — Booking · 9.8</span></div>
-<div class="review-quote" data-testid="rev-5"><span class="stars">★★★★★</span>Il posto ideale se cercate tranquillità senza rinunciare a essere vicino a tutto. Trento, Bondone, Garda: tutto a portata di mano.<span class="author">Sarah &amp; Tom — Airbnb</span></div>
-<div class="review-quote" data-testid="rev-6"><span class="stars">★★★★★</span>Colazione con i prodotti del territorio, consigli preziosi su ristoranti e cantine. Un soggiorno che consiglierei a chiunque.<span class="author">Federico — Google · 5.0</span></div>
+<section style="padding:0 0 100px"><div class="wrap"><div class="grid-cards" data-testid="reviews-grid" id="google-reviews" aria-live="polite">
+<div class="review-quote"><span class="stars">★★★★★</span>Caricamento delle recensioni Google…<span class="author">Google Reviews</span></div>
 </div>
-<p style="text-align:center;margin-top:40px;color:var(--muted)"><b>Rating medio: 4.95/5</b> · basato su recensioni verificate Booking · Airbnb · Google</p>
+<p id="google-reviews-meta" style="text-align:center;margin-top:40px;color:var(--muted)">Aggiornamento automatico delle recensioni Google.</p>
 </div></section>
 </main>
 <footer class="site-footer" data-testid="site-footer">
@@ -59,4 +54,60 @@
   </div>
 </footer>
 <script src="js/site.js"></script>
-</body></html>
+<script>
+(function(){
+  const root=document.getElementById('google-reviews');
+  const meta=document.getElementById('google-reviews-meta');
+  if(!root)return;
+  const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const stars=n=>{
+    const r=Math.round(Number(n)||0);
+    return '★'.repeat(Math.max(0,Math.min(5,r)))+'☆'.repeat(Math.max(0,5-r));
+  };
+  const add=(tag,cls,text)=>{
+    const el=document.createElement(tag);
+    if(cls)el.className=cls;
+    if(text!=null)el.textContent=text;
+    return el;
+  };
+  async function load(){
+    try{
+      const r=await fetch('/api/x?a=google_reviews',{cache:'no-store'});
+      const j=await r.json();
+      if(!r.ok||!Array.isArray(j.reviews))throw new Error(j.err||'Recensioni non disponibili');
+      root.textContent='';
+      if(j.reviews.length===0){
+        const card=add('div','review-quote','Nessuna recensione Google disponibile.');
+        root.appendChild(card);
+      }else{
+        j.reviews.forEach(rv=>{
+          const card=add('div','review-quote');
+          const s=add('span','stars',stars(rv.rating));
+          const text=add('span','',rv.text);
+          const author=add('span','author');
+          const link=add('a','',rv.author);
+          link.href=rv.authorUri||rv.googleMapsUri||j.googleMapsUri||'#';
+          link.target='_blank';link.rel='noopener noreferrer';
+          author.appendChild(link);
+          if(rv.relativeTime){
+            author.appendChild(document.createTextNode(' · '+rv.relativeTime));
+          }else if(rv.publishTime){
+            try{author.appendChild(document.createTextNode(' · '+new Date(rv.publishTime).toLocaleDateString('it-IT')))}catch{}
+          }
+          card.append(s,text,author);
+          root.appendChild(card);
+        });
+      }
+      const rating=typeof j.rating==='number'?j.rating.toFixed(1):'—';
+      const count=typeof j.userRatingCount==='number'?j.userRatingCount:'';
+      const stats=count?(' · '+count+' recensioni Google'): '';
+      meta.innerHTML='<b>Rating medio: '+esc(rating)+'/5</b>'+esc(stats)+' · <a href="'+esc(j.googleMapsUri||'#')+'" target="_blank" rel="noopener noreferrer">Vedi tutte su Google</a>';
+    }catch(e){
+      root.textContent='';
+      root.appendChild(add('div','review-quote','Le recensioni Google non sono momentaneamente disponibili.'));
+      meta.innerHTML='<a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Apri Google Maps</a>';
+    }
+  }
+  load();
+})();
+</script>\n</body></html>
