@@ -290,7 +290,7 @@ if(a==='cfg')return res.json(await cfg(req));
 if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
 if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
 if(a==='events')return res.json((await jg('events'))||[]);
-if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())}if(a==='google_reviews')return googleReviews(req,res);
+if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())};
 if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
  if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
