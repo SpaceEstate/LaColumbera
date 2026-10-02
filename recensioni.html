@@ -89,11 +89,7 @@
           link.href=rv.authorUri||rv.googleMapsUri||j.googleMapsUri||'#';
           link.target='_blank';link.rel='noopener noreferrer';
           author.appendChild(link);
-          if(rv.relativeTime){
-            author.appendChild(document.createTextNode(' · '+rv.relativeTime));
-          }else if(rv.publishTime){
-            try{author.appendChild(document.createTextNode(' · '+new Date(rv.publishTime).toLocaleDateString('it-IT')))}catch{}
-          }
+
           card.append(s,text,author);
           root.appendChild(card);
         });
