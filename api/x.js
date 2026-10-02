@@ -198,7 +198,7 @@ const GOOGLE_REVIEWS_KEY='google:reviews';
 const GOOGLE_REVIEWS_TTL=24*60*60*1000;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function googleReviews(req,res){
- const apiKey=process.env.GOOGLE_MAPS_API_KEY||process.env.GOOGLE_PLACES_API_KEY||'';
+ const apiKey=process.env.GOOGLE_PLACES_API_KEY||'';
  const placeId=process.env.GOOGLE_PLACE_ID||'';
  if(!apiKey||!placeId)return res.status(500).json({err:'Google Reviews non configurate: mancano GOOGLE_MAPS_API_KEY e/o GOOGLE_PLACE_ID su Vercel'});
  let cached=null;
