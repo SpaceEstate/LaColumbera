@@ -244,7 +244,6 @@ async function googleReviews(req,res){
     authorUri:r.authorAttribution&&r.authorAttribution.uri||'',
     photoUri:r.authorAttribution&&r.authorAttribution.photoUri||'',
     publishTime:r.publishTime||'',
-    relativeTime:r.relativePublishTimeDescription||'',
     googleMapsUri:r.googleMapsUri||''
    })).filter(r=>r.text)
   };
