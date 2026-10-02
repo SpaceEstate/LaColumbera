@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recensioni · La Columbera</title>
+<meta name="description" content="Le recensioni degli ospiti de La Columbera a Ravina, Trento: Google, aggiornate in automatico.">
 <meta name="theme-color" content="#7A2E39"><link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
@@ -18,12 +19,12 @@
 <section class="page-intro"><div class="wrap">
 <span class="section-eyebrow" data-reveal>Quello che dicono di noi</span>
 <h1 data-reveal data-reveal-delay="1">Le nostre <em>recensioni</em></h1>
-<p class="lead" data-reveal data-reveal-delay="2">Una selezione delle recensioni che i nostri ospiti ci hanno lasciato su Booking, Airbnb e Google. Grazie a tutti per averci scelto.</p>
+<p class="lead" data-reveal data-reveal-delay="2">Le recensioni che i nostri ospiti ci hanno lasciato su Google (e su Booking, quando disponibili), aggiornate in automatico. Grazie a tutti per averci scelto.</p>
 </div></section>
 <section style="padding:0 0 100px"><div class="wrap"><div class="grid-cards" data-testid="reviews-grid" id="google-reviews" aria-live="polite">
-<div class="review-quote"><span class="stars">★★★★★</span>Caricamento delle recensioni Google…<span class="author">Google Reviews</span></div>
+<div class="review-quote"><span class="stars">★★★★★</span>Caricamento delle recensioni…<span class="author">La Columbera</span></div>
 </div>
-<p id="google-reviews-meta" style="text-align:center;margin-top:40px;color:var(--muted)">Aggiornamento automatico delle recensioni Google.</p>
+<p id="google-reviews-meta" style="text-align:center;margin-top:40px;color:var(--muted)">Aggiornamento automatico delle recensioni.</p>
 </div></section>
 </main>
 <footer class="site-footer" data-testid="site-footer">
@@ -59,51 +60,65 @@
   const root=document.getElementById('google-reviews');
   const meta=document.getElementById('google-reviews-meta');
   if(!root)return;
-  const esc=s=>String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  const stars=n=>{
-    const r=Math.round(Number(n)||0);
-    return '★'.repeat(Math.max(0,Math.min(5,r)))+'☆'.repeat(Math.max(0,5-r));
-  };
+  const PLACE_URL='https://www.google.com/maps/place/?q=place_id:ChIJmXdr3vNzgkcR3O0jehZOocQ';
   const add=(tag,cls,text)=>{
     const el=document.createElement(tag);
     if(cls)el.className=cls;
     if(text!=null)el.textContent=text;
     return el;
   };
+  const https=u=>/^https:\/\//i.test(u||'')?u:'';
+  const stars=n=>{
+    const r=Math.max(0,Math.min(5,Math.round(Number(n)||0)));
+    return '★'.repeat(r)+'☆'.repeat(5-r);
+  };
+  const link=(label,href)=>{
+    const a=add('a','',label);
+    a.href=href;a.target='_blank';a.rel='noopener noreferrer';
+    return a;
+  };
+  const card=rv=>{
+    const c=add('div','review-quote'),au=add('span','author'),href=https(rv.href);
+    au.appendChild(href?link(rv.author,href):document.createTextNode(rv.author));
+    au.appendChild(document.createTextNode(' — '+rv.src+(rv.when?' · '+rv.when:'')));
+    c.append(add('span','stars',stars(rv.rating)),add('span','',rv.text),au);
+    return c;
+  };
+  const show=text=>{root.textContent='';root.appendChild(add('div','review-quote',text))};
   async function load(){
     try{
-      const r=await fetch('/api/x?a=google_reviews',{cache:'no-store'});
-      const j=await r.json();
-      if(!r.ok||!Array.isArray(j.reviews))throw new Error(j.err||'Recensioni non disponibili');
-      root.textContent='';
-      if(j.reviews.length===0){
-        const card=add('div','review-quote','Nessuna recensione Google disponibile.');
-        root.appendChild(card);
-      }else{
-        j.reviews.forEach(rv=>{
-          const card=add('div','review-quote');
-          const s=add('span','stars',stars(rv.rating));
-          const text=add('span','',rv.text);
-          const author=add('span','author');
-          const link=add('a','',rv.author);
-          link.href=rv.authorUri||rv.googleMapsUri||j.googleMapsUri||'#';
-          link.target='_blank';link.rel='noopener noreferrer';
-          author.appendChild(link);
-
-          card.append(s,text,author);
-          root.appendChild(card);
-        });
+      const r=await fetch('/api/reviews?all=1');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json(),g=d&&d.google,b=d&&d.booking,list=[];
+      if(g&&Array.isArray(g.reviews))g.reviews.forEach(rv=>list.push({src:'Google',rating:rv.rating,text:rv.text,author:rv.author||'Ospite',href:rv.authorUri||rv.url||g.url,when:rv.when}));
+      if(b&&Array.isArray(b.reviews))b.reviews.forEach(rv=>list.push({src:'Booking'+(rv.score?' · '+rv.score:''),rating:rv.rating||5,text:rv.text,author:rv.author,href:'',when:rv.when}));
+      if(!list.length)show('Nessuna recensione disponibile al momento.');
+      else{root.textContent='';list.forEach(rv=>root.appendChild(card(rv)))}
+      // riga riepilogo: punteggio + conteggio + link alla fonte
+      const bits=[];
+      if(g&&g.rating){
+        const s=add('span');
+        s.appendChild(add('b','','Google: '+g.rating.toFixed(1).replace('.',',')+'/5'));
+        if(g.count)s.appendChild(document.createTextNode(' · '+g.count+' recensioni'));
+        bits.push(s,link('Vedi tutte su Google',https(g.url)||PLACE_URL));
       }
-      const rating=typeof j.rating==='number'?j.rating.toFixed(1):'—';
-      const count=typeof j.userRatingCount==='number'?j.userRatingCount:'';
-      const stats=count?(' · '+count+' recensioni Google'): '';
-      meta.innerHTML='<b>Rating medio: '+esc(rating)+'/5</b>'+esc(stats)+' · <a href="'+esc(j.googleMapsUri||'#')+'" target="_blank" rel="noopener noreferrer">Vedi tutte su Google</a>';
+      if(b&&b.score){
+        const s=add('span');
+        s.appendChild(add('b','','Booking: '+String(b.score).replace('.',',')+'/10'));
+        if(b.count)s.appendChild(document.createTextNode(' · '+b.count+' recensioni'));
+        bits.push(s);
+        if(https(b.url))bits.push(link('Vedi su Booking',b.url));
+      }
+      if(!bits.length)bits.push(link('Vedi le recensioni su Google',PLACE_URL));
+      meta.textContent='';
+      bits.forEach((el,i)=>{if(i)meta.appendChild(document.createTextNode(' · '));meta.appendChild(el)});
     }catch(e){
-      root.textContent='';
-      root.appendChild(add('div','review-quote','Le recensioni Google non sono momentaneamente disponibili.'));
-      meta.innerHTML='<a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer">Apri Google Maps</a>';
+      show('Le recensioni non sono momentaneamente disponibili.');
+      meta.textContent='';
+      meta.appendChild(link('Vedi le recensioni su Google',PLACE_URL));
     }
   }
   load();
 })();
-</script>\n</body></html>
+</script>
+</body></html>
