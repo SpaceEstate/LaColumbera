@@ -87,12 +87,14 @@ async function apt(c){
     box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card. Riceverai a breve anche una conferma via email.</p></div>`;
     return;
   }
+  // Risposta v2: {v:2,status:'ok'|'degraded',asOf,dates:[…]}. Se la disponibilità non è verificabile il server risponde 503 (get() → null):
+  // in quel caso non si mostra mai un calendario "libero" a caso, ma si invita a scrivere o chiamare.
   const bz=await get('a=busy&id='+p.id);
-  if(!bz){
-    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>Al momento non riesco a caricare la disponibilità. Scrivici: <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a></p></div>`;
+  if(!bz||bz.v!==2||!Array.isArray(bz.dates)){
+    box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>In questo momento non riesco a verificare la disponibilità del calendario. Per prenotare scrivici a <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594">+39 351 704 3594</a>.</p></div>`;
     return;
   }
-  const busy=new Set(bz),today=iso(new Date());
+  const busy=new Set(bz.dates),today=iso(new Date());
   let da='',a='',m=new Date();m.setDate(1);
   box.innerHTML=`
   <div class="cal-head"><button type="button" class="cal-nav" id="pv" aria-label="Mese precedente">‹</button><b id="mt" data-testid="cal-month"></b><button type="button" class="cal-nav" id="nx" aria-label="Mese successivo">›</button></div>
@@ -106,7 +108,9 @@ async function apt(c){
     <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Prenota</button>
     <p class="form-err" id="e" data-testid="booking-error"></p>
   </form>`;
-  if(pagamento==='annullato'){history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
+  if(pagamento==='annullato'){
+    const cc=(qp.get('code')||'').trim();if(cc)api('checkout_cancel',{code:cc}).catch(()=>{});      // libera subito le notti trattenute durante il pagamento
+    history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
     let h='LMMGVSD'.split('').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);

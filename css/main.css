@@ -1125,3 +1125,16 @@ table.data.bkt .stato-select{width:100%;padding:10px 12px;font-size:.9rem}
   #gcf .btn{width:100%;justify-content:center}
   #gc-msg{display:block;margin:10px 0 0}
 }
+
+/* ===== Admin · Sincronizzazione: salute delle fonti, gravità delle anomalie, matrice per data ===== */
+.stato.hb-ok{background:rgba(63,93,82,.16);color:#3f5d52}
+.stato.hb-stale{background:rgba(176,141,60,.16);color:#8a6c22}
+.stato.hb-expired,.stato.hb-never{background:rgba(122,46,57,.14);color:var(--wine)}
+.stato.sev-crit{background:var(--wine);color:#fff}
+.stato.sev-alto{background:rgba(122,46,57,.14);color:var(--wine)}
+.stato.sev-medio{background:rgba(176,141,60,.16);color:#8a6c22}
+.stato.sev-basso{background:rgba(108,95,85,.12);color:var(--muted)}
+.adm-note{display:block;margin-top:6px;color:#9a5b00;font-weight:600;line-height:1.35}
+table.mx td.mx-free{color:#7f9a6c}
+table.mx td.mx-busy{background:rgba(122,46,57,.06);color:var(--charcoal)}
+table.mx td.mx-multi{background:rgba(122,46,57,.16);color:var(--wine);font-weight:700}

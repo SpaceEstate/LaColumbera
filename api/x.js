@@ -1,6 +1,14 @@
 const c=require('crypto'),{put,del}=require('@vercel/blob');
-const KU=process.env.KV_REST_API_URL||process.env.UPSTASH_REDIS_REST_URL,KT=process.env.KV_REST_API_TOKEN||process.env.UPSTASH_REDIS_REST_TOKEN;
-const kv=async(...a)=>(await(await fetch(KU,{method:'POST',headers:{Authorization:'Bearer '+KT},body:JSON.stringify(a)})).json()).result;
+const KU=(process.env.KV_REST_API_URL||process.env.UPSTASH_REDIS_REST_URL||'').replace(/\/+$/,''),KT=process.env.KV_REST_API_TOKEN||process.env.UPSTASH_REDIS_REST_TOKEN;
+// KV: un errore NON è mai "nessun dato". Prima una risposta di errore di Upstash (limite richieste, token…) veniva letta come chiave vuota:
+// prenotazioni del sito, blocchi manuali e chiusure "sparivano" e il calendario mostrava date libere.
+const kvReq=async(path,body)=>{if(!KU||!KT)throw new Error('KV non configurato');const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),7000);
+ try{const r=await fetch(KU+path,{method:'POST',headers:{Authorization:'Bearer '+KT,'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctl.signal});
+  let j;try{j=await r.json()}catch{throw new Error('KV: risposta non valida (HTTP '+r.status+')')}
+  if(!r.ok||(j&&!Array.isArray(j)&&j.error))throw new Error('KV: '+((j&&j.error)||('HTTP '+r.status)));return j}
+ finally{clearTimeout(t)}};
+const kv=async(...a)=>(await kvReq('',a)).result;
+const kvp=async cmds=>(await kvReq('/pipeline',cmds)).map(x=>{if(x.error)throw new Error('KV: '+x.error);return x.result});
 const jg=async k=>JSON.parse(await kv('GET',k)||'null');
 const sha=s=>c.createHash('sha256').update(String(s)).digest();
 const eq=(x,y)=>c.timingSafeEqual(sha(x),sha(y));
@@ -8,36 +16,21 @@ const S=()=>process.env.SESSION_SECRET||process.env.ADMIN_PASSWORD||'';
 const sign=p=>p+'.'+c.createHmac('sha256',S()).update(p).digest('hex');
 const auth=r=>{const t=r.headers.authorization||'',p=t.split('.')[0];return !!S()&&+p>Date.now()&&eq(t,sign(p))};
 const cfg=async r=>(await jg('cfg'))||await(await fetch('https://'+r.headers.host+'/data/default.json')).json();
-const iso=d=>d.toISOString().slice(0,10);
-const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
-const addDays=(s,n)=>{const d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return iso(d)};
+const AV=require('./_avail.js'),days=AV.rangeDays,addDays=AV.addDays,todayRome=AV.todayRome;
+// Motore unico di disponibilità: tutta la logica "busy" (iCal, foglio, sito, hold, blocchi) vive in _avail.js
+const E=AV.makeEngine({kv,kvp,fetch:(...a)=>fetch(...a),env:process.env});
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 // supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
 // notti minime: vale la regola del periodo che contiene la data di arrivo, altrimenti il minimo generale
 const minFor=(p,da)=>{const r=(p.minPeriodi||[]).find(q=>q.da&&q.a&&da>=q.da&&da<=q.a);return+(r?r.min:p.min)||1};
-const blockedDays=(config,id)=>{const p=(config.apts||[]).find(x=>x.id===id);return p&&p.blocked?Object.keys(p.blocked).filter(k=>p.blocked[k]):[]};
-const F=s=>s.replace(/(\d{4})(\d\d)(\d\d)/,'$1-$2-$3');
 const F2=s=>{const m=/(\d{4})-(\d\d)-(\d\d)/.exec(s);return m?m[3]+'/'+m[2]+'/'+m[1]:s};
 const APT_LABEL={torre:'La Columbera - Torre, Appartamento con 2 camere da letto',corte:'La Columbera - Corte, Appartamento con 1 camere da letto'};
-const aptFromLabel=s=>/corte/i.test(s)?'corte':/torre/i.test(s)?'torre':'';
-const icalUrls=(config,id)=>{const cf=(config.ical&&config.ical[id])?String(config.ical[id]):'';const en=process.env['ICAL_'+id.toUpperCase()]||'';return (cf+','+en).split(',').map(s=>s.trim()).filter(Boolean)};
-const evs=async(config,id)=>{const o=[];for(const u of icalUrls(config,id)){try{const t=await(await fetch(u)).text(),src=/booking/.test(u)?'Booking':/airbnb/.test(u)?'Airbnb':'Altro';for(const e of t.split('BEGIN:VEVENT').slice(1)){const a=/DTSTART[^:]*:(\d{8})/.exec(e),b=/DTEND[^:]*:(\d{8})/.exec(e);if(a&&b)o.push({da:F(a[1]),a:F(b[1]),src})}}catch{}}return o};
 
-// ---- Google Sheet (prenotazioni) ----
-const sheetCsvUrl=()=>process.env.SHEET_CSV_URL||('https://docs.google.com/spreadsheets/d/'+(process.env.SHEET_ID||'1FtQXb6Yx8rdVrDxbFmgv34f2btHzqaC9wenVbL2ujDY')+'/gviz/tq?tqx=out:csv&gid='+(process.env.SHEET_GID||'0'));
-function parseCSV(text){const rows=[];let row=[],cur='',q=false;for(let i=0;i<text.length;i++){const ch=text[i];if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}else{if(ch==='"')q=true;else if(ch===','){row.push(cur);cur=''}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur=''}else if(ch==='\r'){}else cur+=ch}}if(cur!==''||row.length){row.push(cur);rows.push(row)}return rows}
-const itDate=s=>{const m=/(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s));return m?m[3]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0'):(/^\d{4}-\d\d-\d\d/.test(String(s))?String(s).slice(0,10):'')};
-async function sheetBookings(){try{const t=await(await fetch(sheetCsvUrl(),{headers:{'User-Agent':'LaColumberaBot/1.0'}})).text();const rows=parseCSV(t);if(rows.length<2)return[];const out=[];for(let i=1;i<rows.length;i++){const r=rows[i];if(!r||!(r[0]||'').trim())continue;const code=String(r[0]).trim(),da=itDate(r[1]),id=aptFromLabel(String(r[2]||'')),ospiti=parseInt(String(r[3]||'').trim())||0,notti=parseInt(String(r[4]||'').trim())||0;if(!code||!da||!id||!notti)continue;out.push({code,id,da,a:addDays(da,notti),ospiti,notti,stato:'confermata',fonte:'foglio'})}return out}catch{return[]}}
-async function sheetAppend(b){const url=process.env.SHEET_WEBAPP_URL;if(!url)return;try{await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:process.env.SHEET_SECRET||'',code:b.code,checkin:F2(b.da),appartamento:APT_LABEL[b.id]||b.id,ospiti:b.ospiti,notti:b.notti})})}catch{}}
-
-// ---- Prenotazione unica per codice (per Guest Card): 'bk' (sito, ha email) prima, poi foglio (esterne, senza email) ----
-const findBooking=async code=>{code=String(code||'').trim().toUpperCase();if(!code)return null;
- const bk=await getBk(),x=bk.find(k=>String(k.code).toUpperCase()===code);
- if(x)return{code:x.code,id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,email:x.email||'',stato:x.stato,fonte:'sito'};
- const sheet=await sheetBookings(),s=sheet.find(k=>String(k.code).toUpperCase()===code);
- if(s)return{code:s.code,id:s.id,da:s.da,a:s.a,notti:s.notti,ospiti:s.ospiti,nome:'',email:'',stato:s.stato,fonte:'foglio'};
- return null};
+// ---- Registro prenotazioni (Google Sheet via Apps Script): upsert idempotente + coda di ripresa ----
+const sheetUpsertBooking=b=>E.registerBooking(b);   // chiave FONTE|CODICE; se il foglio non risponde accoda (mai perdere una conferma)
+const sheetAppend=sheetUpsertBooking;                // nome storico, per compatibilità
+const findBooking=(config,code)=>E.findByCode(config,code);
 
 // ---- Trentino Guest Card: doc ufficiale rev.11 (03/2026) — autenticazione OAuth Bearer Token (pag.17-20) ----
 // baseUrl test: https://demoricettivo.hi-logic.it · produzione: https://ricettivo.guestcard.info
@@ -122,27 +115,39 @@ async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
   IdAttributo:process.env.TGC_ATTRIBUTO_ID||null,
   ExtraSftAlbergatori:codice?String(codice).slice(0,36):null}})}
 
-// ---- Prenotazioni: lettura con pulizia automatica delle "in_attesa" scadute (pagamento mai completato) ----
-const PEND_MS=18e5; // 30 minuti
-const getBk=async()=>{let bk=(await jg('bk'))||[];const now=Date.now(),n=bk.length;bk=bk.filter(x=>!(x.stato==='in_attesa'&&now-Date.parse(x.creato)>PEND_MS));if(bk.length!==n)await kv('SET','bk',JSON.stringify(bk));return bk};
-
-const closedDays=(config,id)=>{if(!(config.closed&&config.closed[id]))return[];const o=[],s=new Date();for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
-const busy=async(config,id,bk)=>{const sheet=await sheetBookings();return new Set([...(await evs(config,id)).flatMap(e=>days(e.da,e.a)),...bk.filter(x=>x.id===id&&x.stato!=='annullata').flatMap(x=>days(x.da,x.a)),...sheet.filter(x=>x.id===id).flatMap(x=>days(x.da,x.a)),...closedDays(config,id),...blockedDays(config,id)])};
-// Rete di sicurezza SOLO lato ospite (calendario sul sito + checkout): oltre questo orizzonte le date sono
-// considerate chiuse per default, anche se il feed iCal non dice nulla (es. Booking non ancora aperto così avanti).
-// Non tocca busy()/l'export a==='ical' verso Booking/Airbnb, per non segnalare loro come occupate date che
-// vogliono invece tenere aperte più a lungo.
-const HORIZON_DAYS=()=>+process.env.ORIZZONTE_MAX_GIORNI||365;
-const beyondHorizon=()=>{const o=[],s=new Date();s.setUTCDate(s.getUTCDate()+HORIZON_DAYS());for(let i=0;i<731;i++){o.push(iso(s));s.setUTCDate(s.getUTCDate()+1)}return o};
-const guestBusy=async(config,id,bk)=>new Set([...(await busy(config,id,bk)),...beyondHorizon()]);
-
-// ---- Email (Gmail SMTP) ----
-const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!process.env.GMAIL_APP_PASSWORD)return;
+// ---- Email (Gmail SMTP). Ritorna true=inviata, false=errore, null=non configurata (il webhook riprova solo se false) ----
+const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!process.env.GMAIL_APP_PASSWORD)return null;
  try{const nodemailer=require('nodemailer'),t=nodemailer.createTransport({service:'gmail',auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD}});
-  await t.sendMail({from:'"La Columbera" <'+process.env.GMAIL_USER+'>',to,subject,html,...(opts.text?{text:opts.text}:{}),...(opts.replyTo?{replyTo:opts.replyTo}:{})})}
- catch(e){console.error('sendMail:',e.message)}};
+  await t.sendMail({from:'"La Columbera" <'+process.env.GMAIL_USER+'>',to,subject,html,...(opts.text?{text:opts.text}:{}),...(opts.replyTo?{replyTo:opts.replyTo}:{})});return true}
+ catch(e){console.error('sendMail:',e.message);return false}};
 
-function icalFeed(id,set){const dd=[...set].sort();const ranges=[];for(const d of dd){const last=ranges[ranges.length-1];if(last&&addDays(last.end,1)===d)last.end=d;else ranges.push({start:d,end:d})}const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'').replace('Z','')+'Z';let out='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Columbera//Prenotazioni//IT\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:La Columbera '+id+'\r\n';for(const r of ranges){out+='BEGIN:VEVENT\r\nUID:'+r.start+'-'+r.end+'-'+id+'@lacolumbera\r\nDTSTAMP:'+stamp+'\r\nDTSTART;VALUE=DATE:'+r.start.replace(/-/g,'')+'\r\nDTEND;VALUE=DATE:'+addDays(r.end,1).replace(/-/g,'')+'\r\nSUMMARY:Occupato - La Columbera\r\nTRANSP:OPAQUE\r\nEND:VEVENT\r\n'}out+='END:VCALENDAR\r\n';return out}
+// ---- Avvisi al titolare sulla sincronizzazione ----
+// Un appartamento "non verificabile" ferma le prenotazioni dal sito (scelta voluta: meglio fermarsi che mostrare date sbagliate), ma il titolare
+// deve saperlo senza aprire il pannello: una mail per episodio, un promemoria ogni 6 ore finché dura, una mail quando torna tutto a posto.
+// Stato per appartamento in KV (alert:nv:<apt>); la mail conta come inviata solo se l'invio riesce, altrimenti si riprova al giro successivo.
+const OWNER_EMAIL=process.env.OWNER_EMAIL||'patrick.comper@yahoo.com',ALERT_REMIND_MS=6*3600e3;
+const hx=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function syncAlerts(config,req){
+ if((await kv('SET','alert:lock','1','NX','EX','60'))!=='OK')return;      // un solo controllo alla volta
+ try{
+  const site=process.env.SITE_URL||'https://'+req.headers.host;
+  for(const p of config.apts||[]){
+   const k='alert:nv:'+p.id,st=(await jg(k))||{open:false},nome=APT_LABEL[p.id]||p.nome||p.id,t=Date.now();
+   let g;try{g=await E.guestBusy(config,p.id)}catch(e){g={status:'unverifiable',problems:[{code:'ERRORE_CONTROLLO',msg:String(e&&e.message||e).slice(0,120)}]}}
+   const bad=g.status==='unverifiable',link=site+'/admin.html#sync';
+   if(bad&&(!st.open||t-(st.last||0)>=ALERT_REMIND_MS)){
+    const motivi=(g.problems||[]).slice(0,6).map(x=>x.code+(x.feed?' · '+x.feed:'')+(x.msg?' · '+x.msg:''));
+    const since=st.open?st.since:new Date().toISOString(),subj=(st.open?'⏰ Ancora non verificabile':'⚠️ Disponibilità non verificabile')+' · '+nome;
+    const text='La disponibilità di "'+nome+'" non è verificabile'+(st.open?' dal '+since.slice(0,16).replace('T',' ')+' (UTC)':'')+'.\n\nFINCHÉ DURA, IL SITO NON ACCETTA PRENOTAZIONI per questo appartamento (le altre piattaforme non sono toccate).\n\nMotivi:\n'+(motivi.length?motivi.map(m=>'- '+m).join('\n'):'- non indicato')+'\n\nCosa fare: apri Gestione → Sincronizzazione ('+link+'), controlla quale calendario o il foglio non si aggiorna e premi «Sincronizza ora».\nRiceverai un promemoria ogni 6 ore e una mail quando tutto torna a posto.';
+    const html='<p>'+hx(text).replace(/\n/g,'<br>')+'</p>';
+    if((await sendMail(OWNER_EMAIL,subj,html,{text}))!==false)await kv('SET',k,JSON.stringify({open:true,since,last:t}));
+   }else if(!bad&&st.open){
+    const text='La disponibilità di "'+nome+'" è di nuovo verificabile (non verificabile dal '+String(st.since||'').slice(0,16).replace('T',' ')+' UTC). Il sito accetta di nuovo prenotazioni.\n\nControlla comunque: '+link;
+    if((await sendMail(OWNER_EMAIL,'✅ Disponibilità ripristinata · '+nome,'<p>'+hx(text).replace(/\n/g,'<br>')+'</p>',{text}))!==false)await kv('SET',k,JSON.stringify({open:false}));
+   }
+  }
+ }finally{await kv('DEL','alert:lock').catch(()=>{})}
+}
 
 // ---- Eventi automatici ----
 // Fonte: guida eventi ufficiale VisitTrentino (il vecchio indirizzo /it/eventi non esiste più: dava 404).
@@ -287,41 +292,74 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
  }catch{return res.status(502).end()}
 }
 if(a==='cfg')return res.json(await cfg(req));
-if(a==='busy'){const config=await cfg(req);res.setHeader('Cache-Control','s-maxage=120');return res.json([...await guestBusy(config,String(req.query.id),await getBk())].sort())}
-if(a==='ical'){const config=await cfg(req),id=String(req.query.id||'');if(!config.apts.find(x=>x.id===id))return res.status(404).send('not found');const set=await busy(config,id,await getBk());res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','s-maxage=1800');return res.send(icalFeed(id,set))}
+if(a==='busy'){const id=String(req.query.id||'');
+ // Fail-closed: se la disponibilità non è verificabile NON si mostrano date libere (503 → il sito mostra "non verificabile")
+ try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
+  const r=await E.guestBusy(config,id);
+  if(r.status==='unverifiable'){res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}
+  res.setHeader('Cache-Control','public, s-maxage=15, stale-while-revalidate=15');
+  return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates})}
+ catch(e){console.error('busy:',e.message);res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}}
+if(a==='ical'){const id=String(req.query.id||'');
+ // ?for=booking|airbnb esclude dal calendario gli eventi della piattaforma destinataria (evita l'eco/i blocchi "fantasma")
+ const forSource={booking:'BOOKING',airbnb:'AIRBNB'}[String(req.query.for||'').toLowerCase()]||'';
+ try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).send('not found');
+  const r=await E.exportIcs(config,id,{forSource});
+  // se i dati non sono completi si risponde 503: la piattaforma tiene l'ultimo calendario importato invece di ricevere date sbagliate
+  if(!r.ok){res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}
+  res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','public, s-maxage=60, stale-while-revalidate=120');res.setHeader('X-LC-Status',r.status);
+  return res.send(r.ics)}
+ catch(e){console.error('ical:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
 if(a==='events')return res.json((await jg('events'))||[]);
 if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())};
-if(a==='checkout'){const config=await cfg(req),p=config.apts.find(x=>x.id===b.id),R=/^\d{4}-\d\d-\d\d$/;
- if(!p||!R.test(b.da)||!R.test(b.a)||b.a<=b.da||b.da<new Date().toISOString().slice(0,10)||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
+if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id===b.id);
+ if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);const mn=minFor(p,b.da);if(g.length<mn||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+mn+' notti per queste date)'});
- const n=Math.min(Math.max(+b.ospiti||1,1),p.max),bk=await getBk(),occ=await guestBusy(config,p.id,bk);
- if(g.some(d=>occ.has(d)))return res.status(409).json({err:'Date non più disponibili'});
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
+ const n=Math.min(Math.max(+b.ospiti||1,1),p.max),NV={err:'Disponibilità temporaneamente non verificabile: riprova tra qualche minuto o scrivici a lacolumbera@gmail.com'},ND={err:'Date non più disponibili'};
+ // 1) controllo (fail-closed)  2) HOLD ATOMICO sulle notti  3) ricontrollo dopo l'hold  4) sessione Stripe
+ try{const pre=await E.checkRange(config,p.id,b.da,b.a);
+  if(pre.status==='unverifiable')return res.status(503).json(NV);
+  if(pre.conflicts.length)return res.status(409).json(ND)}
+ catch(e){console.error('checkout/pre:',e.message);return res.status(503).json(NV)}
  const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
  const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
+ let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
+ if(!h.ok)return res.status(409).json(ND);
+ try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
+  if(post.status==='unverifiable'){await E.holdRelease(p.id,g,r.code);return res.status(503).json(NV)}
+  if(post.conflicts.length){await E.holdRelease(p.id,g,r.code);return res.status(409).json(ND)}
+  await E.bkPut(r)}
+ catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});console.error('checkout/post:',e.message);return res.status(503).json(NV)}
  const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host;
  let session;
  try{session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:r.email,client_reference_id:r.code,locale:'it',
   line_items:[{quantity:1,price_data:{currency:'eur',unit_amount:Math.round(totale*100),product_data:{name:APT_LABEL[p.id]||p.nome,description:F2(r.da)+' → '+F2(r.a)+' · '+n+' ospiti · '+g.length+' notti'}}}],
   metadata:{code:r.code,apt:p.id,da:r.da,a:r.a},
   success_url:site+'/'+p.id+'.html?pagamento=successo&code='+r.code,
-  cancel_url:site+'/'+p.id+'.html?pagamento=annullato',
+  cancel_url:site+'/'+p.id+'.html?pagamento=annullato&code='+r.code,
   expires_at:Math.floor(Date.now()/1000)+1810})}
- catch(e){return res.status(500).json({err:'Errore nella creazione del pagamento: '+e.message})}
- r.sessione=session.id;bk.push(r);await kv('SET','bk',JSON.stringify(bk));
+ catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});await E.bkDel(r.code).catch(()=>{});return res.status(500).json({err:'Errore nella creazione del pagamento: '+e.message})}
+ r.sessione=session.id;await E.bkPut(r).catch(()=>{});
  return res.json({code:r.code,url:session.url})}
+if(a==='checkout_cancel'){ // l'ospite torna indietro dalla pagina Stripe: libera subito le notti (il record resta: se paga lo stesso, il webhook lo conferma)
+ const x=await E.bkGet(String(b.code||'').trim().toUpperCase());
+ if(x&&x.stato==='in_attesa')await E.holdRelease(x.id,days(x.da,x.a),x.code);
+ return res.json({ok:1})}
 if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return res.status(400).json({err:'Inserisci il codice prenotazione'});
- const sheet=await sheetBookings(),found=sheet.filter(x=>String(x.code).toUpperCase()===code).map(x=>({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}));
- if(!found.length)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
- return res.json(found)}
-if(a==='gc_check'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+ const x=await findBooking(await cfg(req),code);
+ if(!x||['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
+ return res.json([{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}])}
+if(a==='gc_check'){const x=await findBooking(await cfg(req),b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
- if(x.stato==='in_attesa'||x.stato==='richiesta')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
+ if(x.stato==='in_attesa'||x.stato==='richiesta'||x.stato==='da_verificare')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
+ if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});
  const card=await jg(GCK(x.code));
  return res.json({booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,needsEmail:!x.email},card:card||null})}
-if(a==='gc_issue'){const x=await findBooking(b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+if(a==='gc_issue'){const x=await findBooking(await cfg(req),b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
  if(x.stato!=='confermata')return res.status(409).json({err:'La prenotazione non è (ancora) confermata'});
+ if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});
  const existing=await jg(GCK(x.code));if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
  let email=x.email;
  if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
@@ -360,6 +398,16 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
+// ---- Sincronizzazione: chiamabile dallo script Apps Script (header x-sync-secret = SYNC_SECRET) o da un admin loggato ----
+const machine=()=>{const s=process.env.SYNC_SECRET||'',h=String(req.headers['x-sync-secret']||'');return !!s&&!!h&&eq(h,s)};
+if(a==='sync'||a==='reconcile'||a==='sync_status'){
+ if(!machine()&&!auth(req))return res.status(401).json({err:'Non autorizzato'});
+ const config=await cfg(req);
+ if(a==='sync'){const out=await E.syncAll(config,{force:!!b.force,feeds:b.feeds!==false,registry:b.registry!==false,drain:!!b.drain,events:!!b.events});
+  await syncAlerts(config,req).catch(e=>console.error('syncAlerts:',e.message));return res.json(out)}
+ if(a==='reconcile')return res.json(await E.reconcile(config,{days:Math.min(Math.max(+b.days||90,7),180)}));
+ const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
+ return res.json(Object.assign(await E.syncState(config,{}),{lastReconcile:last,log:(logs||[]).map(x=>{try{return JSON.parse(x)}catch{return {msg:String(x)}}})}))}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
 if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
@@ -387,9 +435,44 @@ if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede i
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
  try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
-if(a==='adm'){const config=await cfg(req),bk=await getBk(),ext=[];for(const p of config.apts)for(const e of await evs(config,p.id))ext.push({id:p.id,...e});const sheet=await sheetBookings();for(const s of sheet)ext.push({id:s.id,da:s.da,a:s.a,src:'Foglio'});return res.json({bk,ext})}
-if(a==='stato'){const bk=await getBk(),x=bk.find(k=>k.code===b.code);if(x&&['richiesta','in_attesa','confermata','annullata'].includes(b.stato))x.stato=b.stato;await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1})}
-if(a==='book_del'){let bk=await getBk();const before=bk.length;bk=bk.filter(k=>String(k.code)!==String(b.code));await kv('SET','bk',JSON.stringify(bk));return res.json({ok:1,removed:before-bk.length})}
+if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
+  bk=(await E.bkAll()).filter(x=>!(x.stato==='in_attesa'&&Date.parse(x.creato)<t40)).sort((x,y)=>String(x.creato).localeCompare(String(y.creato))),
+  occupancy=await E.adminOccupancy(config,{fresh:false}),sync=await E.syncState(config,{events:true}),ext=[];
+ for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro'});delete f.events}
+ for(const r of await E.registryRows())if(r.stato!=='ANNULLATA')ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
+ return res.json({bk,ext,occupancy,sync})}
+if(a==='busy_debug'){ // perché una data è occupata: elenco fonti per ogni giorno, vista ospite (con orizzonte e fail-closed)
+ const config=await cfg(req),id=String(req.query.id||b.id||'');if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
+ const occ=await E.occupancyOf(config,id,{mode:'guest',fresh:true}),from=todayRome(),out=[];
+ for(let i=0;i<Math.min(Math.max(+req.query.days||120,1),400);i++){const d=addDays(from,i),s=occ.days[d]||[];out.push({date:d,busy:s.length>0,sources:[...new Set(s.map(x=>x.src))],reason:s.length?s[0].src:null,refs:s.map(x=>x.ref).filter(Boolean)})}
+ return res.json({apt:id,status:occ.status,problems:occ.problems,feeds:occ.feeds,registry:occ.registry,asOf:occ.asOf,days:out})}
+if(a==='stato'){const x=await E.bkGet(b.code);
+ if(!x||!['richiesta','in_attesa','confermata','annullata'].includes(b.stato))return res.json({ok:1,changed:0});
+ const was=x.stato;
+ // Confermare a mano ciò che non lo è ancora (tipicamente "da_verificare"): prima si controllano le sovrapposizioni con le altre fonti.
+ // Senza b.force la richiesta è respinta (409) con il dettaglio; con b.force la decisione è del titolare e ne resta traccia nella nota.
+ if(b.stato==='confermata'&&was!=='confermata'){
+  let cf;try{cf=await E.conflictsFor(await cfg(req),x)}catch(e){cf={status:'unverifiable',problems:[],conflicts:[]}}
+  const dubbio=cf.conflicts.length>0||cf.status==='unverifiable';
+  if(dubbio&&!b.force)return res.status(409).json({err:cf.conflicts.length?'Le date si sovrappongono ad altre prenotazioni.':'Disponibilità non verificabile in questo momento: sincronizza e riprova.',conflicts:cf.conflicts.slice(0,10),unverifiable:cf.status==='unverifiable'});
+  if(dubbio)x.note='CONFERMATA A MANO DAL TITOLARE NONOSTANTE '+(cf.conflicts.length?'SOVRAPPOSIZIONE ('+cf.conflicts.slice(0,5).map(c=>c.date+' '+c.by.join('+')).join(', ')+')':'DISPONIBILITÀ NON VERIFICABILE')+' · '+new Date().toISOString();
+  x.confermata_il=new Date().toISOString();
+ }
+ x.stato=b.stato;if(b.stato==='annullata'&&was!=='annullata')x.annullata_il=new Date().toISOString();
+ await E.bkPut(x);
+ if(b.stato==='annullata')await E.holdRelease(x.id,days(x.da,x.a),x.code).catch(()=>{});
+ if(b.stato==='confermata'||b.stato==='annullata')await sheetUpsertBooking(x);   // il foglio resta allineato (con coda di ripresa)
+ // Una prenotazione "da_verificare" era già pagata ma NON comunicata all'ospite: ora che il titolare la conferma gli parte la conferma (una sola volta).
+ if(b.stato==='confermata'&&was==='da_verificare'&&x.pagamento&&/.+@.+\..+/.test(x.email||'')&&(await kv('SET','done:'+x.code+':mail_ospite',new Date().toISOString(),'NX'))==='OK'){
+  const gm=require('./_mail.js').guestMail(x,process.env.SITE_URL||'https://'+req.headers.host);
+  if((await sendMail(x.email,gm.subject,gm.html,{text:gm.text,replyTo:process.env.REPLY_TO||'info@lacolumbera.it'}))===false)await kv('DEL','done:'+x.code+':mail_ospite').catch(()=>{});
+ }
+ return res.json({ok:1,changed:1})}
+if(a==='book_del'){const x=await E.bkGet(b.code);if(!x)return res.json({ok:1,removed:0});
+ if(x.stato==='confermata'||x.stato==='da_verificare'){ // lo storico confermato non si cancella: diventa "annullata" (resta nel foglio per audit e riconciliazione)
+  x.stato='annullata';x.annullata_il=new Date().toISOString();await E.bkPut(x);await E.holdRelease(x.id,days(x.da,x.a),x.code).catch(()=>{});await sheetUpsertBooking(x);
+  return res.json({ok:1,removed:0,annullata:1})}
+ await E.bkDel(x.code);await E.holdRelease(x.id,days(x.da,x.a),x.code).catch(()=>{});return res.json({ok:1,removed:1})}
 if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)return res.status(400).json({err:'Titolo e data obbligatori'});
  list.push({id:c.randomBytes(4).toString('hex'),title:String(b.title).slice(0,200),date:String(b.date).slice(0,10),time:String(b.time||'').slice(0,20),location:String(b.location||'').slice(0,200),url:absUrl(b.url).slice(0,400),source:'La Columbera'});
  await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
@@ -401,7 +484,11 @@ if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),i
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
  const keep=new Set(n.apts.flatMap(p=>p.foto));
  for(const p of old.apts)for(const u of p.foto)if(!keep.has(u)&&/blob\.vercel-storage\.com/.test(u))await del(u).catch(()=>{});
- await kv('SET','cfg',JSON.stringify(n));return res.json({ok:1})}
+ await kv('SET','cfg',JSON.stringify(n));
+ await E.refreshFeeds(n,{force:true}).catch(()=>{});   // nuovi URL iCal: scarico subito, così il sito non resta "non verificabile" fino al prossimo giro
+ return res.json({ok:1})}
 res.status(404).json({err:'?'})}catch(e){res.status(500).json({err:e.message})}};
 module.exports=handler;
-module.exports.kv=kv;module.exports.sheetAppend=sheetAppend;module.exports.getBk=getBk;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;
+module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
+module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
+module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;

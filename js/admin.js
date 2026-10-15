@@ -15,7 +15,7 @@ const rangeIncl=(a,b)=>{const o=[];for(let d=a;d<=b&&o.length<800;d=addDays(d,1)
 const fmtD=s=>s?new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'}):'';
 const fmtS=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short'});
 const short=p=>String(p.nome||p.id).replace('La Columbera ','');
-const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;throw e}return j});
+const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;e.data=j;throw e}return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 
 // prezzi: stesse regole del sito
@@ -36,7 +36,7 @@ const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
   (D.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>BUSY[e.id]&&BUSY[e.id].add(x)));
   (D.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>BUSY[x.id]&&BUSY[x.id].add(z)))};
 const markDirty=()=>{dirty=true;const o=$('#o');if(o){o.textContent='Modifiche non salvate';o.className='admin-msg warn'}};
-const pending=()=>D.bk.filter(x=>['richiesta','in_attesa'].includes(x.stato));
+const pending=()=>D.bk.filter(x=>['richiesta','in_attesa','da_verificare'].includes(x.stato));
 
 // ---------- Accesso ----------
 function login(){
@@ -62,12 +62,13 @@ function nav(){
   const L=(h,label,extra='')=>`<a href="#${h}" class="${r.s===h?'on':''}">${label}${extra}</a>`;
   $('#adm-nav').innerHTML=L('panoramica','Panoramica')
     +'<div class="grp">Appartamenti</div>'+S.apts.map(p=>L(p.id,esc(short(p)))).join('')
-    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('guestcard','Guest Card')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
+    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('sync','Sincronizzazione',syncIssues()?`<span class="adm-badge">${syncIssues()}</span>`:'')+L('guestcard','Guest Card')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
 
 function body(){
   const r=route(),p=aptById(r.s),el=$('#adm-body');if(!el)return;
   if(p){const sub=['testi','foto','prezzi','disponibilita','calendari'].includes(r.sub)?r.sub:'testi';el.innerHTML=aptView(p,sub);aptAfter(p,sub)}
-  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,eventi:vEv}[r.s]||vPano)();
+  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,eventi:vEv,sync:vSync}[r.s]||vPano)();
+  if(!p&&r.s==='sync')syncAfter();
   nav()}
 
 // ---------- Panoramica ----------
@@ -81,7 +82,8 @@ function vPano(){
     return `<div class="adm-stat"><span>${esc(short(p))}</span><b>${S.closed[p.id]?'Chiuso':'Aperto'}</b><small>da ${eur(p.base)}/notte · ${nb} ${nb===1?'notte bloccata':'notti bloccate'}</small><a href="#${p.id}">Gestisci →</a></div>`}).join('');
   return `<div class="admin-card"><h2>Panoramica</h2>
   <div class="adm-stats">
-   <div class="adm-stat"><span>Da gestire</span><b>${pend.length}</b><small>prenotazioni in attesa o richieste</small><a href="#prenotazioni">Apri →</a></div>
+   <div class="adm-stat"><span>Da gestire</span><b>${pend.length}</b><small>prenotazioni in attesa, richieste o da verificare</small><a href="#prenotazioni">Apri →</a></div>
+   <div class="adm-stat" data-testid="admin-sync-card"><span>Sincronizzazione</span><b>${syncIssues()?'Da controllare':'Tutto ok'}</b><small>${syncIssues()?syncIssues()+(syncIssues()===1?' punto richiede attenzione':' punti richiedono attenzione'):'calendari e foglio aggiornati'}</small><a href="#sync">Apri →</a></div>
    <div class="adm-stat"><span>Prossimo arrivo</span><b>${nx?fmtS(nx.da):'—'}</b><small>${nx?esc(short(aptById(nx.id)||{nome:nx.id}))+' · '+esc(nx.src):'nessuno in programma'}</small></div>
    ${cards}</div>
   <h3>Prossimi arrivi</h3>
@@ -193,14 +195,63 @@ const afterCal=i=>{calRender(i);if(route().sub==='disponibilita'){chipsRender(i)
 
 // ---------- Prenotazioni ----------
 function vBook(){
-  const f=V.bkf,rows=D.bk.filter(x=>f==='tutte'||(f==='gestire'&&['richiesta','in_attesa'].includes(x.stato))||x.stato===f);
+  const f=V.bkf,rows=D.bk.filter(x=>f==='tutte'||(f==='gestire'&&['richiesta','in_attesa','da_verificare'].includes(x.stato))||x.stato===f);
   const ext=(D.ext||[]).filter(e=>e.a>=today).sort((a,b)=>a.da<b.da?-1:a.da>b.da?1:0).slice(0,60);
   const flt=[['tutte','Tutte'],['gestire','Da gestire'],['confermata','Confermate'],['annullata','Annullate']];
   return `<div class="admin-card"><h2>Prenotazioni dal sito</h2>
   <div class="adm-tabs">${flt.map(([k,l])=>`<a href="#prenotazioni" data-act="bkf" data-f="${k}" class="${f===k?'on':''}">${l}</a>`).join('')}</div>
-  <div class="table-wrap tw-bk" data-testid="admin-bookings"><table class="data bkt"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td data-label="Codice"><b>${esc(x.code)}</b></td><td data-label="App.">${esc(short(aptById(x.id)||{nome:x.id}))}</td><td data-label="Dal">${fmtD(x.da)}</td><td data-label="Al">${fmtD(x.a)}</td><td data-label="Ospiti">${x.ospiti}</td><td data-label="Cliente" class="td-cliente">${esc(x.nome)}<br>${esc(x.email)}${x.tel?'<br>'+esc(x.tel):''}</td><td data-label="Totale">${eur(x.totale)}</td><td data-label="Stato"><select class="stato-select" data-code="${esc(x.code)}">${['richiesta','in_attesa','confermata','annullata'].map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td class="td-azioni"><button type="button" class="stato-select btn-del-book" data-act="bookDel" data-code="${esc(x.code)}" data-testid="admin-book-del-${esc(x.code)}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9" class="td-empty">Nessuna prenotazione in questa vista.</td></tr>'}</tbody></table></div></div>
+  <div class="table-wrap tw-bk" data-testid="admin-bookings"><table class="data bkt"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td data-label="Codice"><b>${esc(x.code)}</b></td><td data-label="App.">${esc(short(aptById(x.id)||{nome:x.id}))}</td><td data-label="Dal">${fmtD(x.da)}</td><td data-label="Al">${fmtD(x.a)}</td><td data-label="Ospiti">${x.ospiti}</td><td data-label="Cliente" class="td-cliente">${esc(x.nome)}<br>${esc(x.email)}${x.tel?'<br>'+esc(x.tel):''}${x.stato==='da_verificare'&&x.note?'<br><small class="adm-note" data-testid="admin-book-note">⚠ '+esc(x.note)+'</small>':''}</td><td data-label="Totale">${eur(x.totale)}</td><td data-label="Stato"><select class="stato-select" data-code="${esc(x.code)}">${(x.stato==='da_verificare'?['da_verificare','confermata','annullata']:['richiesta','in_attesa','confermata','annullata']).map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td class="td-azioni"><button type="button" class="stato-select btn-del-book" data-act="bookDel" data-code="${esc(x.code)}" data-testid="admin-book-del-${esc(x.code)}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9" class="td-empty">Nessuna prenotazione in questa vista.</td></tr>'}</tbody></table></div></div>
   <div class="admin-card"><h2>Occupazione esterna</h2><p class="book-note">Soggiorni importati da Airbnb, Booking o dal foglio (sola lettura, prossimi arrivi).</p>
   <div class="table-wrap tw-stack"><table class="data stack"><thead><tr><th>App.</th><th>Dal</th><th>Al</th><th>Origine</th></tr></thead><tbody>${ext.length?ext.map(e=>`<tr><td data-label="App.">${esc(short(aptById(e.id)||{nome:e.id}))}</td><td data-label="Dal">${fmtD(e.da)}</td><td data-label="Al">${fmtD(e.a)}</td><td data-label="Origine">${esc(e.src||'')}</td></tr>`).join(''):'<tr><td colspan="4" class="td-empty">Nessun soggiorno esterno in arrivo.</td></tr>'}</tbody></table></div></div>`}
+
+// ---------- Sincronizzazione ----------
+const HB={OK:['ok','Aggiornato'],STALE:['stale','In ritardo'],EXPIRED:['expired','Scaduto'],NEVER:['never','Mai scaricato']};
+const hb=h=>{const x=HB[h]||['never',esc(h||'—')];return `<span class="stato hb-${x[0]}">${x[1]}</span>`};
+const ago=s=>{if(!s)return '—';const m=Math.max(0,Math.round((Date.now()-Date.parse(s))/60000));return m<1?'adesso':m<60?m+' min fa':m<1440?Math.round(m/60)+' h fa':Math.round(m/1440)+' g fa'};
+const LBL={BOOKING_ICAL:'Booking',AIRBNB_ICAL:'Airbnb',ALTRO_ICAL:'Altro iCal',SHEET:'Foglio',SITO:'Sito',HOLD:'In pagamento',MANUALE:'Blocco',CHIUSO:'Chiuso',SITO_HOLD:'In pagamento'};
+const SEV={CRITICO:'crit',ALTO:'alto',MEDIO:'medio',BASSO:'basso'};
+// quanti punti richiedono attenzione: feed e foglio non aggiornati, coda di ripresa non vuota, appartamenti non verificabili
+const syncIssues=()=>{const s=D.sync;if(!s)return 0;
+  return (s.feeds||[]).filter(f=>f.health!=='OK').length+(s.registry&&s.registry.health!=='OK'?1:0)+(s.outbox&&s.outbox.pending?1:0)};
+function vSync(){
+  const s=D.sync,occ=D.occupancy||{};
+  if(!s)return '<div class="admin-card"><h2>Sincronizzazione</h2><p class="book-note">Stato non disponibile: ricarica la pagina.</p></div>';
+  const r=s.registry||{},ob=s.outbox||{},th=s.thresholds||{};
+  const aptCards=S.apts.map(p=>{const o=occ[p.id]||{},st=o.status||'unverifiable',pr=(o.problems||[]).slice(0,3).map(x=>esc(x.code+(x.feed?' · '+x.feed:''))).join(', ');
+    return `<div class="adm-stat" data-testid="admin-sync-apt-${p.id}"><span>${esc(short(p))}</span><b>${st==='ok'?'Verificata':st==='degraded'?'Con avvisi':'Non verificabile'}</b><small>${st==='ok'?'Il sito mostra le date in modo affidabile.':st==='degraded'?'Dati utilizzabili, ma con avvisi: '+pr:'Il sito NON accetta prenotazioni finché non si risolve: '+pr}</small></div>`}).join('');
+  const feedRows=(s.feeds||[]).map(f=>{const note=[f.error,f.consecutiveFailures?f.consecutiveFailures+' errori di seguito':'',f.invalid?f.invalid+' eventi non validi':'',f.emptyAfterNonEmpty?'calendario improvvisamente vuoto':'',...(f.warnings||[]).slice(0,2)].filter(Boolean).join(' · ');
+    return `<tr><td data-label="App.">${esc(short(aptById(f.apt)||{nome:f.apt}))}</td><td data-label="Fonte">${esc(f.source)}</td><td data-label="Stato">${hb(f.health)}</td><td data-label="Ultimo ok">${ago(f.lastSuccess)}</td><td data-label="Eventi">${f.eventCount==null?'—':f.eventCount}</td><td data-label="Note">${esc(note||'—')}</td></tr>`}).join('');
+  return `<div class="admin-card" data-testid="admin-sync"><div class="adm-head"><h2>Sincronizzazione</h2><div class="adm-top-actions"><button type="button" class="btn btn-wine" data-act="syncNow" data-testid="admin-sync-now">Sincronizza ora</button><button type="button" class="btn btn-line" data-act="reconNow" data-testid="admin-recon-now">Riconcilia</button></div></div>
+  <p class="book-note">Il sito mostra una data come libera solo se tutti i calendari (Booking, Airbnb) e il foglio prenotazioni sono verificati e recenti. Se una fonte non si aggiorna per troppo tempo (calendari oltre ${th.feedMaxStaleMin||120} min, foglio oltre ${th.regMaxStaleMin||180} min) l'appartamento diventa «non verificabile» e le prenotazioni dal sito si fermano. <span class="admin-msg" id="sync-msg" data-testid="admin-sync-msg"></span></p>
+  <div class="adm-stats">${aptCards}
+   <div class="adm-stat"><span>Foglio prenotazioni</span><b>${hb(r.health)}</b><small>${r.count||0} righe · aggiornato ${ago(r.lastSuccess)}${r.invalid?' · '+r.invalid+' righe non valide':''}${r.error?' · '+esc(r.error):''}</small></div>
+   <div class="adm-stat"><span>Coda di ripresa</span><b>${ob.pending||0}</b><small>${ob.pending?'scritture verso il foglio in attesa (la più vecchia: '+ago(ob.oldest)+')':'nessuna scrittura in attesa'}</small></div></div>
+  <h3>Calendari collegati</h3>
+  <div class="table-wrap tw-stack"><table class="data stack"><thead><tr><th>App.</th><th>Fonte</th><th>Stato</th><th>Ultimo ok</th><th>Eventi</th><th>Note</th></tr></thead><tbody>${feedRows||'<tr><td colspan="6" class="td-empty">Nessun calendario configurato.</td></tr>'}</tbody></table></div></div>
+  <div class="admin-card" data-testid="admin-sync-rec"><h2>Riconciliazione</h2><p class="book-note">Confronta foglio, calendari, prenotazioni del sito e blocchi: segnala sovrapposizioni, appartamenti discordanti, righe non valide e fonti ferme.</p><div id="sync-rec">${recHtml(V.rec||null)}</div></div>
+  <div class="admin-card"><details><summary class="adm-sum">Registro eventi del sistema</summary><div id="sync-log"><p class="book-note">Carico…</p></div></details></div>`}
+function recHtml(rc){
+  if(!rc)return '<p class="book-note">Nessuna riconciliazione eseguita in questa sessione: premi «Riconcilia».</p>';
+  const sm=rc.summary||{},an=rc.anomalies||[];
+  const chips=['CRITICO','ALTO','MEDIO','BASSO'].map(k=>`<span class="stato sev-${SEV[k]}">${k} ${sm[k]||0}</span>`).join(' ');
+  const rows=an.map(x=>`<tr><td data-label="Gravità"><span class="stato sev-${SEV[x.sev]||'basso'}">${esc(x.sev)}</span></td><td data-label="Tipo">${esc(x.type)}</td><td data-label="App.">${esc(x.apt?short(aptById(x.apt)||{nome:x.apt}):'—')}</td><td data-label="Dettaglio">${esc(x.msg||'')}${x.ref?' <small>('+esc(x.ref)+')</small>':''}</td></tr>`).join('');
+  return `<p class="book-note">Eseguita ${ago(rc.generatedAt)}.</p><div class="adm-chips">${chips}</div>`
+   +(an.length?`<div class="table-wrap tw-stack"><table class="data stack" data-testid="admin-anomalie"><thead><tr><th>Gravità</th><th>Tipo</th><th>App.</th><th>Dettaglio</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="adm-ok">Nessuna anomalia: foglio, calendari e sito sono coerenti.</div>')
+   +matrixHtml(rc)}
+// matrice per data (prossimi 45 giorni): per ogni notte, da quali fonti risulta occupata
+function matrixHtml(rc){
+  const m=rc.matrix||{};if(!S.apts.some(p=>m[p.id]))return '';
+  const ds=[];for(let d=today;ds.length<45;d=addDays(d,1))ds.push(d);
+  const cell=(p,d)=>{const v=(m[p.id]||{})[d]||[];if(!v.length)return '<td data-label="'+esc(short(p))+'" class="mx-free">libera</td>';
+    const two=v.includes('BOOKING_ICAL')&&v.includes('AIRBNB_ICAL');
+    return `<td data-label="${esc(short(p))}" class="${two?'mx-multi':'mx-busy'}">${v.map(k=>esc(LBL[k]||k)).join(' · ')}</td>`};
+  return `<details style="margin-top:14px"><summary class="adm-sum">Matrice per data (prossimi 45 giorni)</summary><div class="table-wrap tw-stack"><table class="data stack mx" data-testid="admin-matrix"><thead><tr><th>Data</th>${S.apts.map(p=>`<th>${esc(short(p))}</th>`).join('')}</tr></thead><tbody>${ds.map(d=>`<tr><td data-label="Data">${fmtD(d)}</td>${S.apts.map(p=>cell(p,d)).join('')}</tr>`).join('')}</tbody></table></div><p class="book-note">«Booking · Airbnb» sulla stessa notte (rosso) è una possibile doppia prenotazione.</p></details>`}
+// dopo il disegno della vista: ultimo controllo di riconciliazione e registro eventi
+async function syncAfter(){
+  let ss=null;try{ss=await api('sync_status',{},t)}catch{}
+  const L=$('#sync-log'),R=$('#sync-rec');
+  if(R&&!V.rec&&ss&&ss.lastReconcile){V.rec=ss.lastReconcile;R.innerHTML=recHtml(V.rec)}
+  if(L)L.innerHTML=ss&&(ss.log||[]).length?`<div class="table-wrap tw-stack"><table class="data stack"><thead><tr><th>Quando</th><th>Livello</th><th>Messaggio</th></tr></thead><tbody>${ss.log.map(x=>`<tr><td data-label="Quando">${esc(ago(x.ts))}</td><td data-label="Livello">${esc(x.lvl||'')}</td><td data-label="Messaggio">${esc(x.msg||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="book-note">Nessun errore registrato.</p>'}
 
 // ---------- Guest Card ----------
 function vGc(){
@@ -232,6 +283,17 @@ function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Ev
   <form id="evform" class="ev-form"><div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div><div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div><div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div><div class="field" style="margin:0"><label>Luogo</label><input name="location" data-testid="ev-loc"></div><div class="field" style="margin:0"><label>Link (facoltativo)</label><input name="url" placeholder="https://" data-testid="ev-url"></div><button class="btn btn-wine" data-testid="ev-add">+ Aggiungi</button></form>
   <div class="table-wrap tw-stack" style="margin-top:16px"><table class="data stack" data-testid="ev-table"><thead><tr><th>Titolo</th><th>Data</th><th>Ora</th><th>Luogo</th><th></th></tr></thead><tbody>${EV.length?EV.map(x=>`<tr><td data-label="Titolo"><b>${esc(x.title)}</b></td><td data-label="Data">${esc(x.date)}</td><td data-label="Ora">${esc(x.time||'')}</td><td data-label="Luogo">${esc(x.location||'')}</td><td class="td-azioni"><button type="button" class="stato-select" data-act="evDel" data-id="${esc(x.id)}">Elimina</button></td></tr>`).join(''):'<tr><td colspan="5" class="td-empty">Nessun evento manuale.</td></tr>'}</tbody></table></div></div>`}
 
+// Cambio di stato di una prenotazione. Confermare a mano ciò che non lo è ancora (es. «da_verificare») fa controllare le sovrapposizioni
+// al server: se ce ne sono risponde 409 con il dettaglio e il titolare può confermare comunque (resta traccia nella nota della prenotazione).
+async function setStato(code,stato,force){
+  try{await api('stato',{code,stato,force:!!force},t)}
+  catch(x){
+    if(x.status===409&&x.data&&!force){
+      const righe=(x.data.conflicts||[]).map(c=>fmtS(c.date)+' — '+(c.by||[]).map(k=>LBL[k]||k).join(' + ')).join('\n');
+      if(confirm((x.data.err||'Sovrapposizione con altre prenotazioni.')+(righe?'\n\n'+righe:'')+'\n\nConfermare comunque? La decisione resterà registrata sulla prenotazione.'))return setStato(code,stato,true)}
+    else alert(x.message)}
+  await refreshAdm();body()}      // riallinea il menu al valore reale
+
 // ---------- Azioni (click) ----------
 const setSel=(i,days_)=>{const p=S.apts[i],busy=BUSY[p.id]||new Set(),s=V.sel[i]||(V.sel[i]=new Set());days_.forEach(d=>{if(d>=today&&!busy.has(d))s.add(d)})};
 const ACT={
@@ -259,6 +321,12 @@ const ACT={
   bkf:(a,e)=>{e.preventDefault();V.bkf=a.dataset.f;body()},
   bookDel:a=>{if(confirm('Rimuovere definitivamente questa prenotazione dallo storico?'))api('book_del',{code:a.dataset.code},t).then(async()=>{await refreshAdm();body()}).catch(x=>alert(x.message))},
   evDel:a=>{if(confirm('Eliminare questo evento?'))api('event_del',{id:a.dataset.id},t).then(async()=>{EV=(await get('a=events'))||[];body()}).catch(x=>alert(x.message))},
+  syncNow:async a=>{const o=$('#sync-msg');a.disabled=true;o.className='admin-msg';o.textContent='Sincronizzo… (può richiedere qualche secondo)';
+    try{const r=await api('sync',{force:true,drain:true},t);await refreshAdm();body();const m=$('#sync-msg'),er=(r.errors||[]);if(m){m.textContent=er.length?'Completata con errori: '+er.join(' | '):'Sincronizzazione completata.';m.className='admin-msg '+(er.length?'warn':'ok')}}
+    catch(x){o.textContent=x.message;o.className='admin-msg warn';a.disabled=false}},
+  reconNow:async a=>{const o=$('#sync-msg');a.disabled=true;o.className='admin-msg';o.textContent='Riconciliazione in corso…';
+    try{V.rec=await api('reconcile',{days:60},t);o.textContent='';o.className='admin-msg';const b=$('#sync-rec');if(b)b.innerHTML=recHtml(V.rec)}
+    catch(x){o.textContent=x.message;o.className='admin-msg warn'}finally{a.disabled=false}},
   gcAuth:async()=>{const o=$('#gcout');o.textContent='Reindirizzo a Trentino Marketing…';try{const{url}=await api('gc_oauth_start',{},t);location.href=url}catch(x){o.textContent='Errore: '+x.message}},
   gcTip:async()=>{const o=$('#gcout');o.textContent='Carico…';try{o.textContent=JSON.stringify(await api('gc_tipologie',{},t),null,2)}catch(x){o.textContent='Errore: '+x.message}},
   gcAttr:async()=>{const o=$('#gcout'),id=$('#gcattrid').value.trim();if(!id){o.textContent='Inserisci prima l\'idTipologiaCard (dal pulsante "Mostra tipologie card")';return}o.textContent='Carico…';try{o.textContent=JSON.stringify(await api('gc_attributi',{idTipologiaCard:id},t),null,2)}catch(x){o.textContent='Errore: '+x.message}}
@@ -289,7 +357,7 @@ function wire(){
     if(el.dataset.b){const[k,a,b]=el.dataset.b.split(':');if(k==='a'&&(b==='inclusi'||b==='max')&&$('#steps-'+a)){const p=S.apts[+a];if(b==='inclusi'&&(+p.inclusi||0)<1)p.inclusi=1;p.extraSteps.length=Math.max(1,Math.min(p.extraSteps.length,p.max-p.inclusi));stepsRender(+a);prevRender(+a)}if(k==='closed')nav();return}
     if(el.classList.contains('up')){const i=+el.dataset.i,msg=$('#om'+i);msg.textContent='Carico le foto…';
       try{for(const f of el.files)S.apts[i].foto.push((await api('up',{id:S.apts[i].id,img:await resize(f)},t)).url);el.value='';phRender(i);markDirty();msg.textContent='Foto caricate. Ricordati di salvare.'}catch(x){msg.textContent=x.message}return}
-    if(el.dataset.code){api('stato',{code:el.dataset.code,stato:el.value},t).then(async()=>{await refreshAdm();nav()}).catch(x=>alert(x.message));return}
+    if(el.dataset.code){setStato(el.dataset.code,el.value);return}
     if(el.id==='gc-pre'){const x=D.bk.find(k=>k.code===el.value),f=$('#gcf');if(!x||!f)return;const E=f.elements;E.apt.value=x.id;E.nome.value=x.nome||'';E.email.value=x.email||'';E.da.value=x.da;E.a.value=x.a;E.ospiti.value=x.ospiti}});
   M.addEventListener('submit',async e=>{
     if(e.target.id==='evform'){e.preventDefault();try{await api('event_add',Object.fromEntries(new FormData(e.target)),t);EV=(await get('a=events'))||[];body()}catch(x){alert(x.message)}}
