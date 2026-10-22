@@ -212,6 +212,9 @@ const zoned = (y, mo, d, tz) => { // mezzanotte nel fuso tz -> Date
   const target = Date.UTC(y, mo - 1, d, 0, 0, 0), fmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   let g = target; for (let k = 0; k < 2; k++) { const p = {}; for (const x of fmt.formatToParts(new RealDate(g))) p[x.type] = x.value; g -= Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - target; } return new FakeDate(g);
 };
+// Lo script Apps Script reale NON è nel repo (il vecchio google-apps-script.gs è stato cancellato). Se manca si usa lo stub minimo in stubs/ (registro vuoto, upsert accettati);
+// i test che dipendono dal comportamento reale dello script vengono SALTATI e dichiarati dai runner. Con il file vero nella radice non si salta nulla.
+const GAS_FILE = path.join(ROOT, 'google-apps-script.gs'), GAS_REAL = fs.existsSync(GAS_FILE);
 function makeGas(initRegistry) {
   const ss = new FakeSpreadsheet(), reg = ss.insertSheet('Prenotazioni');
   if (initRegistry) { reg.rows = initRegistry.map(r => r.slice()); }
@@ -256,7 +259,7 @@ function makeGas(initRegistry) {
     } }
   };
   const ctx = vm.createContext(sandbox);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'google-apps-script.gs'), 'utf8'), ctx, { filename: 'google-apps-script.gs' });
+  vm.runInContext(fs.readFileSync(GAS_REAL ? GAS_FILE : path.join(__dirname, 'stubs', 'google-apps-script.stub.gs'), 'utf8'), ctx, { filename: 'google-apps-script.gs' });
   const gas = { ctx, ss, reg, props, mailbox, lockState, prefetched, queued,
     addEmail(from, subject, body, ms) { const id = 'm' + (++mailbox.seq), t = { id: 't' + mailbox.seq, messages: [{ id, from, subject, body, date: ms || clock.now(), read: false }] }; mailbox.threads.push(t); return id; },
     rows() { const s = ss.getSheetByName('Prenotazioni'), h = (s.rows[0] || []); return s.rows.slice(1).filter(r => r.some(v => v !== '' && v != null)).map((r, i) => Object.assign({ _row: i + 2 }, Object.fromEntries(h.map((k, j) => [k, r[j] === undefined ? '' : r[j]])))); },
@@ -291,4 +294,4 @@ const busyAll = async id => { const r = await busy(id); return r.status === 200 
 const busyDates = async id => { const r = await busyAll(id); return r && r.filter(d => d < '2027-01-01'); };
 const sync = (o) => api('sync', Object.assign({ force: true }, o || {}), { headers: machine() });
 const romeMidnight = (y, m, d) => zoned(y, m, d, 'Europe/Rome');
-module.exports = { romeMidnight, clock, MIN, H, kv, feeds, FEED, setFeed, breakFeed, cal, vevent, bookingEv, airbnbEv, api, adminApi, machine, webhook, paidSession, newEnv, runGas, PREFETCH, busy, busyDates, busyAll, sync, webapp, V: () => V, RealDate, FakeDate, SECRETS, getLua };
+module.exports = { GAS_REAL, romeMidnight, clock, MIN, H, kv, feeds, FEED, setFeed, breakFeed, cal, vevent, bookingEv, airbnbEv, api, adminApi, machine, webhook, paidSession, newEnv, runGas, PREFETCH, busy, busyDates, busyAll, sync, webapp, V: () => V, RealDate, FakeDate, SECRETS, getLua };

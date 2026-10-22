@@ -411,12 +411,29 @@ test('X17 avvisi al titolare: una mail per episodio, promemoria ogni 6 ore, mail
   assert(!al().some(m => /Corte/.test(m.subject)), 'Corte non è coinvolta');
 });
 
+test('X18 configurazione pubblica: niente URL iCal (token), chiusure e blocchi manuali; la configurazione completa solo con il login', async () => {
+  await base();
+  const cfg = JSON.parse(kv.exec(['GET', 'cfg'])); cfg.closed = { corte: false }; cfg.apts.find(a => a.id === 'torre').blocked = { '2026-12-05': true }; kv.exec(['SET', 'cfg', JSON.stringify(cfg)]);
+  const pub = await H.api('cfg', {}, { method: 'GET' });
+  eq(pub.status, 200); eq(Object.keys(pub.body).sort(), ['apts', 'chi']);
+  assert(pub.body.apts.every(a => !('blocked' in a)), 'nessun blocco manuale');
+  for (const k of ['ical.booking.com', 'airbnb.com/calendar', 'TOKEN', 'ATOK', 'CTOK']) assert(!pub.text.includes(k), 'nel testo pubblico compare ' + k);
+  assert(pub.body.apts.length === 2 && pub.body.apts[0].foto.length > 0 && pub.body.apts[0].base > 0, 'restano i dati che servono alle pagine');
+  eq((await H.api('cfg_admin', {})).status, 401, 'senza login niente configurazione completa');
+  const full = await H.adminApi('cfg_admin', {});
+  eq(full.status, 200); assert(/ical\.booking\.com/.test(JSON.stringify(full.body.ical)) && full.body.apts.find(a => a.id === 'torre').blocked['2026-12-05'], 'con il login c\'è tutto');
+});
+
 /* ===================== esecuzione ===================== */
+// Test che dipendono dal comportamento REALE dello script Apps Script (lettura Gmail, righe del foglio, trigger): saltati se nel repo c'è solo lo stub
+const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16']);
 (async () => {
-  const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();      // cronometro reale: Date.now() è l'orologio simulato
+  const only = process.argv[2]; let pass = 0, fail = 0, skip = 0; const t0 = process.hrtime.bigint();      // cronometro reale: Date.now() è l'orologio simulato
+  if (!H.GAS_REAL) console.log('ATTENZIONE: google-apps-script.gs non è nel repo: uso lo stub minimo e SALTO i test che richiedono lo script vero (rimettilo nella radice per la suite completa).\n');
   for (const t of tests) {
     if (only && !t.n.startsWith(only)) continue;
+    if (!H.GAS_REAL && NEEDS_GAS.has(t.n.split(/\s/)[0])) { console.log('  - ' + t.n.slice(0, 90) + '  [saltato: richiede lo script Apps Script vero]'); skip++; continue; }
     try { await t.f(); console.log('  ✔ ' + t.n); pass++; } catch (e) { console.log('  ✘ ' + t.n + '\n      → ' + String(e.stack || e.message).split('\n').slice(0, only ? 40 : 3).join('\n        ')); fail++; }
   }
-  console.log('\n' + pass + ' ok, ' + fail + ' falliti  (' + (Number(process.hrtime.bigint() - t0) / 1e9).toFixed(1) + ' s)'); process.exit(fail ? 1 : 0);
+  console.log('\n' + pass + ' ok, ' + fail + ' falliti' + (skip ? ', ' + skip + ' saltati' : '') + '  (' + (Number(process.hrtime.bigint() - t0) / 1e9).toFixed(1) + ' s)'); process.exit(fail ? 1 : 0);
 })();

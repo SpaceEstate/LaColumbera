@@ -95,11 +95,17 @@ async function apt(c){
     return;
   }
   const busy=new Set(bz.dates),today=iso(new Date());
+  // preavviso minimo: il primo arrivo prenotabile lo calcola il SERVER (ora di Roma), il browser non fa conti sull'orologio.
+  // I giorni prima di quella data compaiono come non disponibili; l'avviso si vede solo se il titolare ha impostato almeno 1 giorno.
+  const first=bz.notice&&/^\d{4}-\d\d-\d\d$/.test(bz.notice.primoArrivo||'')?bz.notice.primoArrivo:'',
+    nt=first&&+bz.notice.giorni>0?+bz.notice.giorni:0,
+    ntMsg=nt?`Prenotazioni online con almeno ${nt} ${nt===1?'giorno':'giorni'} di preavviso: il primo arrivo possibile è il ${fmtD(first)}.`:'';
   let da='',a='',m=new Date();m.setDate(1);
   box.innerHTML=`
   <div class="cal-head"><button type="button" class="cal-nav" id="pv" aria-label="Mese precedente">‹</button><b id="mt" data-testid="cal-month"></b><button type="button" class="cal-nav" id="nx" aria-label="Mese successivo">›</button></div>
   <div class="cal" id="cal" data-testid="calendar"></div>
   <p class="quote-line" id="q" data-testid="quote"></p>
+  ${ntMsg?`<p class="book-note" id="nt" data-testid="notice-note">${esc(ntMsg)}</p>`:''}
   <form id="f" data-testid="booking-form">
     <div class="field"><label for="osp">Ospiti (max ${p.max})</label><select id="osp" name="ospiti" data-testid="booking-guests">${Array.from({length:p.max},(_,i)=>`<option value="${i+1}"${i===1?' selected':''}>${i+1}</option>`).join('')}</select></div>
     <div class="field"><label for="bn">Nome e cognome</label><input id="bn" name="nome" required data-testid="booking-name"></div>
@@ -114,7 +120,7 @@ async function apt(c){
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
     let h='LMMGVSD'.split('').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);
-    for(let i=1;i<=n;i++){const d=`${y}-${String(mo+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`,x=d<today||busy.has(d);
+    for(let i=1;i<=n;i++){const d=`${y}-${String(mo+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`,x=d<today||(first&&d<first)||busy.has(d);
       h+=`<div class="d${x?' x':''}${d===da||d===a?' s':''}${da&&a&&d>da&&d<a?' r':''}" data-d="${d}">${i}<small>${x?'':eur(np(p,d))}</small></div>`}
     $('#cal').innerHTML=h;
     $('#q').textContent=a?`${days(da,a).length} notti · totale ${eur(tot(p,da,a,+$('#osp').value))}`:'Scegli arrivo e partenza. Sotto ogni giorno trovi il prezzo per notte.'};
@@ -122,7 +128,7 @@ async function apt(c){
   $('#nx').onclick=()=>{m.setMonth(m.getMonth()+1);draw()};
   $('#osp').onchange=draw;
   $('#cal').onclick=e=>{const el=e.target.closest('.d');if(!el)return;const d=el.dataset.d,second=da&&!a&&d>da;
-    if(el.classList.contains('x')&&!second)return;
+    if(el.classList.contains('x')&&!second){if(nt&&d>=today&&d<first)$('#e').textContent=ntMsg;return}
     if(!second){da=d;a='';$('#e').textContent=''}
     else{const g=days(da,d);
       const mn=minFor(p,da);if(g.length<mn){$('#e').textContent='Soggiorno minimo per queste date: '+mn+' notti';return}

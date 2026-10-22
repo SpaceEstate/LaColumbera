@@ -14,6 +14,7 @@ const days=(da,a)=>{const o=[];for(let d=da;d<a&&o.length<800;d=addDays(d,1))o.p
 const rangeIncl=(a,b)=>{const o=[];for(let d=a;d<=b&&o.length<800;d=addDays(d,1))o.push(d);return o};
 const fmtD=s=>s?new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'}):'';
 const fmtS=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short'});
+const fmtW=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
 const short=p=>String(p.nome||p.id).replace('La Columbera ','');
 const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;e.data=j;throw e}return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
@@ -30,6 +31,7 @@ const aptById=id=>S.apts.find(p=>p.id===id);
 const route=()=>{const[s,sub]=(location.hash||'#panoramica').slice(1).split('/');return{s:s||'panoramica',sub:sub||''}};
 
 const norm=()=>{S.ical=S.ical||{};S.closed=S.closed||{};S.chi=S.chi||'';
+  const pg=Number(S.preavvisoGiorni);S.preavvisoGiorni=Number.isInteger(pg)&&pg>=0&&pg<=365?pg:0;S.checkinOra=/^([01]\d|2[0-3]):[0-5]\d$/.test(S.checkinOra)?S.checkinOra:'16:00';
   S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[];p.blocked=p.blocked||{};p.minPeriodi=p.minPeriodi||[];p.foto=p.foto||[];p.inclusi=p.inclusi||1;
     if(!Array.isArray(p.extraSteps)||!p.extraSteps.length)p.extraSteps=(+p.extra>0)?[+p.extra]:[0]})};
 const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
@@ -47,7 +49,7 @@ function login(){
 
 async function start(){
   try{D=await api('adm',{},t)}catch(x){if(x.status===401||x.status===undefined){sessionStorage.removeItem('lc_t');t='';return login()}return login()}
-  const[c,ev,gc]=await Promise.all([get('a=cfg'),get('a=events'),api('gc_manual_list',{},t).catch(()=>[])]);
+  const[c,ev,gc]=await Promise.all([api('cfg_admin',{},t).catch(()=>null),get('a=events'),api('gc_manual_list',{},t).catch(()=>[])]);
   S=structuredClone(c||await fetch('data/default.json').then(r=>r.json()));EV=ev||[];GC=gc||[];
   norm();buildBusy();shell();body()}
 const refreshAdm=async()=>{try{D=await api('adm',{},t);buildBusy()}catch{}};
@@ -62,13 +64,16 @@ function nav(){
   const L=(h,label,extra='')=>`<a href="#${h}" class="${r.s===h?'on':''}">${label}${extra}</a>`;
   $('#adm-nav').innerHTML=L('panoramica','Panoramica')
     +'<div class="grp">Appartamenti</div>'+S.apts.map(p=>L(p.id,esc(short(p)))).join('')
-    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('sync','Sincronizzazione',syncIssues()?`<span class="adm-badge">${syncIssues()}</span>`:'')+L('guestcard','Guest Card')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
+    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('sync','Sincronizzazione',syncIssues()?`<span class="adm-badge">${syncIssues()}</span>`:'')+L('guestcard','Guest Card')+L('adempimenti','Adempimenti')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
 
 function body(){
   const r=route(),p=aptById(r.s),el=$('#adm-body');if(!el)return;
   if(p){const sub=['testi','foto','prezzi','disponibilita','calendari'].includes(r.sub)?r.sub:'testi';el.innerHTML=aptView(p,sub);aptAfter(p,sub)}
-  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,eventi:vEv,sync:vSync}[r.s]||vPano)();
+  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,adempimenti:vAdp,eventi:vEv,sync:vSync}[r.s]||vPano)();
+  document.body.classList.toggle('adp-active',!p&&r.s==='adempimenti');      // la barra "Salva modifiche" non serve in questa sezione
   if(!p&&r.s==='sync')syncAfter();
+  if(!p&&r.s==='adempimenti')adpAfter();
+  if(!p&&r.s==='prenotazioni')preRender();
   nav()}
 
 // ---------- Panoramica ----------
@@ -193,12 +198,28 @@ function brRender(i){const p=S.apts[i],el=$('#br-'+i);if(!el)return;
   el.innerHTML=rs.length?rs.map(r=>`<span class="adm-range">${r.a===r.b?fmtS(r.a):fmtS(r.a)+' → '+fmtS(r.b)} <small>(${rangeIncl(r.a,r.b).length} ${r.a===r.b?'notte':'notti'})</small><button type="button" data-act="brDel" data-i="${i}" data-a="${r.a}" data-b="${r.b}" aria-label="Sblocca">✕</button></span>`).join(''):'<p class="book-note">Nessuna notte bloccata a mano.</p>'}
 const afterCal=i=>{calRender(i);if(route().sub==='disponibilita'){chipsRender(i);brRender(i)}};
 
+// ---------- Preavviso minimo (regola per tutte le prenotazioni dal sito) ----------
+const vNotice=()=>`<div class="admin-card" data-testid="admin-notice"><h2>Preavviso minimo</h2>
+  <p class="book-note">Quanti giorni prima del check-in gli ospiti possono ancora prenotare dal sito. Vale per tutti gli appartamenti, nel calendario e al pagamento. Non cambia le prenotazioni già confermate né i calendari di Booking e Airbnb. Ricordati di salvare.</p>
+  <div class="fields-grid">
+   <div class="field"><label for="pre-g">Preavviso minimo (giorni)</label><input id="pre-g" type="number" min="0" max="365" step="1" inputmode="numeric" data-b="c:preavvisoGiorni" value="${esc(S.preavvisoGiorni)}" data-testid="admin-notice-days"></div>
+   <div class="field"><label for="pre-h">Orario di check-in (ora di Roma)</label><input id="pre-h" type="time" data-b="c:checkinOra" value="${esc(S.checkinOra)}" style="-webkit-appearance:none;appearance:none;display:block;min-height:46px" data-testid="admin-checkin-time"></div></div>
+  <p class="book-note" id="pre-ex" data-testid="admin-notice-example"></p></div>`;
+const RE_HHMM=/^([01]\d|2[0-3]):[0-5]\d$/;
+function preRender(){const el=$('#pre-ex');if(!el)return;
+  const g=Number(S.preavvisoGiorni),h=RE_HHMM.test(S.checkinOra)?S.checkinOra:'',gOk=Number.isInteger(g)&&g>=0&&g<=365;
+  if(!gOk||(g>0&&!h)){el.className='book-note form-err';el.textContent=gOk?'Inserisci un orario di check-in valido.':'Il preavviso deve essere un numero intero di giorni da 0 a 365.';return}
+  el.className='book-note';
+  if(g===0){el.textContent='Con 0 giorni non c’è preavviso: si può prenotare fino alla fine del giorno di arrivo (prenotazioni last minute).';return}
+  const arr=addDays(today,g+10);
+  el.textContent='Esempio: per un arrivo '+fmtW(arr)+' l’ultima prenotazione possibile è alle '+h+' di '+fmtW(addDays(arr,-g))+' (ora di Roma).'}
+
 // ---------- Prenotazioni ----------
 function vBook(){
   const f=V.bkf,rows=D.bk.filter(x=>f==='tutte'||(f==='gestire'&&['richiesta','in_attesa','da_verificare'].includes(x.stato))||x.stato===f);
   const ext=(D.ext||[]).filter(e=>e.a>=today).sort((a,b)=>a.da<b.da?-1:a.da>b.da?1:0).slice(0,60);
   const flt=[['tutte','Tutte'],['gestire','Da gestire'],['confermata','Confermate'],['annullata','Annullate']];
-  return `<div class="admin-card"><h2>Prenotazioni dal sito</h2>
+  return `${vNotice()}<div class="admin-card"><h2>Prenotazioni dal sito</h2>
   <div class="adm-tabs">${flt.map(([k,l])=>`<a href="#prenotazioni" data-act="bkf" data-f="${k}" class="${f===k?'on':''}">${l}</a>`).join('')}</div>
   <div class="table-wrap tw-bk" data-testid="admin-bookings"><table class="data bkt"><thead><tr><th>Codice</th><th>App.</th><th>Dal</th><th>Al</th><th>Ospiti</th><th>Cliente</th><th>Totale</th><th>Stato</th><th></th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td data-label="Codice"><b>${esc(x.code)}</b></td><td data-label="App.">${esc(short(aptById(x.id)||{nome:x.id}))}</td><td data-label="Dal">${fmtD(x.da)}</td><td data-label="Al">${fmtD(x.a)}</td><td data-label="Ospiti">${x.ospiti}</td><td data-label="Cliente" class="td-cliente">${esc(x.nome)}<br>${esc(x.email)}${x.tel?'<br>'+esc(x.tel):''}${x.stato==='da_verificare'&&x.note?'<br><small class="adm-note" data-testid="admin-book-note">⚠ '+esc(x.note)+'</small>':''}</td><td data-label="Totale">${eur(x.totale)}</td><td data-label="Stato"><select class="stato-select" data-code="${esc(x.code)}">${(x.stato==='da_verificare'?['da_verificare','confermata','annullata']:['richiesta','in_attesa','confermata','annullata']).map(s=>`<option${s===x.stato?' selected':''}>${s}</option>`).join('')}</select></td><td class="td-azioni"><button type="button" class="stato-select btn-del-book" data-act="bookDel" data-code="${esc(x.code)}" data-testid="admin-book-del-${esc(x.code)}">Rimuovi</button></td></tr>`).join(''):'<tr><td colspan="9" class="td-empty">Nessuna prenotazione in questa vista.</td></tr>'}</tbody></table></div></div>
   <div class="admin-card"><h2>Occupazione esterna</h2><p class="book-note">Soggiorni importati da Airbnb, Booking o dal foglio (sola lettura, prossimi arrivi).</p>
@@ -278,6 +299,12 @@ function vGc(){
   <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input id="gcattrid" type="number" placeholder="idTipologiaCard" style="max-width:160px" data-testid="admin-gc-attrid"><button class="btn btn-line" data-act="gcAttr" type="button">Mostra attributi</button></div>
   <pre id="gcout" style="white-space:pre-wrap;word-break:break-word;margin-top:12px;font-size:.85rem"></pre></details></div>`}
 
+// ---------- Adempimenti (Alloggiati Web): la sezione vive in js/adempimenti.js; i dati degli ospiti restano solo in memoria ----------
+function vAdp(){return '<div id="adp-root" data-testid="adp-root"></div>'}
+function adpAfter(){const el=$('#adp-root');if(!el)return;
+  if(!window.LCAdempimenti){el.innerHTML='<div class="admin-card"><p class="form-err">Modulo Adempimenti non caricato: ricarica la pagina.</p></div>';return}
+  window.LCAdempimenti.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()}})}
+
 // ---------- Eventi ----------
 function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono anche nella sezione «Eventi in programma» della pagina Luoghi di interesse.</p>
   <form id="evform" class="ev-form"><div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div><div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div><div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div><div class="field" style="margin:0"><label>Luogo</label><input name="location" data-testid="ev-loc"></div><div class="field" style="margin:0"><label>Link (facoltativo)</label><input name="url" placeholder="https://" data-testid="ev-url"></div><button class="btn btn-wine" data-testid="ev-add">+ Aggiungi</button></form>
@@ -342,14 +369,14 @@ function cellClick(cell,e){
 // ---------- Eventi DOM ----------
 function wire(){
   M.addEventListener('click',e=>{
-    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;login();return}
+    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;document.body.classList.remove('adp-active');window.LCAdempimenti&&window.LCAdempimenti.reset();login();return}
     if(e.target.id==='save'){save();return}
     const a=e.target.closest('[data-act]');if(a){ACT[a.dataset.act]&&ACT[a.dataset.act](a,e);return}
     const c=e.target.closest('.pcell');if(c)cellClick(c,e)});
   M.addEventListener('input',e=>{const el=e.target,d=el.dataset;
     if(d.b){const[k,a,b]=d.b.split(':');const v=el.type==='checkbox'?el.checked:el.type==='number'?(el.value===''?0:+el.value):el.value;
       if(k==='c')S[a]=v;else if(k==='a')S.apts[+a][b]=v;else if(k==='ical')S.ical[a]=v;else if(k==='closed')S.closed[a]=!!v;
-      markDirty();if(k==='a'&&(b==='base'||b==='inclusi'||b==='max')&&$('#prev-'+a))prevRender(+a);return}
+      markDirty();if(k==='a'&&(b==='base'||b==='inclusi'||b==='max')&&$('#prev-'+a))prevRender(+a);if(k==='c'&&(a==='preavvisoGiorni'||a==='checkinOra'))preRender();return}
     if(d.step){const[i,j]=d.step.split(':').map(Number);S.apts[i].extraSteps[j]=Math.max(0,+el.value||0);markDirty();prevRender(i);return}
     if(d.per){const[i,j,k]=d.per.split(':');S.apts[+i].periodi[+j][k]=k==='prezzo'?(+el.value||0):el.value;markDirty();calRender(+i);return}
     if(d.mp){const[i,j,k]=d.mp.split(':');S.apts[+i].minPeriodi[+j][k]=k==='min'?Math.max(1,+el.value||1):el.value;markDirty();return}});
@@ -381,6 +408,9 @@ function wire(){
 // ---------- Salvataggio ----------
 async function save(){
   const o=$('#o'),btn=$('#save');btn.disabled=true;o.className='admin-msg';o.textContent='Salvo…';
+  const pg=Number(S.preavvisoGiorni);      // preavviso minimo (Prenotazioni): il server ricontrolla comunque
+  if(!Number.isInteger(pg)||pg<0||pg>365){o.textContent='Controlla il preavviso minimo (in Prenotazioni): un numero intero di giorni da 0 a 365';o.className='admin-msg warn';btn.disabled=false;return}
+  if(!RE_HHMM.test(S.checkinOra)){o.textContent='Controlla l’orario di check-in (in Prenotazioni): formato HH:MM';o.className='admin-msg warn';btn.disabled=false;return}
   for(const p of S.apts){ // controlli di coerenza prima di inviare
     const bad=p.periodi.find(q=>!q.da||!q.a||q.a<q.da);if(bad){o.textContent='Controlla i periodi di prezzo di '+short(p)+': date mancanti o invertite';o.className='admin-msg warn';btn.disabled=false;return}
     const bm=p.minPeriodi.find(q=>!q.da||!q.a||q.a<q.da);if(bm){o.textContent='Controlla i periodi di soggiorno minimo di '+short(p)+': date mancanti o invertite';o.className='admin-msg warn';btn.disabled=false;return}}

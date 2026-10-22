@@ -62,6 +62,50 @@ const bkParse = s => { if (s == null) return null; try { return JSON.parse(s); }
 const ageMin = (isoStr, t) => isoStr ? (t - Date.parse(isoStr)) / MIN : Infinity;
 const num = (v, d) => (Number.isFinite(+v) && +v > 0 ? +v : d);
 
+/* ============================ preavviso minimo di prenotazione (solo prenotazioni dirette dal sito) ============================ */
+// Chi prenota dal sito deve farlo con almeno `giorni` giorni di anticipo sul check-in. Lo imposta il titolare dal pannello admin
+// (config.preavvisoGiorni + config.checkinOra, salvati in KV insieme al resto della configurazione).
+//  - Il conto è in "ora a muro" di Roma, non in multipli di 24 ore: "2 giorni prima" è lo stesso orario di due giorni fa, anche se in mezzo cambia l'ora legale.
+//  - giorni = 0: nessun preavviso, si può prenotare fino alla fine del giorno di arrivo (è il comportamento storico del sito).
+//  - giorni ≥ 1: l'ultimo istante utile per un arrivo del giorno D sono le HH:MM del check-in del giorno D − giorni, estremo incluso.
+// Non tocca: export iCal verso Booking/Airbnb (hanno le loro regole), prenotazioni già confermate, blocchi manuali, hold e conferma del pagamento.
+const NOTICE_MAX_DAYS = 365, NOTICE_DEFAULT_HHMM = '16:00', RE_HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const toInt = v => ((typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isInteger(Number(v))) ? Number(v) : null;
+// lettura tollerante dalla configurazione salvata: valore assente o non valido = nessun preavviso / orario di default (la configurazione vecchia non ha questi campi)
+function noticeSettings(src) {
+  const g = toInt(src && src.preavvisoGiorni), h = src && src.checkinOra;
+  return { giorni: g !== null && g >= 0 && g <= NOTICE_MAX_DAYS ? g : 0, ora: RE_HHMM.test(h) ? h : NOTICE_DEFAULT_HHMM };
+}
+// validazione RIGOROSA di quanto arriva dal pannello: un campo non inviato (undefined, es. pagina admin non aggiornata) tiene il valore già salvato
+function parseNoticeInput(b, old) {
+  const cur = noticeSettings(old), out = { giorni: cur.giorni, ora: cur.ora };
+  if (b.preavvisoGiorni !== undefined) {
+    const g = toInt(b.preavvisoGiorni);
+    if (g === null || g < 0 || g > NOTICE_MAX_DAYS) return { err: 'Preavviso minimo non valido: inserisci un numero intero di giorni da 0 a ' + NOTICE_MAX_DAYS };
+    out.giorni = g;
+  }
+  if (b.checkinOra !== undefined) {
+    if (!RE_HHMM.test(b.checkinOra)) return { err: 'Orario di check-in non valido: usa il formato HH:MM (es. 15:00)' };
+    out.ora = b.checkinOra;
+  }
+  return out;
+}
+// ultimo istante (ms UTC) in cui si può ancora prenotare un arrivo del giorno `checkin`, estremo incluso
+function noticeCutoffMs(checkin, st) {
+  if (!isIso(checkin)) return NaN;
+  const ymd = s => s.split('-').map(Number);
+  if (st.giorni === 0) { const [y, m, d] = ymd(addDays(checkin, 1)); return zonedToUtcMs(y, m, d, 0, 0, 0, TZ) - 1; }   // fine del giorno di arrivo (Roma)
+  const [y, m, d] = ymd(addDays(checkin, -st.giorni)), [h, mi] = st.ora.split(':').map(Number);
+  return zonedToUtcMs(y, m, d, h, mi, 0, TZ);
+}
+const noticeOk = (checkin, nowMs, st) => isIso(checkin) && nowMs <= noticeCutoffMs(checkin, st);
+// primo giorno di arrivo prenotabile all'istante nowMs
+function minCheckinDate(nowMs, st) {
+  let c = addDays(todayRome(nowMs), st.giorni);
+  for (let i = 0; i < 3 && nowMs > noticeCutoffMs(c, st); i++) c = addDays(c, 1);
+  return c;
+}
+
 /* ============================ parser iCal ============================ */
 function splitUnquoted(s, sep) {
   const out = []; let cur = '', q = false;
@@ -578,15 +622,22 @@ function makeEngine(deps) {
     const p = (config.apts || []).find(x => x.id === aptId);
     if (p && p.blocked) for (const d of Object.keys(p.blocked)) if (p.blocked[d]) add(d, 'MANUALE', '');
     if (config.closed && config.closed[aptId]) for (let i = 0; i < 731; i++) add(addDays(today, i), 'CHIUSO', '');
-    if (mode === 'guest') { const h0 = addDays(today, T.horizonDays); for (let i = 0; i < 731; i++) add(addDays(h0, i), 'ORIZZONTE', ''); }
-    return { aptId, mode, status: fatal ? 'unverifiable' : degraded ? 'degraded' : 'ok', problems, days, feeds: feedInfo, registry: { health: rh, lastSuccess: st.reg && st.reg.lastSuccess || null, lastAttempt: st.reg && st.reg.lastAttempt || null, error: st.reg && st.reg.error || null, count: st.reg ? st.reg.count : null }, asOf: lastOk.length ? lastOk.sort()[0] : null };
+    let notice = null;
+    if (mode === 'guest') {
+      const h0 = addDays(today, T.horizonDays); for (let i = 0; i < 731; i++) add(addDays(h0, i), 'ORIZZONTE', '');
+      // preavviso minimo: nessun soggiorno può iniziare prima del primo arrivo prenotabile adesso, quindi quelle notti non sono prenotabili dal sito
+      const nt = noticeSettings(config), first = minCheckinDate(t, nt);
+      for (let d = today; d < first; d = addDays(d, 1)) add(d, 'PREAVVISO', '');
+      notice = { giorni: nt.giorni, ora: nt.ora, primoArrivo: first };
+    }
+    return { aptId, mode, status: fatal ? 'unverifiable' : degraded ? 'degraded' : 'ok', problems, days, feeds: feedInfo, registry: { health: rh, lastSuccess: st.reg && st.reg.lastSuccess || null, lastAttempt: st.reg && st.reg.lastAttempt || null, error: st.reg && st.reg.error || null, count: st.reg ? st.reg.count : null }, asOf: lastOk.length ? lastOk.sort()[0] : null, notice };
   }
   const aptExists = (config, id) => (config.apts || []).some(x => x.id === id);
 
   // calendario pubblico / checkout
   async function guestBusy(config, aptId) {
     const occ = computeOccupancy(config, aptId, await loadFresh(config, aptId), { mode: 'guest' });
-    return { status: occ.status, asOf: occ.asOf, dates: Object.keys(occ.days).sort(), problems: occ.problems };
+    return { status: occ.status, asOf: occ.asOf, dates: Object.keys(occ.days).sort(), problems: occ.problems, notice: occ.notice };
   }
   // verifica puntuale di un intervallo (checkout / conferma tardiva). ignoreHold = i miei stessi hold.
   async function checkRange(config, aptId, da, a, { ignoreHold, mode = 'guest', fresh = true } = {}) {
@@ -788,4 +839,5 @@ function makeEngine(deps) {
     bkAll, bkGet, bkPut, bkDel, holdAcquire, holdRelease, holdsValid, holdPurge, webappUpsert, registerBooking, outboxPush, outboxDrain };
 }
 
-module.exports = { makeEngine, parseICS, icalDate, icalFeed, rangeDays, addDays, nightsBetween, todayRome, isIso, hmac, srcOf, LUA_ACQUIRE, LUA_RELEASE, K };
+module.exports = { makeEngine, parseICS, icalDate, icalFeed, rangeDays, addDays, nightsBetween, todayRome, isIso, hmac, srcOf, LUA_ACQUIRE, LUA_RELEASE, K,
+  noticeSettings, parseNoticeInput, noticeCutoffMs, noticeOk, minCheckinDate, NOTICE_MAX_DAYS };

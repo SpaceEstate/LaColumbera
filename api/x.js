@@ -27,6 +27,11 @@ const minFor=(p,da)=>{const r=(p.minPeriodi||[]).find(q=>q.da&&q.a&&da>=q.da&&da
 const F2=s=>{const m=/(\d{4})-(\d\d)-(\d\d)/.exec(s);return m?m[3]+'/'+m[2]+'/'+m[1]:s};
 const APT_LABEL={torre:'La Columbera - Torre, Appartamento con 2 camere da letto',corte:'La Columbera - Corte, Appartamento con 1 camere da letto'};
 
+// Messaggio al cliente (409) quando il preavviso minimo non è rispettato: la regola, il primo arrivo prenotabile e come ottenere un arrivo più vicino
+const fmtLong=s=>{try{const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(s),t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});return t}catch{return F2(s)}};
+const noticeBody=(nt,nowMs)=>{const first=AV.minCheckinDate(nowMs,nt);
+ return{err:(nt.giorni>0?'Preavviso minimo non rispettato: le prenotazioni online richiedono almeno '+nt.giorni+(nt.giorni===1?' giorno':' giorni')+' di anticipo sul check-in (ore '+nt.ora+').':'La data di arrivo scelta non è più prenotabile.')+' Il primo arrivo prenotabile è '+fmtLong(first)+'. Per arrivi più vicini scrivici a lacolumbera@gmail.com o chiamaci al +39 351 704 3594.',code:'PREAVVISO_INSUFFICIENTE',giorni:nt.giorni,ora:nt.ora,primoArrivo:first}};
+
 // ---- Registro prenotazioni (Google Sheet via Apps Script): upsert idempotente + coda di ripresa ----
 const sheetUpsertBooking=b=>E.registerBooking(b);   // chiave FONTE|CODICE; se il foglio non risponde accoda (mai perdere una conferma)
 const sheetAppend=sheetUpsertBooking;                // nome storico, per compatibilità
@@ -291,14 +296,16 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
   res.setHeader('Location',img.href);return res.status(302).end();
  }catch{return res.status(502).end()}
 }
-if(a==='cfg')return res.json(await cfg(req));
+// Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali.
+// La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
+if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,apts:(c0.apts||[]).map(({blocked,...p})=>p)})}
 if(a==='busy'){const id=String(req.query.id||'');
  // Fail-closed: se la disponibilità non è verificabile NON si mostrano date libere (503 → il sito mostra "non verificabile")
  try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
   const r=await E.guestBusy(config,id);
   if(r.status==='unverifiable'){res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}
   res.setHeader('Cache-Control','public, s-maxage=15, stale-while-revalidate=15');
-  return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates})}
+  return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates,notice:r.notice})}
  catch(e){console.error('busy:',e.message);res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}}
 if(a==='ical'){const id=String(req.query.id||'');
  // ?for=booking|airbnb esclude dal calendario gli eventi della piattaforma destinataria (evita l'eco/i blocchi "fantasma")
@@ -316,6 +323,9 @@ if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id=
  if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);const mn=minFor(p,b.da);if(g.length<mn||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+mn+' notti per queste date)'});
+ // Preavviso minimo (impostazione del titolare, Gestione → Prenotazioni): il controllo è QUI, sul server, prima di hold e pagamento. Cambiare il browser non lo aggira.
+ const nt=AV.noticeSettings(config),noticeErr=()=>{const t=Date.now();return AV.noticeOk(b.da,t,nt)?null:noticeBody(nt,t)};
+ const ne=noticeErr();if(ne)return res.status(409).json(ne);
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
  const n=Math.min(Math.max(+b.ospiti||1,1),p.max),NV={err:'Disponibilità temporaneamente non verificabile: riprova tra qualche minuto o scrivici a lacolumbera@gmail.com'},ND={err:'Date non più disponibili'};
  // 1) controllo (fail-closed)  2) HOLD ATOMICO sulle notti  3) ricontrollo dopo l'hold  4) sessione Stripe
@@ -329,6 +339,8 @@ if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id=
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
   if(post.status==='unverifiable'){await E.holdRelease(p.id,g,r.code);return res.status(503).json(NV)}
+  const ne2=noticeErr();      // il limite può scadere mentre si acquisisce l'hold: si ricontrolla con l'orologio di adesso
+  if(ne2){await E.holdRelease(p.id,g,r.code);return res.status(409).json(ne2)}
   if(post.conflicts.length){await E.holdRelease(p.id,g,r.code);return res.status(409).json(ND)}
   await E.bkPut(r)}
  catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});console.error('checkout/post:',e.message);return res.status(503).json(NV)}
@@ -409,6 +421,7 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
  const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
  return res.json(Object.assign(await E.syncState(config,{}),{lastReconcile:last,log:(logs||[]).map(x=>{try{return JSON.parse(x)}catch{return {msg:String(x)}}})}))}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
+if(a==='cfg_admin')return res.json(await cfg(req));
 if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
  const state=c.randomBytes(16).toString('hex');
@@ -479,7 +492,8 @@ if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)ret
 if(a==='event_del'){let list=(await jg('events'))||[];list=list.filter(x=>x.id!==b.id);await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
 if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img||'');if(!m)return res.status(400).json({err:'Immagine non valida'});
  const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
-if(a==='save'){const old=await cfg(req),n={chi:String(b.chi||'').slice(0,4000),ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
+if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.err)return res.status(400).json({err:pre.err});
+ const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
  for(const k of Object.keys(b.ical||{}))n.ical[k]=String(b.ical[k]||'');
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
  const keep=new Set(n.apts.flatMap(p=>p.foto));
@@ -491,4 +505,4 @@ res.status(404).json({err:'?'})}catch(e){res.status(500).json({err:e.message})}}
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
 module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
-module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;
+module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;
