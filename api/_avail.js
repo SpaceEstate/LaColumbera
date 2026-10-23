@@ -701,34 +701,64 @@ function makeEngine(deps) {
 
   // Export PERSONALE (calendario del telefono): TUTTE le prenotazioni, un evento per prenotazione, con fonte e appartamento nel titolo.
   // Contiene nomi degli ospiti del sito: va protetto con una chiave (vedi x.js, ICAL_PERSONAL_KEY). Non va mai dato a Booking/Airbnb.
+  //
+  // Ordine di inserimento per ogni appartamento (conta: il primo evento per FONTE+date vince, gli altri sono doppioni):
+  //   1) prenotazioni del sito   2) registro Google Sheet (ha codice, ospiti, notti)   3) blocchi manuali
+  //   4) feed iCal di Booking/altri   5) feed iCal di Airbnb.
+  // I feed vengono dopo il registro, così per la stessa prenotazione resta la riga più ricca (ospiti, codice) e non il solo "Reserved".
+  // Airbnb ricopia nel suo feed, come "Not available", le date che gli giriamo (prenotazioni Booking, blocchi manuali): quegli eventi
+  // non sono prenotazioni Airbnb ma echi, e sovrapposti a una prenotazione già presente vengono scartati. Gli eventi "Reserved" restano sempre
+  // (se si sovrappongono a un'altra prenotazione è una vera doppia prenotazione e deve vedersi).
   async function exportIcsAll(config, aptIds) {
     const t = now(), cut = addDays(todayRome(t), -30), ev = [], seen = new Set();
     const LBL = { BOOKING: 'Booking', AIRBNB: 'Airbnb', ALTRO: 'Altro iCal', SITO: 'Sito', MANUALE: 'Blocco manuale' };
+    const RESERVED = /reserved|prenotat|booked/i;   // titolo di una prenotazione vera nel feed Airbnb; gli altri titoli sono blocchi
     const esc = x => String(x == null ? '' : x).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\r?\n/g, '\\n');
+    // true se l'evento è stato inserito (false: fuori finestra o doppione)
     const push = (apt, fonte, start, end, summary, desc) => {
-      if (!isIso(start) || !isIso(end) || end <= cut) return;
+      if (!isIso(start) || !isIso(end) || end <= cut) return false;
       const k = apt + '|' + fonte + '|' + start + '|' + end;
-      if (seen.has(k)) return;
+      if (seen.has(k)) return false;
       seen.add(k);
-      ev.push({ uid: 'tutto-' + fonte.toLowerCase() + '-' + apt + '-' + start + '-' + end + '@lacolumbera', start, end, summary, desc: desc || '' });
+      const n = nightsBetween(start, end);
+      ev.push({ uid: 'tutto-' + fonte.toLowerCase() + '-' + apt + '-' + start + '-' + end + '@lacolumbera', start, end, summary, desc: [n + (n === 1 ? ' notte' : ' notti'), desc].filter(Boolean).join(' · ') });
+      return true;
     };
     for (const id of aptIds) {
       const a = (config.apts || []).find(x => x.id === id), nm = (a && a.nome) || id, st = await loadFresh(config, id);
-      st.feeds.forEach((f, i) => { const s = st.snaps[i]; if (s) for (const e of (s.events || [])) push(id, f.source, e.start, e.end, nm + ' - ' + LBL[f.source], e.summary); });
+      const strong = [];                                                                  // intervalli già inseriti per questo appartamento
+      const add = (apt, fonte, start, end, summary, desc) => { if (push(apt, fonte, start, end, summary, desc) && apt === id) strong.push({ start, end }); };
       const bkCodes = new Set(st.bks.map(b => String(b.code).toUpperCase()));
+      // 1) prenotazioni del sito
+      for (const b of st.bks) {
+        if (b.id !== id || !['confermata', 'richiesta', 'da_verificare'].includes(b.stato)) continue;
+        add(id, 'SITO', b.da, b.a, nm + ' - Sito - ' + (b.nome || b.code) + (b.stato === 'da_verificare' ? ' (DA VERIFICARE)' : ''), 'Codice ' + b.code + (b.ospiti ? ' - ' + b.ospiti + ' ospiti' : ''));
+      }
+      // 2) registro (Booking/Airbnb/manuali dal foglio)
       for (const r of ((st.reg && st.reg.rows) || [])) {
         if (r.stato === 'ANNULLATA' || (r.fonte === 'SITO' && bkCodes.has(r.codice.toUpperCase())) || (r.apt && r.apt !== id)) continue;
         const who = r.apt ? nm : 'APPARTAMENTO DA ASSEGNARE';
-        push(r.apt || '?', r.fonte, r.checkin, r.checkout, who + ' - ' + (LBL[r.fonte] || r.fonte) + ' ' + r.codice, r.ospiti ? r.ospiti + ' ospiti' : '');
+        add(r.apt || '?', r.fonte, r.checkin, r.checkout, who + ' - ' + (LBL[r.fonte] || r.fonte) + ' ' + r.codice, r.ospiti ? r.ospiti + ' ospiti' : '');
       }
-      for (const b of st.bks) {
-        if (b.id !== id || !['confermata', 'richiesta', 'da_verificare'].includes(b.stato)) continue;
-        push(id, 'SITO', b.da, b.a, nm + ' - Sito - ' + (b.nome || b.code) + (b.stato === 'da_verificare' ? ' (DA VERIFICARE)' : ''), 'Codice ' + b.code + (b.ospiti ? ' - ' + b.ospiti + ' ospiti' : ''));
-      }
+      // 3) blocchi manuali
       const dd = Object.keys((a && a.blocked) || {}).filter(d => a.blocked[d] && d >= cut).sort();
       let run = null; const runs = [];
       for (const d of dd) { if (run && run.end === d) run.end = addDays(d, 1); else { run = { start: d, end: addDays(d, 1) }; runs.push(run); } }
-      for (const r of runs) push(id, 'MANUALE', r.start, r.end, nm + ' - Blocco manuale', '');
+      for (const r of runs) add(id, 'MANUALE', r.start, r.end, nm + ' - Blocco manuale', '');
+      // 4) feed iCal che non sono Airbnb (Booking, altri)
+      const feeds = st.feeds.map((f, i) => ({ f, s: st.snaps[i] })).filter(x => x.s);
+      for (const { f, s } of feeds) {
+        if (f.source === 'AIRBNB') continue;
+        for (const e of (s.events || [])) add(id, f.source, e.start, e.end, nm + ' - ' + LBL[f.source], e.summary);
+      }
+      // 5) feed iCal di Airbnb: prima le prenotazioni vere ("Reserved"), poi i blocchi, che si scartano se coprono qualcosa già presente
+      const ab = [];
+      for (const { f, s } of feeds) if (f.source === 'AIRBNB') for (const e of (s.events || [])) ab.push({ f, e, res: RESERVED.test(e.summary) });
+      ab.sort((x, y) => (y.res ? 1 : 0) - (x.res ? 1 : 0));
+      for (const { f, e, res } of ab) {
+        if (!res && strong.some(x => x.start < e.end && e.start < x.end)) continue;     // eco di una prenotazione Booking/sito o di un blocco manuale
+        add(id, f.source, e.start, e.end, nm + ' - ' + LBL[f.source], e.summary);
+      }
     }
     ev.sort((x, y) => (x.start < y.start ? -1 : x.start > y.start ? 1 : x.uid < y.uid ? -1 : 1));
     const stamp = new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
