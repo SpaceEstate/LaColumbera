@@ -140,13 +140,13 @@ const sDisp=(p,i)=>`<div class="field"><label class="closed-toggle"><input type=
   <div id="minper-${i}"></div>
   <button type="button" class="btn btn-line" data-act="minAdd" data-i="${i}">+ Aggiungi periodo</button>
   <h3>Blocca date</h3>
-  <p class="book-note">Le notti bloccate risultano non prenotabili sul sito e vengono segnalate anche ad Airbnb e Booking tramite il calendario iCal.</p>
+  <p class="book-note">Le notti bloccate risultano non prenotabili sul sito; il calendario iCal verso Booking e Airbnb contiene solo le prenotazioni del sito.</p>
   <div class="adm-chips" id="chips-${i}"></div>
   ${calTools(i,'avail')}<div id="cal-${i}"></div>
   <h4 class="adm-h4">Notti bloccate</h4><div id="br-${i}" class="adm-ranges"></div>`;
 
 const sCal=(p,i)=>`<div class="field"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input data-b="ical:${p.id}" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
-  <div class="field"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito e le notti bloccate qui)</label><div class="adm-copy"><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${location.origin}/api/x?a=ical&id=${p.id}">Copia</button></div></div>`;
+  <div class="field"><label>Calendario iCal SOLO prenotazioni del sito (inseriscilo su Booking e Airbnb: contiene solo le prenotazioni fatte sul sito, non quelle di Booking/Airbnb)</label><div class="adm-copy"><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&for=site&id=${p.id}" data-testid="admin-ical-export-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${location.origin}/api/x?a=ical&for=site&id=${p.id}">Copia</button></div></div>`;
 
 // --- scaglioni ospiti ---
 function stepsRender(i){const p=S.apts[i],el=$('#steps-'+i);if(!el)return;
