@@ -699,6 +699,44 @@ function makeEngine(deps) {
     return { ok: true, status: 'ok', count: ev.length, ics: out + 'END:VCALENDAR\r\n' };
   }
 
+  // Export PERSONALE (calendario del telefono): TUTTE le prenotazioni, un evento per prenotazione, con fonte e appartamento nel titolo.
+  // Contiene nomi degli ospiti del sito: va protetto con una chiave (vedi x.js, ICAL_PERSONAL_KEY). Non va mai dato a Booking/Airbnb.
+  async function exportIcsAll(config, aptIds) {
+    const t = now(), cut = addDays(todayRome(t), -30), ev = [], seen = new Set();
+    const LBL = { BOOKING: 'Booking', AIRBNB: 'Airbnb', ALTRO: 'Altro iCal', SITO: 'Sito', MANUALE: 'Blocco manuale' };
+    const esc = x => String(x == null ? '' : x).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\r?\n/g, '\\n');
+    const push = (apt, fonte, start, end, summary, desc) => {
+      if (!isIso(start) || !isIso(end) || end <= cut) return;
+      const k = apt + '|' + fonte + '|' + start + '|' + end;
+      if (seen.has(k)) return;
+      seen.add(k);
+      ev.push({ uid: 'tutto-' + fonte.toLowerCase() + '-' + apt + '-' + start + '-' + end + '@lacolumbera', start, end, summary, desc: desc || '' });
+    };
+    for (const id of aptIds) {
+      const a = (config.apts || []).find(x => x.id === id), nm = (a && a.nome) || id, st = await loadFresh(config, id);
+      st.feeds.forEach((f, i) => { const s = st.snaps[i]; if (s) for (const e of (s.events || [])) push(id, f.source, e.start, e.end, nm + ' - ' + LBL[f.source], e.summary); });
+      const bkCodes = new Set(st.bks.map(b => String(b.code).toUpperCase()));
+      for (const r of ((st.reg && st.reg.rows) || [])) {
+        if (r.stato === 'ANNULLATA' || (r.fonte === 'SITO' && bkCodes.has(r.codice.toUpperCase())) || (r.apt && r.apt !== id)) continue;
+        const who = r.apt ? nm : 'APPARTAMENTO DA ASSEGNARE';
+        push(r.apt || '?', r.fonte, r.checkin, r.checkout, who + ' - ' + (LBL[r.fonte] || r.fonte) + ' ' + r.codice, r.ospiti ? r.ospiti + ' ospiti' : '');
+      }
+      for (const b of st.bks) {
+        if (b.id !== id || !['confermata', 'richiesta', 'da_verificare'].includes(b.stato)) continue;
+        push(id, 'SITO', b.da, b.a, nm + ' - Sito - ' + (b.nome || b.code) + (b.stato === 'da_verificare' ? ' (DA VERIFICARE)' : ''), 'Codice ' + b.code + (b.ospiti ? ' - ' + b.ospiti + ' ospiti' : ''));
+      }
+      const dd = Object.keys((a && a.blocked) || {}).filter(d => a.blocked[d] && d >= cut).sort();
+      let run = null; const runs = [];
+      for (const d of dd) { if (run && run.end === d) run.end = addDays(d, 1); else { run = { start: d, end: addDays(d, 1) }; runs.push(run); } }
+      for (const r of runs) push(id, 'MANUALE', r.start, r.end, nm + ' - Blocco manuale', '');
+    }
+    ev.sort((x, y) => (x.start < y.start ? -1 : x.start > y.start ? 1 : x.uid < y.uid ? -1 : 1));
+    const stamp = new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    let out = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Columbera//Tutto//IT\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:La Columbera - tutte le prenotazioni\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\n';
+    for (const e of ev) out += 'BEGIN:VEVENT\r\nUID:' + e.uid + '\r\nDTSTAMP:' + stamp + '\r\nDTSTART;VALUE=DATE:' + e.start.replace(/-/g, '') + '\r\nDTEND;VALUE=DATE:' + e.end.replace(/-/g, '') + '\r\nSUMMARY:' + esc(e.summary) + '\r\n' + (e.desc ? 'DESCRIPTION:' + esc(e.desc) + '\r\n' : '') + 'TRANSP:TRANSPARENT\r\nEND:VEVENT\r\n';
+    return { ok: true, count: ev.length, ics: out + 'END:VCALENDAR\r\n' };
+  }
+
   /* ---------- conferma prenotazione (da webhook Stripe o admin) ---------- */
   async function confirmBooking(config, code, pay) {
     let b = await bkGet(code);
@@ -858,7 +896,7 @@ function makeEngine(deps) {
     return out;
   }
 
-  return { T, feedsFor, feedHealth, regHealth, refreshFeeds, refreshRegistry, loadAptState, computeOccupancy, guestBusy, checkRange, conflictsFor, adminOccupancy, occupancyOf, registryRows, bkPurgePending, exportIcs, exportIcsSite, confirmBooking, findByCode, syncState, syncAll, reconcile, log, aptExists,
+  return { T, feedsFor, feedHealth, regHealth, refreshFeeds, refreshRegistry, loadAptState, computeOccupancy, guestBusy, checkRange, conflictsFor, adminOccupancy, occupancyOf, registryRows, bkPurgePending, exportIcs, exportIcsSite, exportIcsAll, confirmBooking, findByCode, syncState, syncAll, reconcile, log, aptExists,
     bkAll, bkGet, bkPut, bkDel, holdAcquire, holdRelease, holdsValid, holdPurge, webappUpsert, registerBooking, outboxPush, outboxDrain };
 }
 
