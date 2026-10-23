@@ -676,6 +676,29 @@ function makeEngine(deps) {
     return { ok: true, status: occ.status, ics: icalFeed(aptId, Object.keys(occ.days).filter(d => d >= cut), t) };
   }
 
+  // Export "solo sito": SOLO le prenotazioni nate sul sito (una per evento, UID stabile). Nessun evento importato da Booking/Airbnb/foglio,
+  // nessun hold, nessun blocco manuale (manual:true per includerli). Non dipende dai feed esterni: legge solo le prenotazioni del sito.
+  async function exportIcsSite(config, aptId, { manual = false } = {}) {
+    const t = now(), cut = addDays(todayRome(t), -7), ev = [];
+    for (const b of await bkAll()) {
+      if (b.id !== aptId || !['confermata', 'richiesta', 'da_verificare'].includes(b.stato) || !isIso(b.da) || !isIso(b.a) || b.a <= cut) continue;
+      ev.push({ uid: 'sito-' + String(b.code).toUpperCase() + '@lacolumbera', start: b.da, end: b.a, summary: 'Prenotazione sito - La Columbera' });
+    }
+    if (manual) {
+      const p = (config.apts || []).find(x => x.id === aptId), dd = Object.keys((p && p.blocked) || {}).filter(d => p.blocked[d] && d >= cut).sort();
+      let cur = null;
+      for (const d of dd) {
+        if (cur && cur.end === d) cur.end = addDays(d, 1);
+        else { cur = { uid: 'blocco-' + d + '-' + aptId + '@lacolumbera', start: d, end: addDays(d, 1), summary: 'Bloccato - La Columbera' }; ev.push(cur); }
+      }
+    }
+    ev.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : a.uid < b.uid ? -1 : 1));
+    const stamp = new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    let out = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//La Columbera//Sito//IT\r\nCALSCALE:GREGORIAN\r\nX-WR-CALNAME:La Columbera ' + aptId + ' (sito)\r\n';
+    for (const e of ev) out += 'BEGIN:VEVENT\r\nUID:' + e.uid + '\r\nDTSTAMP:' + stamp + '\r\nDTSTART;VALUE=DATE:' + e.start.replace(/-/g, '') + '\r\nDTEND;VALUE=DATE:' + e.end.replace(/-/g, '') + '\r\nSUMMARY:' + e.summary + '\r\nTRANSP:OPAQUE\r\nEND:VEVENT\r\n';
+    return { ok: true, status: 'ok', count: ev.length, ics: out + 'END:VCALENDAR\r\n' };
+  }
+
   /* ---------- conferma prenotazione (da webhook Stripe o admin) ---------- */
   async function confirmBooking(config, code, pay) {
     let b = await bkGet(code);
@@ -835,7 +858,7 @@ function makeEngine(deps) {
     return out;
   }
 
-  return { T, feedsFor, feedHealth, regHealth, refreshFeeds, refreshRegistry, loadAptState, computeOccupancy, guestBusy, checkRange, conflictsFor, adminOccupancy, occupancyOf, registryRows, bkPurgePending, exportIcs, confirmBooking, findByCode, syncState, syncAll, reconcile, log, aptExists,
+  return { T, feedsFor, feedHealth, regHealth, refreshFeeds, refreshRegistry, loadAptState, computeOccupancy, guestBusy, checkRange, conflictsFor, adminOccupancy, occupancyOf, registryRows, bkPurgePending, exportIcs, exportIcsSite, confirmBooking, findByCode, syncState, syncAll, reconcile, log, aptExists,
     bkAll, bkGet, bkPut, bkDel, holdAcquire, holdRelease, holdsValid, holdPurge, webappUpsert, registerBooking, outboxPush, outboxDrain };
 }
 
