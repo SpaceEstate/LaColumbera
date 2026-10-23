@@ -307,6 +307,16 @@ if(a==='busy'){const id=String(req.query.id||'');
   res.setHeader('Cache-Control','public, s-maxage=15, stale-while-revalidate=15');
   return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates,notice:r.notice})}
  catch(e){console.error('busy:',e.message);res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}}
+if(a==='ical'&&String(req.query.for||'').toLowerCase()==='all'){
+ // Calendario PERSONALE con tutte le prenotazioni (nomi ospiti inclusi): richiede la chiave ICAL_PERSONAL_KEY (variabile d'ambiente Vercel), passata come &k=
+ const key=process.env.ICAL_PERSONAL_KEY||'';
+ if(!key||String(req.query.k||'')!==key)return res.status(403).send('forbidden');
+ try{const config=await cfg(req),id=String(req.query.id||'all'),ids=id==='all'?(config.apts||[]).map(x=>x.id):[id];
+  if(!ids.length||!ids.every(i=>E.aptExists(config,i)))return res.status(404).send('not found');
+  const r=await E.exportIcsAll(config,ids);
+  res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','private, no-store');
+  return res.send(r.ics)}
+ catch(e){console.error('ical-all:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
 if(a==='ical'){const id=String(req.query.id||'');
  // ?for=booking|airbnb esclude dal calendario gli eventi della piattaforma destinataria (evita l'eco/i blocchi "fantasma")
  const forSource={booking:'BOOKING',airbnb:'AIRBNB'}[String(req.query.for||'').toLowerCase()]||'';
