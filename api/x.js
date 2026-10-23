@@ -311,7 +311,9 @@ if(a==='ical'){const id=String(req.query.id||'');
  // ?for=booking|airbnb esclude dal calendario gli eventi della piattaforma destinataria (evita l'eco/i blocchi "fantasma")
  const forSource={booking:'BOOKING',airbnb:'AIRBNB'}[String(req.query.for||'').toLowerCase()]||'';
  try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).send('not found');
-  const r=await E.exportIcs(config,id,{forSource});
+  // ?for=site = SOLO prenotazioni del sito (è il link da dare a Booking e Airbnb); senza for = unione di tutte le fonti (uso interno/legacy)
+  const siteOnly=String(req.query.for||'').toLowerCase()==='site';
+  const r=siteOnly?await E.exportIcsSite(config,id):await E.exportIcs(config,id,{forSource});
   // se i dati non sono completi si risponde 503: la piattaforma tiene l'ultimo calendario importato invece di ricevere date sbagliate
   if(!r.ok){res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}
   res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','public, s-maxage=60, stale-while-revalidate=120');res.setHeader('X-LC-Status',r.status);
