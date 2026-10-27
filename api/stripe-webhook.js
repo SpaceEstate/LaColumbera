@@ -52,8 +52,13 @@ async function onPaid(event, req) {
   const om = ownerMail(b, site);
   await step(code, 'mail_titolare', () => x.sendMail(OWNER_EMAIL, om.subject, om.html, { text: om.text, replyTo: b.email }).then(v => v !== false));
   if (/.+@.+\..+/.test(b.email || '')) {
-    const gm = guestMail(b, site);
-    await step(code, 'mail_ospite', () => x.sendMail(b.email, gm.subject, gm.html, { text: gm.text, replyTo: REPLY_TO }).then(v => v !== false));
+    // il link della mail porta un token segreto (nel frammento "#"): il codice da solo non apre l'area clienti.
+    // Il token si crea dentro il passo: se l'invio fallisce e Stripe ripete, il nuovo invio ha un nuovo token (quello vecchio scade da solo).
+    await step(code, 'mail_ospite', async () => {
+      const tk = await x.access.issueForBooking(b, 'mail');
+      const gm = guestMail(b, site, tk);
+      return x.sendMail(b.email, gm.subject, gm.html, { text: gm.text, replyTo: REPLY_TO }).then(v => v !== false);
+    });
   }
 }
 
@@ -71,7 +76,7 @@ const handler = async (req, res) => {
   try {
     const buf = await buffer(req);
     event = stripe.webhooks.constructEvent(buf, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (e) { return res.status(400).send('Webhook Error: ' + e.message); }
+  } catch (e) { return res.status(400).send('Webhook Error: firma non valida'); }      // il dettaglio non serve a chi chiama
   try {
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await onPaid(event, req);
     else if (event.type === 'checkout.session.expired') await onExpired(event);

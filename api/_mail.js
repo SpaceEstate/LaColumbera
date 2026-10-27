@@ -50,8 +50,10 @@ ${body}
 const sec=(inner,pad)=>`<tr><td style="padding:${pad||'22px 32px 0'}">${inner}</td></tr>`;
 
 // ---------------- EMAIL OSPITE ----------------
-const guestMail=(b,site)=>{
-  const link=site+'/area-clienti.html?code='+encodeURIComponent(b.code);
+// token = chiave segreta di accesso (api/_accesso.js): va nel frammento "#", che il browser non invia mai al server né ad altri siti.
+// Senza token (es. errore nel crearlo) il link apre solo l'area clienti, dove si accede con codice + data di arrivo + email.
+const guestMail=(b,site,token)=>{
+  const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token):'');
   const nome=String(b.nome||'').trim().split(/\s+/)[0];
   const step=(n,t,d)=>`<tr><td valign="top" width="40" style="padding:0 0 14px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="30" height="30" bgcolor="${C.paper2}" style="width:30px;height:30px;border-radius:15px;background:${C.paper2};font-family:${SERIF};font-size:15px;color:${C.wine};font-weight:700">${n}</td></tr></table></td><td valign="top" style="padding:0 0 14px"><div style="font-family:${SANS};font-size:15px;font-weight:700;color:${C.ink}">${t}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:2px">${d}</div></td></tr>`;
   const html=shell({site,eyebrow:'Prenotazione confermata',preheader:`Il tuo codice è ${b.code}: con questo accedi all'area personale per check-in online e Trentino Guest Card.`,
@@ -61,10 +63,10 @@ const guestMail=(b,site)=>{
     sec(codeBox(b.code),'24px 32px 0')+
     sec(`<div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:12px">Riepilogo del soggiorno</div>${recap(b)}`,'30px 32px 0')+
     sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-radius:12px"><tr><td style="padding:24px 22px 10px">
-<div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink};padding-bottom:8px">Il tuo codice apre l'area personale</div>
+<div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink};padding-bottom:8px">La tua area personale</div>
 <p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il numero di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px">${esc(b.code)}</b> puoi accedere all'<b>area personale</b> del nostro sito e, prima di arrivare, sbrigare tutto online:</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${step('1','Check-in online','Compili i dati degli ospiti in pochi minuti, così all\'arrivo è tutto pronto.')}${step('2','Trentino Guest Card','La richiedi direttamente dall\'area personale: musei, trasporti e attrazioni del territorio inclusi.')}</table>
-</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il codice viene inserito in automatico. Se preferisci, vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e digitalo a mano.</div></td></tr></table>`,'30px 32px 0')+
+</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente: non inoltrarlo ad altri. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci codice, data di arrivo ed email della prenotazione.</div></td></tr></table>`,'30px 32px 0')+
     sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda rispondi pure a questo messaggio o scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.</p>`,'26px 32px 32px')});
   const text=`Grazie${nome?', '+nome:''}! La tua prenotazione a La Columbera è confermata.
 
@@ -77,8 +79,9 @@ Notti:     ${b.notti}
 Ospiti:    ${b.ospiti}
 Importo pagato: ${eur(b.totale)}
 
-Con il codice prenotazione puoi accedere all'area personale del sito per fare il check-in online e richiedere la Trentino Guest Card:
+Dall'area personale del sito puoi fare il check-in online e richiedere la Trentino Guest Card. Questo link ti fa entrare direttamente (non inoltrarlo ad altri):
 ${link}
+In alternativa: ${site}/area-clienti.html con codice prenotazione, data di arrivo ed email.
 
 Per qualsiasi domanda: lacolumbera@gmail.com · +39 351 704 3594
 La Columbera · Ravina, Trento`;

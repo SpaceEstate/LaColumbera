@@ -4,8 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trentino Guest Card · La Columbera</title>
 <meta name="theme-color" content="#7A2E39"><link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..700,0..100;1,9..144,300..700,0..100&family=Manrope:wght@300;400;500;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/main.css">
 </head>
 <body data-p="guestcard">
@@ -18,12 +17,14 @@
 <section class="page-intro"><div class="wrap">
 <span class="section-eyebrow" data-reveal>Vantaggi ospiti</span>
 <h1 data-reveal data-reveal-delay="1">Trentino <em>Guest Card</em></h1>
-<p class="lead" data-reveal data-reveal-delay="2">Inserisci il codice della tua prenotazione: periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti.</p>
+<p class="lead" data-reveal data-reveal-delay="2">Se arrivi dall'area clienti la prenotazione è già riconosciuta; altrimenti inserisci codice, data di arrivo (ed email, se hai prenotato sul nostro sito). Periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti.</p>
 </div></section>
 <section style="padding:20px 0 100px"><div class="wrap" style="max-width:640px">
 <div class="auth-card" data-testid="gc-card">
 <form id="f" data-testid="gc-form">
-<div class="field"><label for="gc-code">Codice prenotazione</label><input id="gc-code" name="code" required data-testid="gc-code"></div>
+<div class="field"><label for="gc-code">Codice prenotazione</label><input id="gc-code" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" data-testid="gc-code"></div>
+<div class="field"><label for="gc-da">Data di arrivo</label><input id="gc-da" name="da" type="date" required data-testid="gc-arrivo"></div>
+<div class="field"><label for="gc-em">Email della prenotazione <small>(solo se hai prenotato sul nostro sito)</small></label><input id="gc-em" name="email" type="email" autocomplete="email" inputmode="email" data-testid="gc-prenotazione-email"></div>
 <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="gc-submit">Verifica prenotazione</button>
 <p class="form-err" id="e" data-testid="gc-error"></p>
 </form>

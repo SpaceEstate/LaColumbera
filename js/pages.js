@@ -13,6 +13,19 @@ const tot=(p,da,a,n)=>days(da,a).reduce((s,d)=>s+np(p,d)+sup(p,n),0);
 // testo leggibile degli scaglioni: "+10 € dal 2° ospite · +25 € dal 3° · +50 € dal 4°"
 const stepsTxt=p=>{const st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0],base=(p.inclusi||1);if(!st.some(v=>+v))return'';const o=[];for(let i=0;i<Math.min(p.max-base,6);i++){const v=+st[Math.min(i,st.length-1)]||0;o.push(`+${eur(v)} ${i?'dal':'dal'} ${base+i+1}° ospite`)}return o.join(' · ')};
 const fmtD=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+// Accesso alla prenotazione: il codice è solo un identificativo, l'accesso lo dà un token segreto (api/_accesso.js).
+// Il token arriva dal checkout o dal link della mail ("#c=…&t=…": il frammento non va mai al server né ad altri siti),
+// resta solo in sessionStorage (si cancella chiudendo la scheda) e viene tolto subito dall'indirizzo.
+const ACC_KEY='lc_acc';
+const accGet=()=>{try{const v=JSON.parse(sessionStorage.getItem(ACC_KEY)||'null');return v&&v.c&&v.t?v:null}catch{return null}};
+const accSet=(c,t)=>{try{if(c&&t)sessionStorage.setItem(ACC_KEY,JSON.stringify({c:String(c).toUpperCase(),t}))}catch{}};
+const accDel=()=>{try{sessionStorage.removeItem(ACC_KEY)}catch{}};
+try{sessionStorage.removeItem('lc_code')}catch{}      // chiave della versione precedente: non serve più
+const accFromHash=()=>{const h=new URLSearchParams(location.hash.slice(1)),c=(h.get('c')||'').trim().toUpperCase(),t=(h.get('t')||'').trim();
+  if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+  if(c&&t){accSet(c,t);return{c,t}}return null};
+// credenziali da mandare al server: token se c'è (per QUEL codice), altrimenti data di arrivo ed email digitate
+const accBody=(code,f)=>{const s=accGet();if(s&&s.c===code)return{code,t:s.t};const d=f?Object.fromEntries(new FormData(f)):{};return{code,da:String(d.da||'').trim(),email:String(d.email||'').trim()}};
 const short=p=>p.nome.replace('La Columbera ','');
 const nomeA=(c,id)=>esc(short(c.apts.find(p=>p.id===id)||{nome:id}));
 
@@ -84,7 +97,7 @@ async function apt(c){
   const box=$('#bk'),qp=new URLSearchParams(location.search),pagamento=qp.get('pagamento');
   if(pagamento==='successo'){
     history.replaceState(null,'',location.pathname);
-    box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Conservalo: con questo codice accedi alla tua <a href="area-clienti.html">area clienti</a> e crei la tua Trentino Guest Card. Riceverai a breve anche una conferma via email.</p></div>`;
+    box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card.</p></div>`;
     return;
   }
   // Risposta v2: {v:2,status:'ok'|'degraded',asOf,dates:[…]}. Se la disponibilità non è verificabile il server risponde 503 (get() → null):
@@ -115,7 +128,7 @@ async function apt(c){
     <p class="form-err" id="e" data-testid="booking-error"></p>
   </form>`;
   if(pagamento==='annullato'){
-    const cc=(qp.get('code')||'').trim();if(cc)api('checkout_cancel',{code:cc}).catch(()=>{});      // libera subito le notti trattenute durante il pagamento
+    const cc=(qp.get('code')||'').trim().toUpperCase(),s=accGet();if(cc&&s&&s.c===cc)api('checkout_cancel',{code:cc,t:s.t}).catch(()=>{});      // libera subito le notti trattenute durante il pagamento (serve il token del checkout)
     history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
@@ -140,22 +153,18 @@ async function apt(c){
     const btn=e.target.querySelector('[data-testid="booking-submit"]');
     if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Reindirizzo al pagamento…';$('#e').textContent='';
     try{const r=await api('checkout',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
-      location.href=r.url}
+      accSet(r.code,r.t);location.href=r.url}
     catch(x){$('#e').textContent=x.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   draw();
 }
 
 function clienti(c){
-  $('#f').onsubmit=async e=>{e.preventDefault();
-    const btn=e.target.querySelector('[data-testid="area-clienti-submit"]');
-    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Cerco…';
-    try{const d=Object.fromEntries(new FormData(e.target));const code=String(d.code||'').trim();
-      const r=await api('mie',{code});
-      sessionStorage.lc_code=code;
-      const totNotti=r.reduce((s,x)=>s+(+x.notti||0),0);
+  const show=r=>{
+      const list=r.prenotazioni||[];
+      const totNotti=list.reduce((s,x)=>s+(+x.notti||0),0);
       $('#r').innerHTML=`
-      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${r.length}</b> prenotazion${r.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli, puoi generare la tua <b>Trentino Guest Card</b> e fare il <b>check-in online</b>.</p></div>
-      <div class="booking-cards" data-testid="mie-cards">${r.map(x=>`
+      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${list.length}</b> prenotazion${list.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli, puoi generare la tua <b>Trentino Guest Card</b> e fare il <b>check-in online</b>.</p></div>
+      <div class="booking-cards" data-testid="mie-cards">${list.map(x=>`
         <article class="booking-card" data-testid="mie-card-${esc(x.code)}">
           <div class="bc-top"><span class="bc-code">${esc(x.code)}</span><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></div>
           <h3 class="bc-title">${nomeA(c,x.id)}</h3>
@@ -166,17 +175,25 @@ function clienti(c){
             <div class="bc-cell"><span>Ospiti</span><b>${x.ospiti||'—'}</b></div>
           </div>
           <div class="bc-actions">
-            <a class="btn btn-wine" href="guest-card.html?code=${encodeURIComponent(x.code)}" data-testid="gc-link-${esc(x.code)}">Crea Guest Card</a>
-            <a class="btn btn-line" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener" data-testid="checkin-link-${esc(x.code)}">Check-in online</a>
-            <a class="btn btn-line" href="https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ" target="_blank" rel="noopener" data-testid="review-link-${esc(x.code)}">Lascia una recensione</a>
+            <a class="btn btn-wine" href="guest-card.html" data-testid="gc-link-${esc(x.code)}">Crea Guest Card</a>
+            <a class="btn btn-line" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener noreferrer" data-testid="checkin-link-${esc(x.code)}">Check-in online</a>
+            <a class="btn btn-line" href="https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ" target="_blank" rel="noopener noreferrer" data-testid="review-link-${esc(x.code)}">Lascia una recensione</a>
           </div>
-        </article>`).join('')}</div>`;
-    }
-    catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
-    finally{btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
-  // Link dalla mail di conferma: ?code=XXXX precompila il codice e mostra subito la prenotazione
-  const qc=new URLSearchParams(location.search).get('code');
-  if(qc){$('#cd').value=qc.trim().toUpperCase();$('#f').requestSubmit()}
+        </article>`).join('')}</div>`};
+  const load=async(body,btn)=>{
+    let orig;if(btn){if(btn.dataset.loading)return;btn.dataset.loading='1';orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Cerco…'}
+    try{const r=await api('mie',body);if(r.t)accSet(body.code,r.t);show(r)}
+    catch(x){if(body.t)accDel();$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
+    finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}}};
+  $('#f').onsubmit=e=>{e.preventDefault();
+    const code=String($('#cd').value||'').trim().toUpperCase();if(!code)return;
+    load(accBody(code,e.target),e.target.querySelector('[data-testid="area-clienti-submit"]'))};
+  // Link della mail di conferma (#c=…&t=…) o sessione già aperta in questa scheda: accesso diretto.
+  // Link delle mail precedenti (?code=…): il codice si precompila, poi servono data di arrivo ed email.
+  const h=accFromHash()||accGet(),qc=new URLSearchParams(location.search).get('code');
+  if(qc)history.replaceState(null,'',location.pathname);
+  if(h){$('#cd').value=h.c;load({code:h.c,t:h.t})}
+  else if(qc)$('#cd').value=qc.trim().toUpperCase();
 }
 
 async function guestcard(c){
@@ -190,7 +207,7 @@ async function guestcard(c){
     const orig=b.dataset.label||(b.dataset.label=b.textContent),ok=await copia(b.dataset.copy);
     b.textContent=ok?'Codice copiato ✓':'Copia non riuscita';
     clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent=orig},2200)});
-  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email)}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">Copia codice</button>`:''}</div>`;
+  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email||'l\'indirizzo indicato')}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">Copia codice</button>`:''}</div>`;
   const renderConfirm=x=>{
     box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
       <h2>Prenotazione trovata</h2>
@@ -211,17 +228,21 @@ async function guestcard(c){
       const email=x.needsEmail?($('#gc-email').value||'').trim():undefined;
       if(x.needsEmail&&!/.+@.+\..+/.test(email||'')){$('#e2').textContent="Inserisci un'email valida";return}
       btn.dataset.loading='1';btn.disabled=true;const orig=btn.textContent;btn.textContent='Genero…';
-      try{const g=await api('gc_issue',{code:x.code,email});box.innerHTML=renderCard(g)}
+      try{const s=accGet(),g=await api('gc_issue',{code:x.code,t:s&&s.c===x.code?s.t:'',email});box.innerHTML=renderCard(g)}
       catch(err){$('#e2').textContent=err.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   };
-  const check=async code=>{
+  const check=async body=>{
     $('#e').textContent='';box.innerHTML='';
-    try{const r=await api('gc_check',{code});
+    try{const r=await api('gc_check',body);if(r.t)accSet(body.code,r.t);
       if(r.card){box.innerHTML=renderCard(r.card);return}
-      renderConfirm({...r.booking,code})}
-    catch(x){$('#e').textContent=x.message}};
-  $('#f').onsubmit=e=>{e.preventDefault();const code=$('#gc-code').value.trim().toUpperCase();if(code)check(code)};
-  if(q.get('code')){const code=q.get('code').trim().toUpperCase();$('#gc-code').value=code;check(code)}
+      renderConfirm({...r.booking,code:body.code})}
+    catch(x){if(body.t)accDel();$('#e').textContent=x.message}};
+  $('#f').onsubmit=e=>{e.preventDefault();const code=$('#gc-code').value.trim().toUpperCase();if(code)check(accBody(code,e.target))};
+  // dall'area clienti (stessa scheda) il token è già in sessionStorage; dai vecchi link ?code=… si precompila solo il codice
+  const s=accGet(),qc=q.get('code');
+  if(qc)history.replaceState(null,'',location.pathname);
+  if(s){$('#gc-code').value=s.c;check({code:s.c,t:s.t})}
+  else if(qc)$('#gc-code').value=qc.trim().toUpperCase();
 }
 
 async function eventi(c){

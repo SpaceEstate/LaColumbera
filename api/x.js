@@ -19,6 +19,13 @@ const cfg=async r=>(await jg('cfg'))||await(await fetch('https://'+r.headers.hos
 const AV=require('./_avail.js'),days=AV.rangeDays,addDays=AV.addDays,todayRome=AV.todayRome;
 // Motore unico di disponibilità: tutta la logica "busy" (iCal, foglio, sito, hold, blocchi) vive in _avail.js
 const E=AV.makeEngine({kv,kvp,fetch:(...a)=>fetch(...a),env:process.env});
+// Accesso degli ospiti alla prenotazione: codice = identificativo, token segreto = autorizzazione; limiti di frequenza su KV (api/_accesso.js)
+const {makeAccess,maskEmail}=require('./_accesso.js'),ACC=makeAccess({kv,kvp});
+const deny=(res,r)=>{if(r.retryAfter)res.setHeader('Retry-After',String(r.retryAfter));return res.status(r.status).json(r.body)};
+// La Guest Card restituita all'ospite: solo ciò che serve a mostrarla (niente risposta grezza del sistema TGC, email mascherata)
+const cardOut=k=>k?{gc_id:k.gc_id||'',stato:k.stato||'',valid_from:k.valid_from,valid_to:k.valid_to,ospiti:k.ospiti,email:maskEmail(k.email)}:null;
+// Azioni che accettano un corpo grande (solo admin): per tutte le altre il corpo oltre 20 KB è rifiutato
+const BIG_BODY=new Set(['save','up']);
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 // supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
@@ -271,8 +278,9 @@ async function googleReviews(req,res){
  }
 }
 
-const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body||{};res.setHeader('Cache-Control','no-store');
+const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body&&typeof req.body==='object'?req.body:{};res.setHeader('Cache-Control','no-store');
 try{
+if(!BIG_BODY.has(a)){let n=0;try{n=JSON.stringify(b).length}catch{n=Infinity}if(n>20000)return res.status(413).json({err:'Richiesta troppo grande'})}
 if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata dalle schede di Luoghi, Convenzioni e Come trovarci
  // siti ammessi (anti-abuso). Per aggiungere il sito di un partner: variabile Vercel OG_HOSTS, es. "sun7caffe.it,bistro.it"
  const HOSTS=['visittrentino.info','visittrento.it','gardatrentino.it','visitvaldinon.it','tastetrentino.it','muse.it','buonconsiglio.it','casteltoblino.it','trentinotrasporti.it','provincia.tn.it','forst.it','palestra-trento-juta.it'].concat((process.env.OG_HOSTS||'').split(',').map(s=>s.trim().toLowerCase().replace(/^www\./,'')).filter(Boolean));
@@ -310,7 +318,7 @@ if(a==='busy'){const id=String(req.query.id||'');
 if(a==='ical'&&String(req.query.for||'').toLowerCase()==='all'){
  // Calendario PERSONALE con tutte le prenotazioni (nomi ospiti inclusi): richiede la chiave ICAL_PERSONAL_KEY (variabile d'ambiente Vercel), passata come &k=
  const key=process.env.ICAL_PERSONAL_KEY||'';
- if(!key||String(req.query.k||'')!==key)return res.status(403).send('forbidden');
+ if(!key||!eq(String(req.query.k||''),key))return res.status(403).send('forbidden');
  try{const config=await cfg(req),id=String(req.query.id||'all'),ids=id==='all'?(config.apts||[]).map(x=>x.id):[id];
   if(!ids.length||!ids.every(i=>E.aptExists(config,i)))return res.status(404).send('not found');
   const r=await E.exportIcsAll(config,ids);
@@ -331,8 +339,9 @@ if(a==='ical'){const id=String(req.query.id||'');
  catch(e){console.error('ical:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
 if(a==='events')return res.json((await jg('events'))||[]);
 if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())};
-if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id===b.id);
- if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||!b.nome||!/.+@.+\..+/.test(b.email))return res.status(400).json({err:'Dati non validi'});
+if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(lim)return deny(res,lim);
+ const config=await cfg(req),p=(config.apts||[]).find(x=>x.id===b.id);
+ if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||typeof b.nome!=='string'||!b.nome.trim()||typeof b.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email.trim())||(b.tel!=null&&typeof b.tel!=='string'&&typeof b.tel!=='number'))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);const mn=minFor(p,b.da);if(g.length<mn||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+mn+' notti per queste date)'});
  // Preavviso minimo (impostazione del titolare, Gestione → Prenotazioni): il controllo è QUI, sul server, prima di hold e pagamento. Cambiare il browser non lo aggira.
@@ -346,7 +355,7 @@ if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id=
   if(pre.conflicts.length)return res.status(409).json(ND)}
  catch(e){console.error('checkout/pre:',e.message);return res.status(503).json(NV)}
  const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
- const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).slice(0,80),email:String(b.email).toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
+ const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
  let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
@@ -364,40 +373,45 @@ if(a==='checkout'){const config=await cfg(req),p=(config.apts||[]).find(x=>x.id=
   success_url:site+'/'+p.id+'.html?pagamento=successo&code='+r.code,
   cancel_url:site+'/'+p.id+'.html?pagamento=annullato&code='+r.code,
   expires_at:Math.floor(Date.now()/1000)+1810})}
- catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});await E.bkDel(r.code).catch(()=>{});return res.status(500).json({err:'Errore nella creazione del pagamento: '+e.message})}
+ catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});await E.bkDel(r.code).catch(()=>{});console.error('checkout/stripe:',(e&&(e.type||e.code))||'errore');return res.status(500).json({err:'Non è stato possibile avviare il pagamento: riprova tra qualche minuto.'})}
  r.sessione=session.id;await E.bkPut(r).catch(()=>{});
- return res.json({code:r.code,url:session.url})}
+ // token segreto per questa prenotazione: il browser lo tiene in sessionStorage (ritorno da Stripe, annullo, area clienti)
+ let t=null;try{t=await ACC.issueForBooking(r,'checkout')}catch(e){console.error('checkout/token:',e.message)}
+ return res.json({code:r.code,url:session.url,t})}
 if(a==='checkout_cancel'){ // l'ospite torna indietro dalla pagina Stripe: libera subito le notti (il record resta: se paga lo stesso, il webhook lo conferma)
- const x=await E.bkGet(String(b.code||'').trim().toUpperCase());
- if(x&&x.stato==='in_attesa')await E.holdRelease(x.id,days(x.da,x.a),x.code);
+ // Serve il token del checkout: senza, nessuno può liberare le notti trattenute da un altro (la risposta è sempre la stessa;
+ // in mancanza di token le notti si liberano comunque alla scadenza dell'hold o con l'evento "expired" di Stripe).
+ const code=String(b.code||'').trim().toUpperCase();
+ if(code&&await ACC.verify(code,b.t)){const x=await E.bkGet(code);if(x&&x.stato==='in_attesa')await E.holdRelease(x.id,days(x.da,x.a),x.code)}
  return res.json({ok:1})}
-if(a==='mie'){const code=String(b.code||'').trim().toUpperCase();if(!code)return res.status(400).json({err:'Inserisci il codice prenotazione'});
- const x=await findBooking(await cfg(req),code);
- if(!x||['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
- return res.json([{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}])}
-if(a==='gc_check'){const x=await findBooking(await cfg(req),b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+// Area clienti e Guest Card: il codice da solo NON basta. Serve il token (link della mail / sessione) oppure codice + data di arrivo + email.
+const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t,da:b.da,email:b.email},async code=>findBooking(await cfg(req),code));
+if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
+ if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
+ return res.json({t:r.token||undefined,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}]})}
+if(a==='gc_check'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
  if(x.stato==='in_attesa'||x.stato==='richiesta'||x.stato==='da_verificare')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
  if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});
  const card=await jg(GCK(x.code));
- return res.json({booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,nome:x.nome,needsEmail:!x.email},card:card||null})}
-if(a==='gc_issue'){const x=await findBooking(await cfg(req),b.code);if(!x)return res.status(404).json({err:'Nessuna prenotazione trovata con questo codice'});
+ return res.json({t:r.token||undefined,booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,needsEmail:!x.email},card:cardOut(card)})}
+if(a==='gc_issue'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato!=='confermata')return res.status(409).json({err:'La prenotazione non è (ancora) confermata'});
  if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});
- const existing=await jg(GCK(x.code));if(existing)return res.json(existing); // idempotente: non ricrea una seconda card
+ const existing=await jg(GCK(x.code));if(existing)return res.json(cardOut(existing)); // idempotente: non ricrea una seconda card
  let email=x.email;
- if(!email){email=String(b.email||'').trim().toLowerCase();if(!/.+@.+\..+/.test(email))return res.status(400).json({err:'Email non valida'})}
+ if(!email){email=String(b.email||'').trim().toLowerCase().slice(0,120);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({err:'Email non valida'})}
  if(!process.env.TGC_CARD_TYPE_ID)
   return res.status(500).json({err:'Guest Card non configurata sul server (manca TGC_CARD_TYPE_ID su Vercel: chiama prima gc_tipologie per trovarlo)'});
  // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
  // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
  let tgc;
  try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti,codice:x.code})}
- catch(e){return res.status(502).json({err:'Errore dal sistema Trentino Guest Card: '+e.message})}
- // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido).
- const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString(),raw:tgc};
+ catch(e){console.error('gc_issue: TGC',String(e&&e.message||'errore').slice(0,120));return res.status(502).json({err:'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.'})}
+ // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido). Si conserva solo ciò che serve (niente risposta grezza).
+ const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString()};
  await kv('SET',GCK(x.code),JSON.stringify(card));
- return res.json(card)}
+ return res.json(cardOut(card))}
 if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Marketing dopo il login della struttura
  // Il redirect registrato è la home: index.html inoltra qui in automatico (?a=gc_oauth_callback&state=…&code=…).
  // Per sicurezza si accetta anche il caso in cui Trentino accodi "?state=..&code=.." dentro "a" (rawA).
@@ -420,7 +434,9 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
   res.setHeader('Content-Type','text/html; charset=utf-8');
   return res.status(502).send('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:sans-serif;padding:40px;max-width:760px"><h2>Autorizzazione Trentino Guest Card non riuscita</h2><p>Il login è andato a buon fine ma lo scambio del codice è stato rifiutato. Dettagli (il secret non viene mai mostrato):</p><pre style="white-space:pre-wrap;word-break:break-word;background:#f4f0e6;padding:16px;border-radius:8px;font-size:14px">'+h(JSON.stringify(diag,null,2))+'</pre><p>Il codice è monouso: per riprovare rifai «Autorizza Trentino Guest Card» dal <a href="/admin.html#guestcard">pannello admin</a>.</p></body></html>')}}
 if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
- if(eq(b.u,process.env.ADMIN_USER)&eq(b.p,process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
+ const bl=await ACC.blockedIp(req,'lg',ACC.RL.loginIp);if(bl)return deny(res,bl);      // troppi tentativi falliti da questo IP: pausa
+ if(eq(String(b.u||''),process.env.ADMIN_USER)&eq(String(b.p||''),process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
+ await ACC.countFail(req,'lg',ACC.RL.loginIp);
  await new Promise(r=>setTimeout(r,1200));return res.status(401).json({err:'Credenziali errate'})}
 // ---- Sincronizzazione: chiamabile dallo script Apps Script (header x-sync-secret = SYNC_SECRET) o da un admin loggato ----
 const machine=()=>{const s=process.env.SYNC_SECRET||'',h=String(req.headers['x-sync-secret']||'');return !!s&&!!h&&eq(h,s)};
@@ -489,7 +505,8 @@ if(a==='stato'){const x=await E.bkGet(b.code);
  if(b.stato==='confermata'||b.stato==='annullata')await sheetUpsertBooking(x);   // il foglio resta allineato (con coda di ripresa)
  // Una prenotazione "da_verificare" era già pagata ma NON comunicata all'ospite: ora che il titolare la conferma gli parte la conferma (una sola volta).
  if(b.stato==='confermata'&&was==='da_verificare'&&x.pagamento&&/.+@.+\..+/.test(x.email||'')&&(await kv('SET','done:'+x.code+':mail_ospite',new Date().toISOString(),'NX'))==='OK'){
-  const gm=require('./_mail.js').guestMail(x,process.env.SITE_URL||'https://'+req.headers.host);
+  let tk=null;try{tk=await ACC.issueForBooking(x,'mail')}catch(e){console.error('stato/token:',e.message)}
+  const gm=require('./_mail.js').guestMail(x,process.env.SITE_URL||'https://'+req.headers.host,tk);
   if((await sendMail(x.email,gm.subject,gm.html,{text:gm.text,replyTo:process.env.REPLY_TO||'info@lacolumbera.it'}))===false)await kv('DEL','done:'+x.code+':mail_ospite').catch(()=>{});
  }
  return res.json({ok:1,changed:1})}
@@ -513,8 +530,8 @@ if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.er
  await kv('SET','cfg',JSON.stringify(n));
  await E.refreshFeeds(n,{force:true}).catch(()=>{});   // nuovi URL iCal: scarico subito, così il sito non resta "non verificabile" fino al prossimo giro
  return res.json({ok:1})}
-res.status(404).json({err:'?'})}catch(e){res.status(500).json({err:e.message})}};
+res.status(404).json({err:'?'})}catch(e){console.error('x:',a,String(e&&e.message||e).slice(0,160));res.status(500).json({err:'Errore interno: riprova tra qualche minuto.'})}};
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
 module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
-module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;
+module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;

@@ -28,7 +28,7 @@ const at = async iso => { freeze(iso); await H.sync(); };      // sposta l'orolo
 
 // ---- helper ----
 const checkout = o => H.api('checkout', Object.assign({ id: 'torre', da: '2026-10-20', a: '2026-10-22', ospiti: 2, nome: 'Mario Rossi', email: 'mario@test.it' }, o));
-const release = code => H.api('checkout_cancel', { code });
+const release = (code, t) => H.api('checkout_cancel', { code, t });
 const holdN = id => kv.exec(['HGETALL', 'holds:' + id]).length / 2;
 const bkN = () => kv.exec(['HGETALL', 'bkh']).length / 2;
 const stripeN = () => global.__stripeSessions.length;
@@ -37,7 +37,7 @@ const saveCfg = async patch => { const c = await getCfg(); if (typeof patch === 
 const setNotice = (giorni, ora) => saveCfg({ preavvisoGiorni: giorni, checkinOra: ora });
 const dts = t => (t.match(/DTSTART;VALUE=DATE:(\d{8})/g) || []).map(x => x.slice(-8));
 // prenotazione accettata (hold + sessione Stripe); poi si libera l'hold per poter riprovare le stesse notti
-async function accepted(o, why) { const r = await checkout(o); eq(r.status, 200, why + ' → ' + JSON.stringify(r.body)); await release(r.body.code); return r.body; }
+async function accepted(o, why) { const r = await checkout(o); eq(r.status, 200, why + ' → ' + JSON.stringify(r.body)); await release(r.body.code, r.body.t); return r.body; }
 // prenotazione rifiutata per preavviso: 409 con codice, e NESSUN effetto collaterale (né hold, né record, né sessione Stripe)
 async function refused(o, why) {
   const id = (o && o.id) || 'torre', before = [holdN(id), bkN(), stripeN()];
@@ -187,7 +187,7 @@ test('P10 Stripe: il preavviso si valuta quando parte la prenotazione; un pagame
   eq((await H.webhook('checkout.session.completed', H.paidSession(c.body.code))).status, 200);
   eq(JSON.parse(kv.exec(['HGET', 'bkh', c.body.code])).stato, 'confermata', 'pagamento completato: confermata, non da_verificare');
   eq(global.__mails.length, 2, 'una mail al titolare e una all\'ospite');
-  eq((await H.api('mie', { code: c.body.code })).status, 200, 'il cliente la vede');
+  eq((await H.api('mie', { code: c.body.code, t: c.body.t })).status, 200, 'il cliente la vede');
   await refused({ da: '2026-10-16', a: '2026-10-18', email: 'altro@test.it' }, 'un nuovo tentativo per le stesse date adesso è oltre il limite');
 });
 
@@ -200,7 +200,7 @@ test('P11 prenotazioni confermate, blocchi manuali, area clienti, export iCal e 
   for (const d of ['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-24']) assert(b.dates.includes(d), d + ' (preavviso, prenotazione o blocco manuale)');
   eq(b.notice.primoArrivo, '2026-10-20');
   eq(JSON.parse(kv.exec(['HGET', 'bkh', c.body.code])).stato, 'confermata', 'la prenotazione confermata resta tale');
-  eq((await H.api('mie', { code: c.body.code })).status, 200, 'e il cliente la vede');
+  eq((await H.api('mie', { code: c.body.code, t: c.body.t })).status, 200, 'e il cliente la vede');
   const ic = await H.api('ical', {}, { method: 'GET', query: { id: 'torre' } });
   eq(dts(ic.text), ['20261017', '20261024', '20261119'], 'l\'export verso Booking/Airbnb non contiene i giorni del preavviso');
   const bk = JSON.parse(kv.exec(['HGET', 'bkh', c.body.code]));

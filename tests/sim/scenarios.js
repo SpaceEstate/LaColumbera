@@ -71,7 +71,8 @@ test('T5  due/quattro utenti prenotano contemporaneamente le stesse date: solo u
   let wins = 0;
   for (let k = 0; k < 40; k++) {
     const d0 = new Date(Date.UTC(2027, 0, 10 + k * 6)).toISOString().slice(0, 10), plus = n => new Date(Date.UTC(2027, 0, 10 + k * 6 + n)).toISOString().slice(0, 10);
-    const reqs = [[0, 3], [1, 4], [2, 5], [0, 3]].map(([a, b], i) => checkout({ da: plus(a), a: plus(b), email: 'u' + i + '@t.it', nome: 'U' + i }));
+    // utenti diversi = indirizzi IP diversi (il limite di frequenza del checkout è per IP: qui si prova la concorrenza, non il limite)
+    const reqs = [[0, 3], [1, 4], [2, 5], [0, 3]].map(([a, b], i) => H.api('checkout', { id: 'torre', da: plus(a), a: plus(b), ospiti: 2, email: 'u' + i + '@t.it', nome: 'U' + i }, { headers: { 'x-real-ip': '10.5.' + k + '.' + i } }));
     const out = await Promise.all(reqs), ok = out.map((r, i) => ({ r, w: [[0, 3], [1, 4], [2, 5], [0, 3]][i] })).filter(x => x.r.status === 200);
     assert(ok.length >= 1, 'round ' + k + ': nessuno è passato');
     for (let i = 0; i < ok.length; i++) for (let j = i + 1; j < ok.length; j++) assert(!(ok[i].w[0] < ok[j].w[1] && ok[j].w[0] < ok[i].w[1]), 'round ' + k + ': due prenotazioni sovrapposte hanno ottenuto lo stesso periodo');
@@ -203,7 +204,7 @@ test('X1  KV risponde con un errore (es. limite Upstash): prima = date libere, o
 test('X2  hold: scade, checkout annullato lo libera; pagamento tardivo riconferma se libero, altrimenti conflitto segnalato', async () => {
   const { gas } = await base();
   let c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); assert((await H.busyDates('torre')).includes('2026-12-20'));
-  await H.api('checkout_cancel', { code: c.body.code }); assert(!(await H.busyDates('torre')).includes('2026-12-20'), 'annullo dal pagamento: notti libere');
+  await H.api('checkout_cancel', { code: c.body.code, t: c.body.t }); assert(!(await H.busyDates('torre')).includes('2026-12-20'), 'annullo dal pagamento (con il token del checkout): notti libere');
   c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); tick(40); assert(!(await H.busyDates('torre')).includes('2026-12-20'), 'hold scaduto');
   await H.webhook('checkout.session.completed', H.paidSession(c.body.code)); eq(JSON.parse(kv.exec(['HGET', 'bkh', c.body.code])).stato, 'confermata', 'pagamento tardivo con date libere: confermata');
   const c2 = await checkout({ da: '2026-12-27', a: '2026-12-29' }); tick(40);
@@ -275,9 +276,9 @@ test('X8  riconciliazione: sovrapposizione (doppia prenotazione) = CRITICO; appa
 test('X9  debug: perché una data è occupata (fonti per giorno) e area clienti/Guest Card', async () => {
   const { gas } = await base(); const d = (await H.adminApi('busy_debug', {}, { method: 'GET', query: { id: 'torre', days: 5 } })).body;
   const day = d.days.find(x => x.date === '2026-10-02'); eq([day.busy, day.sources.sort()], [true, ['BOOKING_ICAL', 'SHEET']]); eq(d.days.find(x => x.date === '2026-10-05').busy, false);
-  eq((await H.api('mie', { code: 'hmsedeszcw' })).body[0].id, 'corte'); eq((await H.api('mie', { code: 'NONESISTE' })).status, 404);
-  eq((await H.api('gc_check', { code: '6877180932' })).status, 200);
-  gas.ss.getSheetByName('Prenotazioni').rows[2][3] = ''; await H.sync(); const g = await H.api('gc_check', { code: '6877180932' }); eq(g.status, 409); assert(/ospiti/.test(g.body.err));
+  eq((await H.api('mie', { code: 'hmsedeszcw', da: '2026-10-05' })).body.prenotazioni[0].id, 'corte'); eq((await H.api('mie', { code: 'NONESISTE', da: '2026-10-05' })).status, 404);
+  eq((await H.api('gc_check', { code: '6877180932', da: '2026-10-02' })).status, 200);
+  gas.ss.getSheetByName('Prenotazioni').rows[2][3] = ''; await H.sync(); const g = await H.api('gc_check', { code: '6877180932', da: '2026-10-02' }); eq(g.status, 409); assert(/ospiti/.test(g.body.err));
 });
 test('X10 script: diagnostica tutta [OK], trigger 5 min / 1 h / giornaliero, lock occupato = giro saltato, web app occupata = scrittura in coda', async () => {
   const { gas } = await base(); const out = await H.runGas(gas, 'diagnostica', { prefetch: H.PREFETCH.diagnostica }); assert(out.filter(l => /^\[ERRORE\]/.test(l)).length === 0, out.join('\n'));
@@ -346,7 +347,7 @@ test('X15 prenotazione da_verificare: invisibile al cliente; la conferma manuale
   const c2 = await mk('2026-12-27', '2026-12-29', 'primo@t.it'); tick(40);
   const c3 = await mk('2026-12-27', '2026-12-29', 'altro@t.it'); await H.webhook('checkout.session.completed', H.paidSession(c3));
   await H.webhook('checkout.session.completed', H.paidSession(c2)); eq(st(c2), 'da_verificare');
-  eq((await H.api('mie', { code: c2 })).status, 404, 'il cliente non vede una prenotazione non confermata');
+  eq((await H.api('mie', { code: c2, da: '2026-12-27', email: 'primo@t.it' })).status, 404, 'il cliente non vede una prenotazione non confermata');
   // conferma manuale mentre le notti sono ancora dell\'altra prenotazione → respinta, nulla cambia
   global.__mails.length = 0;
   let r = await H.adminApi('stato', { code: c2, stato: 'confermata' });
@@ -356,7 +357,9 @@ test('X15 prenotazione da_verificare: invisibile al cliente; la conferma manuale
   await H.adminApi('stato', { code: c3, stato: 'annullata' });
   r = await H.adminApi('stato', { code: c2, stato: 'confermata' }); eq(r.status, 200); eq(st(c2), 'confermata');
   eq(global.__mails.filter(m => m.to === 'primo@t.it').length, 1, 'conferma all\'ospite'); assert(JSON.parse(kv.exec(['HGET', 'bkh', c2])).confermata_il, 'confermata_il');
-  eq((await H.api('mie', { code: c2 })).status, 200, 'ora il cliente la vede');
+  const link = /#c=([A-Z0-9]+)&t=([A-Za-z0-9_-]+)/.exec(global.__mails.find(m => m.to === 'primo@t.it').text || '');
+  assert(link && link[1] === c2, 'la mail all\'ospite contiene il link con il token');
+  eq((await H.api('mie', { code: c2, t: link[2] })).status, 200, 'ora il cliente la vede (link della mail)');
   await H.adminApi('stato', { code: c2, stato: 'annullata' }); await H.adminApi('stato', { code: c2, stato: 'confermata' });
   eq(global.__mails.filter(m => m.to === 'primo@t.it').length, 1, 'cambiare stato più volte non rimanda la mail');
   // conflitto che resta (iCal Airbnb): senza force 409; con force passa e ne resta traccia nella nota
@@ -389,7 +392,7 @@ test('X16 webhook: una consegna che ha letto la prenotazione "in_attesa" prima c
   eq(global.__mails.filter(m => /conflitto/i.test(m.subject || '')).length, 0, 'nessun falso avviso di conflitto al titolare');
   eq(global.__mails.length, 2, 'una mail al titolare e una all\'ospite');
   eq(gas.rows().filter(x => x.ID_PRENOTAZIONE === 'SITO|' + code).length, 1);
-  eq((await H.api('mie', { code })).status, 200, 'il cliente la vede');
+  eq((await H.api('mie', { code, t: c.body.t })).status, 200, 'il cliente la vede');
 });
 
 test('X17 avvisi al titolare: una mail per episodio, promemoria ogni 6 ore, mail al ripristino; se l\'SMTP è giù si riprova', async () => {

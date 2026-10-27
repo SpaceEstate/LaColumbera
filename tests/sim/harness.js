@@ -50,6 +50,8 @@ class FakeKV {
       case 'GET': { const e = this.get(a[0]); return e ? e.v : null; }
       case 'SET': { const [k, v, ...o] = a; let nx = false, ex = null; for (let i = 0; i < o.length; i++) { const u = String(o[i]).toUpperCase(); if (u === 'NX') nx = true; else if (u === 'EX') ex = +o[++i]; } if (nx && this.get(k)) return null; this.d.set(k, { t: 's', v: String(v), exp: ex ? clock.now() + ex * 1000 : null }); return 'OK'; }
       case 'DEL': { let n = 0; for (const k of a) if (this.d.delete(k)) n++; return n; }
+      case 'INCR': { const e = this.get(a[0]); const n = (e ? parseInt(e.v, 10) || 0 : 0) + 1; this.d.set(a[0], { t: 's', v: String(n), exp: e ? e.exp : null }); return n; }      // come Redis: INCR non cambia la scadenza
+      case 'EXPIRE': { const e = this.get(a[0]); if (!e) return 0; e.exp = clock.now() + (+a[1]) * 1000; return 1; }
       case 'HGET': { const e = this.hash(a[0]); return e && a[1] in e.v ? e.v[a[1]] : null; }
       case 'HSET': { const e = this.hash(a[0], true); let n = 0; for (let i = 1; i < a.length; i += 2) { if (!(a[i] in e.v)) n++; e.v[a[i]] = String(a[i + 1]); } return n; }
       case 'HSETNX': { const e = this.hash(a[0], true); if (a[1] in e.v) return 0; e.v[a[1]] = String(a[2]); return 1; }
