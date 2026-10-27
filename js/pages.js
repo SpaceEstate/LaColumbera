@@ -123,7 +123,8 @@ async function apt(c){
     <div class="field"><label for="osp">Ospiti (max ${p.max})</label><select id="osp" name="ospiti" data-testid="booking-guests">${Array.from({length:p.max},(_,i)=>`<option value="${i+1}"${i===1?' selected':''}>${i+1}</option>`).join('')}</select></div>
     <div class="field"><label for="bn">Nome e cognome</label><input id="bn" name="nome" required data-testid="booking-name"></div>
     <div class="field"><label for="be">Email</label><input id="be" name="email" type="email" required data-testid="booking-email"></div>
-    <div class="field"><label for="bt">Telefono</label><input id="bt" name="tel" data-testid="booking-phone"></div>
+    <div class="field"><label for="bt">Telefono <small>(facoltativo)</small></label><input id="bt" name="tel" data-testid="booking-phone"></div>
+    <p class="book-note" data-testid="booking-privacy">Nome ed email servono per registrare la prenotazione e inviarti la conferma; il telefono, se lo indichi, solo per contattarti in caso di necessità sul soggiorno. Il pagamento avviene sulla pagina sicura di Stripe. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
     <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Prenota</button>
     <p class="form-err" id="e" data-testid="booking-error"></p>
   </form>`;
@@ -220,6 +221,7 @@ async function guestcard(c){
       </div>
       <p class="book-note">Questi dati sono presi automaticamente dalla tua prenotazione confermata e non si possono modificare qui: la Guest Card viene sempre emessa per il periodo e il numero di ospiti reali della prenotazione.</p>
       ${x.needsEmail?`<div class="field"><label for="gc-email">La tua email (per ricevere la Guest Card)</label><input id="gc-email" type="email" required data-testid="gc-email"></div>`:''}
+      <p class="book-note" data-testid="gc-privacy">Per emettere la card inviamo al sistema Trentino Guest Card la tua email, le date del soggiorno e il numero di ospiti. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
       <button class="btn btn-wine" style="width:100%;justify-content:center" id="gc-go" data-testid="gc-issue">Genera Trentino Guest Card</button>
       <p class="form-err" id="e2"></p>
     </div>`;

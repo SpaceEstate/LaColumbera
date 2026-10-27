@@ -67,7 +67,7 @@ const guestMail=(b,site,token)=>{
 <p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il numero di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px">${esc(b.code)}</b> puoi accedere all'<b>area personale</b> del nostro sito e, prima di arrivare, sbrigare tutto online:</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${step('1','Check-in online','Compili i dati degli ospiti in pochi minuti, così all\'arrivo è tutto pronto.')}${step('2','Trentino Guest Card','La richiedi direttamente dall\'area personale: musei, trasporti e attrazioni del territorio inclusi.')}</table>
 </td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente: non inoltrarlo ad altri. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci codice, data di arrivo ed email della prenotazione.</div></td></tr></table>`,'30px 32px 0')+
-    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda rispondi pure a questo messaggio o scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.</p>`,'26px 32px 32px')});
+    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda rispondi pure a questo messaggio o scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
   const text=`Grazie${nome?', '+nome:''}! La tua prenotazione a La Columbera è confermata.
 
 NUMERO DI PRENOTAZIONE: ${b.code}
@@ -84,6 +84,7 @@ ${link}
 In alternativa: ${site}/area-clienti.html con codice prenotazione, data di arrivo ed email.
 
 Per qualsiasi domanda: lacolumbera@gmail.com · +39 351 704 3594
+Informativa privacy: ${site}/privacy.html
 La Columbera · Ravina, Trento`;
   return{subject:`Prenotazione confermata · La Columbera ${aptName(b.id)} · ${b.code}`,html,text}};
 

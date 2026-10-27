@@ -169,7 +169,7 @@ Test di mutazione: con `verify` che restituisce sempre vero falliscono 2 test; c
 - **Il link della mail inoltrato** a terzi dà accesso fino a 30 giorni dopo il check-out. La mail avvisa di non inoltrarlo.
 - **Nessuna Content-Security-Policy:** le pagine usano script e stili inline, quindi una CSP rigida richiede un intervento separato. In caso di XSS il `sessionStorage` sarebbe leggibile.
 - **Token admin `lc_t` in `sessionStorage`:** invariato.
-- **Pagina `privacy.html`:** cita ancora Google Fonts e il "codice prenotazione" in sessionStorage. Va aggiornata nel Prompt 3.
+- **Pagina `privacy.html`:** aggiornata nel Prompt 3 (branch `gdpr/informativa`): font del sito locali, `sessionStorage` con codice e chiave di accesso. Vedi `inventario-trattamenti.md`.
 - **Segnalati e non modificati** (fuori ambito o in un altro repository):
   - messaggi diagnostici di `gc_oauth_callback` (raggiungibili solo con uno `state` valido);
   - repository Checkin: `ADMIN_SECRET` accettato anche via `?key=`, `successUrl` fornita dal client, Google Fonts nella pagina di check-in.

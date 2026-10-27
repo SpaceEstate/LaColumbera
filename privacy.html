@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Informativa privacy · La Columbera</title>
-<meta name="description" content="Informativa sul trattamento dei dati personali di La Columbera: prenotazioni, check-in online, comunicazione alla Questura, pagamenti.">
+<meta name="description" content="Informativa privacy di La Columbera: quali dati trattiamo per prenotazioni, pagamenti, check-in online, comunicazione alla Questura e Trentino Guest Card, per quanto tempo e con quali diritti.">
 <link rel="canonical" href="https://la-columbera.vercel.app/privacy.html">
 <meta name="theme-color" content="#7A2E39"><link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
 <link rel="stylesheet" href="css/fonts.css">
@@ -24,6 +24,10 @@
 .legal th{font-weight:600}
 .toc{display:flex;flex-wrap:wrap;gap:4px 18px;margin:1.2em 0 0;padding:0;list-style:none}
 .toc a{display:inline-block;min-height:44px;line-height:44px;color:var(--wine);text-decoration:underline}
+.legal h3{font-size:1.15rem;margin:1.6em 0 .4em;color:var(--ink)}
+.todo{background:#FFF0B3;color:#4A3A00;padding:0 .25em;border-radius:3px;font-weight:600}
+.draft{border:2px dashed #B08D3C;border-radius:12px;padding:14px 16px;margin:1.2em 0 0;background:#FFF8E1;max-width:860px}
+.draft p{margin:0;line-height:1.55}
 @media (max-width:640px){
  .legal table,.legal tbody,.legal tr,.legal td{display:block}
  .legal thead{display:none}
@@ -43,13 +47,16 @@
 <section class="page-intro"><div class="wrap">
 <span class="section-eyebrow">Privacy</span>
 <h1>Informativa sul trattamento<br><em>dei dati personali</em></h1>
-<p class="lead">Come La Columbera tratta i dati di chi visita il sito, prenota, effettua il check-in online e soggiorna nella struttura (artt. 13 e 14 del Regolamento UE 2016/679, "GDPR").</p>
+<p class="lead">Come La Columbera tratta i dati di chi visita il sito, prenota, fa il check-in online e soggiorna negli appartamenti Torre e Corte (artt. 13 e 14 del Regolamento UE 2016/679, "GDPR").</p>
+<div class="draft" data-testid="privacy-draft"><p><strong>Testo in revisione.</strong> Le parti evidenziate in giallo <mark class="todo">[DA COMPLETARE]</mark> sono informazioni ancora da verificare o da decidere. Vanno completate prima della pubblicazione definitiva.</p></div>
 <ul class="toc">
 <li><a href="#titolare">Titolare</a></li>
-<li><a href="#trattamenti">Dati e finalità</a></li>
+<li><a href="#trattamenti">Dati, finalità e basi giuridiche</a></li>
 <li><a href="#checkin">Check-in e Questura</a></li>
+<li><a href="#conferimento">Dati obbligatori</a></li>
 <li><a href="#conservazione">Conservazione</a></li>
 <li><a href="#destinatari">Destinatari</a></li>
+<li><a href="#browser">Cookie e browser</a></li>
 <li><a href="#diritti">I tuoi diritti</a></li>
 <li><a href="#english">English</a></li>
 </ul>
@@ -57,77 +64,157 @@
 
 <section class="legal"><div class="wrap">
 
-<h2 id="titolare">1. Titolare del trattamento</h2>
-<p><strong>Andrea Scozzafava</strong>, Via Centrale 48, 38123 Trento (TN), proprietario degli appartamenti La Columbera (Torre e Corte).<br>
-Contatto per ogni richiesta sulla privacy: <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a> · <a href="tel:+393517043594">+39 351 704 3594</a>.</p>
-<p>La gestione delle prenotazioni e dell'accoglienza è svolta per conto del titolare dal gestore della struttura. Non è stato nominato un responsabile della protezione dei dati (DPO), non essendo obbligatorio.</p>
+<h2 id="titolare">1. Titolare del trattamento e contatti</h2>
+<p>Titolare è <strong>Andrea Scozzafava</strong>, Via Centrale 48, 38123 Trento (TN), proprietario degli appartamenti La Columbera (Torre e Corte) a Ravina, Trento.</p>
+<p>Per qualsiasi richiesta sulla privacy scrivi a <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a> o chiama il <a href="tel:+393517043594">+39 351 704 3594</a>.</p>
+<p>Le prenotazioni e l'accoglienza sono gestite per conto del titolare dal gestore della struttura: <mark class="todo">[DA COMPLETARE: nome del gestore e suo ruolo, ad es. responsabile del trattamento ex art. 28 GDPR, secondo l'accordo con il titolare]</mark>.</p>
+<p><mark class="todo">[DA COMPLETARE: indicare se è stato designato un responsabile della protezione dei dati (DPO) e, se sì, i suoi contatti; altrimenti eliminare questa frase]</mark></p>
 
 <h2 id="trattamenti">2. Quali dati trattiamo, perché e su quale base</h2>
+<p>Trattiamo solo i dati che servono a prenotare, a pagare, a gestire il soggiorno e a rispettare gli obblighi di legge. Non li usiamo per marketing, newsletter, profilazione o pubblicità e non li vendiamo.</p>
 <table>
 <thead><tr><th>Attività</th><th>Dati</th><th>Finalità</th><th>Base giuridica</th></tr></thead>
 <tbody>
-<tr><td data-l="Attività">Navigazione del sito</td><td data-l="Dati">Dati tecnici di connessione (indirizzo IP, tipo di browser, data e ora della richiesta) registrati dai sistemi di hosting</td><td data-l="Finalità">Far funzionare il sito e proteggerlo da abusi</td><td data-l="Base giuridica">Legittimo interesse (art. 6.1.f)</td></tr>
-<tr><td data-l="Attività">Prenotazione diretta sul sito</td><td data-l="Dati">Nome, email, telefono, date, numero di ospiti, importo; i dati della carta sono inseriti solo sulla pagina di Stripe e non arrivano a noi</td><td data-l="Finalità">Gestire la prenotazione, il pagamento e le comunicazioni sul soggiorno</td><td data-l="Base giuridica">Esecuzione del contratto (art. 6.1.b); obblighi fiscali e contabili (art. 6.1.c)</td></tr>
-<tr><td data-l="Attività">Area clienti e Trentino Guest Card</td><td data-l="Dati">Codice prenotazione; per la Guest Card: email, date del soggiorno, numero di persone</td><td data-l="Finalità">Mostrare la prenotazione e, su tua richiesta, emettere la Trentino Guest Card</td><td data-l="Base giuridica">Esecuzione del contratto / tua richiesta (art. 6.1.b)</td></tr>
-<tr><td data-l="Attività">Check-in online</td><td data-l="Dati">Per ogni ospite: cognome, nome, sesso, data e luogo di nascita, cittadinanza; per il responsabile anche tipo, numero e luogo di rilascio del documento e la sua immagine (fronte/retro); email per la ricevuta</td><td data-l="Finalità">Comunicazione obbligatoria degli alloggiati alla Questura e identificazione degli ospiti; riscossione dell'imposta di soggiorno</td><td data-l="Base giuridica">Obbligo di legge (art. 6.1.c GDPR; art. 109 del T.U.L.P.S., R.D. 773/1931; normativa sull'imposta di soggiorno)</td></tr>
-<tr><td data-l="Attività">Contatti via email o telefono</td><td data-l="Dati">I dati che ci scrivi</td><td data-l="Finalità">Rispondere alle tue richieste</td><td data-l="Base giuridica">Misure precontrattuali o contratto (art. 6.1.b)</td></tr>
-<tr><td data-l="Attività">Statistiche turistiche obbligatorie</td><td data-l="Dati">Dati sugli arrivi e sulle presenze (numero, provenienza), senza nomi</td><td data-l="Finalità">Comunicazioni statistiche previste dalla legge</td><td data-l="Base giuridica">Obbligo di legge (art. 6.1.c)</td></tr>
+<tr><td data-l="Attività">Visita del sito e della pagina di check-in</td><td data-l="Dati">Dati tecnici di connessione (indirizzo IP, browser, pagina richiesta, data e ora), registrati dai fornitori di hosting. Per proteggere l'accesso alle prenotazioni il sito conta i tentativi usando un'impronta cifrata (hash) dell'indirizzo IP, che si cancella da sola dopo al massimo 24 ore.</td><td data-l="Finalità">Far funzionare il sito, prevenire abusi e tentativi di accesso non autorizzati</td><td data-l="Base giuridica">Legittimo interesse del titolare alla sicurezza e al funzionamento del sito (art. 6.1.f)</td></tr>
+<tr><td data-l="Attività">Prenotazione diretta sul sito</td><td data-l="Dati">Nome e cognome, email, telefono (facoltativo), appartamento, date, numero di ospiti, importo, codice prenotazione</td><td data-l="Finalità">Gestire la richiesta e la prenotazione, inviarti la conferma e le comunicazioni necessarie sul soggiorno</td><td data-l="Base giuridica">Esecuzione del contratto e misure precontrattuali richieste da te (art. 6.1.b)</td></tr>
+<tr><td data-l="Attività">Pagamento</td><td data-l="Dati">Email, codice prenotazione, date, importo. I dati della carta li inserisci solo sulla pagina di Stripe e non arrivano a noi: riceviamo solo l'esito e un riferimento del pagamento.</td><td data-l="Finalità">Incassare il prezzo del soggiorno e, nel check-in, l'imposta di soggiorno</td><td data-l="Base giuridica">Esecuzione del contratto (art. 6.1.b); per l'imposta di soggiorno, obbligo di legge (art. 6.1.c)</td></tr>
+<tr><td data-l="Attività">Prenotazioni tramite Booking.com o Airbnb</td><td data-l="Dati">Codice prenotazione, date, numero di ospiti e gli altri dati che la piattaforma ci trasmette, anche tramite il calendario sincronizzato</td><td data-l="Finalità">Gestire il soggiorno ed evitare doppie prenotazioni</td><td data-l="Base giuridica">Esecuzione del contratto (art. 6.1.b). Fonte dei dati: la piattaforma con cui hai prenotato</td></tr>
+<tr><td data-l="Attività">Area clienti</td><td data-l="Dati">Codice prenotazione, data di arrivo ed email (per verificare che la prenotazione sia tua), oppure il link personale ricevuto via email</td><td data-l="Finalità">Mostrarti la tua prenotazione e i servizi collegati</td><td data-l="Base giuridica">Esecuzione del contratto (art. 6.1.b)</td></tr>
+<tr><td data-l="Attività">Trentino Guest Card (solo se la richiedi)</td><td data-l="Dati">Email, date del soggiorno, numero di persone, codice prenotazione; dati della card emessa</td><td data-l="Finalità">Richiedere al sistema Trentino Guest Card l'emissione della card</td><td data-l="Base giuridica">Servizio da te richiesto (art. 6.1.b)</td></tr>
+<tr><td data-l="Attività">Check-in online e comunicazione alla Questura</td><td data-l="Dati">Per ogni ospite: cognome, nome, sesso, data e luogo di nascita, cittadinanza. Per il responsabile: tipo, numero e luogo di rilascio del documento e immagine del documento (vedi § 3)</td><td data-l="Finalità">Comunicare alla Questura le generalità degli alloggiati</td><td data-l="Base giuridica">Obbligo di legge (art. 6.1.c GDPR; art. 109 del T.U.L.P.S., R.D. 773/1931)</td></tr>
+<tr><td data-l="Attività">Imposta di soggiorno</td><td data-l="Dati">Date di nascita (l'imposta si applica dai 4 anni), numero di notti, importo</td><td data-l="Finalità">Calcolare e riscuotere l'imposta</td><td data-l="Base giuridica">Obbligo di legge (art. 6.1.c) <mark class="todo">[DA COMPLETARE: riferimento della normativa provinciale/comunale sull'imposta di soggiorno]</mark></td></tr>
+<tr><td data-l="Attività">Statistiche turistiche</td><td data-l="Dati">Date di arrivo e partenza, provenienza e numero di persone, senza nomi</td><td data-l="Finalità">Rilevazione statistica obbligatoria (ISTAT, tramite la Provincia autonoma di Trento)</td><td data-l="Base giuridica">Obbligo di legge (art. 6.1.c) <mark class="todo">[DA COMPLETARE: riferimento normativo della rilevazione]</mark></td></tr>
+<tr><td data-l="Attività">Contatti via email o telefono</td><td data-l="Dati">I dati che ci comunichi</td><td data-l="Finalità">Rispondere alle tue richieste</td><td data-l="Base giuridica">Misure precontrattuali o contratto (art. 6.1.b)</td></tr>
+<tr><td data-l="Attività">Recensioni mostrate sul sito</td><td data-l="Dati">Nome dell'autore, voto, testo e data di recensioni già pubbliche su Google e Booking.com</td><td data-l="Finalità">Mostrare ai visitatori le opinioni degli ospiti</td><td data-l="Base giuridica">Legittimo interesse del titolare a presentare la struttura (art. 6.1.f). Puoi chiederne la rimozione dal sito in qualsiasi momento</td></tr>
 </tbody>
 </table>
-<p>Non usiamo i tuoi dati per marketing, newsletter o profilazione e non li vendiamo. Il sito non usa strumenti di analisi statistica né pixel pubblicitari.</p>
+<p>Il consenso non è la base giuridica di questi trattamenti. La casella "dichiaro di aver letto l'informativa" nel check-in serve solo a confermare la presa visione: non è un consenso e non viene registrata.</p>
 
 <h2 id="checkin">3. Check-in online, documento d'identità e Questura</h2>
-<p>La legge (art. 109 T.U.L.P.S.) obbliga la struttura a comunicare alla Questura, tramite il portale <em>Alloggiati Web</em> della Polizia di Stato, le generalità di tutti gli ospiti. Il conferimento dei dati è quindi <strong>obbligatorio</strong>: senza questi dati non è possibile soggiornare nella struttura.</p>
+<p>La legge (art. 109 T.U.L.P.S.) obbliga la struttura a comunicare alla Questura, tramite il portale <em>Alloggiati Web</em> della Polizia di Stato, le generalità di tutti gli ospiti, compresi i minori. I dati degli altri ospiti sono inseriti dal responsabile del gruppo: ti chiediamo di informarli di questa informativa.</p>
+<p>Che cosa succede ai dati del check-in:</p>
+<ul>
+<li><strong>Archivio temporaneo.</strong> Al momento dell'invio i dati e l'immagine del documento vengono salvati in un archivio temporaneo del sistema di check-in. Se il pagamento non viene completato scadono dopo 2 ore e vengono cancellati entro circa un giorno. Dopo il pagamento vengono cancellati appena trasmessi al gestore; in caso di problemi tecnici, al massimo entro 72 ore.</li>
+<li><strong>Foglio di lavoro e file per la Questura.</strong> I dati anagrafici sono riportati sul foglio di lavoro del gestore (Google Fogli), da cui viene preparato il file per <em>Alloggiati Web</em>, salvato su Google Drive.</li>
+<li><strong>Immagine del documento e riepilogo via email.</strong> Il gestore riceve via email l'immagine del documento del responsabile e un riepilogo in PDF dei dati inseriti, per controllare che corrispondano prima della comunicazione. Il PDF è generato da un servizio esterno (Browserless), che riceve i dati anagrafici ma non l'immagine. Si tratta di una modalità <strong>temporanea</strong>, adottata dal titolare in attesa di una soluzione che non richieda l'invio per email.</li>
+<li><strong>Comunicazione alla Questura.</strong> Il gestore trasmette i dati sul portale <em>Alloggiati Web</em> e controlla la ricevuta. I dati trasmessi sono poi conservati dal Ministero dell'Interno secondo le sue regole.</li>
+<li><strong>Cancellazione delle copie.</strong> Le righe del foglio di lavoro, il file per la Questura, le email con l'immagine e il riepilogo e le loro copie vengono cancellate <strong>entro 24 ore</strong> dalla registrazione su <em>Alloggiati Web</em>. La cancellazione è fatta a mano dal gestore: le immagini non vengono archiviate. Resta solo la ricevuta di <em>Alloggiati Web</em> (§ 5).</li>
+<li><strong>Nessun altro uso.</strong> I dati del check-in non sono usati per altre finalità.</li>
+</ul>
 <div class="box">
-<p><strong>Il modulo online e la foto del documento non bastano per essere identificati.</strong> All'arrivo il gestore verifica che i documenti originali corrispondano alle persone che soggiornano.</p>
+<p><strong>Il modulo online e l'immagine del documento non bastano per l'identificazione.</strong> La verifica dell'identità richiede il confronto tra i documenti originali e le persone che soggiornano <mark class="todo">[DA COMPLETARE: modalità di verifica adottata all'arrivo, ad es. di persona o con videocollegamento all'ingresso]</mark>.</p>
 </div>
-<p>Come vengono trattati i dati del check-in:</p>
+
+<h2 id="conferimento">4. Quali dati sono obbligatori e cosa succede se non li fornisci</h2>
 <ul>
-<li>i dati inseriti restano su un archivio temporaneo del sistema di check-in solo per il tempo necessario: se il pagamento non viene completato scadono dopo 2 ore; dopo il pagamento vengono cancellati appena trasmessi al gestore (al massimo entro 72 ore in caso di problemi tecnici). La cancellazione automatica dei dati scaduti avviene almeno una volta al giorno;</li>
-<li>vengono riportati sul foglio di lavoro del gestore da cui si prepara il file per <em>Alloggiati Web</em>; il gestore riceve via email l'immagine del documento e un riepilogo dei dati inseriti, per controllarne la correttezza;</li>
-<li>la comunicazione alla Questura è fatta dal gestore sul portale <em>Alloggiati Web</em>; i dati sono poi conservati dal Ministero dell'Interno secondo le sue regole;</li>
-<li>i dati non vengono usati per nessun'altra finalità.</li>
+<li><strong>Prenotazione sul sito.</strong>
+<ul>
+<li>Nome ed email sono necessari: senza non possiamo registrare la prenotazione né inviarti la conferma e il link alla tua area personale.</li>
+<li>Il telefono è facoltativo: se lo indichi ci permette di contattarti in caso di necessità sul soggiorno.</li>
+</ul></li>
+<li><strong>Check-in.</strong> I dati anagrafici di tutti gli ospiti e quelli del documento del responsabile sono imposti dalla legge: senza non è possibile soggiornare nella struttura.
+<ul>
+<li>Nel modulo online attuale anche l'immagine del documento è richiesta per completare il check-in: <mark class="todo">[DA COMPLETARE: decisione del titolare sulla foto del documento (obbligatoria, facoltativa o sostituita da un'altra modalità) e indicazione dell'alternativa per chi non vuole inviarla]</mark>.</li>
+<li>Le date di nascita servono anche a calcolare l'imposta di soggiorno.</li>
+</ul></li>
+<li><strong>Trentino Guest Card e area clienti.</strong> Sono servizi facoltativi: se non li usi, la prenotazione non cambia.</li>
 </ul>
 
-<h2 id="conservazione">4. Per quanto tempo conserviamo i dati</h2>
-<ul>
-<li><strong>Dati del check-in, immagini del documento, riepilogo e file per Alloggiati Web</strong>: cancellati entro <strong>24 ore</strong> dalla registrazione degli ospiti sul portale <em>Alloggiati Web</em> (foglio di lavoro, file, email e relative copie). Le copie non vengono conservate oltre quanto necessario alla comunicazione.</li>
-<li><strong>Ricevuta di Alloggiati Web</strong>: conservata per <strong>5 anni</strong>, come indicato dal Garante per la protezione dei dati personali.</li>
-<li><strong>Dati delle prenotazioni</strong>: per il tempo necessario a gestire il soggiorno; i documenti contabili e fiscali sono conservati per <strong>10 anni</strong> (art. 2220 c.c.).</li>
-<li><strong>Email di contatto</strong>: per il tempo necessario a gestire la richiesta.</li>
-<li><strong>Dati tecnici di navigazione</strong>: secondo i tempi dei fornitori di hosting.</li>
-</ul>
+<h2 id="conservazione">5. Per quanto tempo conserviamo i dati</h2>
+<table>
+<thead><tr><th>Dati</th><th>Durata</th></tr></thead>
+<tbody>
+<tr><td data-l="Dati">Check-in: archivio temporaneo del sistema</td><td data-l="Durata">Fino alla trasmissione al gestore; senza pagamento scadono dopo 2 ore; al massimo 72 ore in caso di problemi tecnici</td></tr>
+<tr><td data-l="Dati">Check-in: righe sul foglio di lavoro, file per la Questura, email con immagine del documento e riepilogo, comprese le copie</td><td data-l="Durata">Cancellati entro 24 ore dalla registrazione su <em>Alloggiati Web</em> (cancellazione manuale)</td></tr>
+<tr><td data-l="Dati">Ricevuta di <em>Alloggiati Web</em></td><td data-l="Durata">5 anni, come indicato dal Garante per la protezione dei dati personali</td></tr>
+<tr><td data-l="Dati">Pagamenti non completati sul sito</td><td data-l="Durata">Eliminati automaticamente dopo 3 giorni</td></tr>
+<tr><td data-l="Dati">Prenotazioni (nome, email, telefono, dati del soggiorno)</td><td data-l="Durata"><mark class="todo">[DA COMPLETARE: periodo deciso dal titolare; oggi non è prevista una cancellazione automatica]</mark></td></tr>
+<tr><td data-l="Dati">Documenti fiscali e contabili</td><td data-l="Durata"><mark class="todo">[DA COMPLETARE: periodo e riferimento normativo, da verificare con il commercialista]</mark></td></tr>
+<tr><td data-l="Dati">Trentino Guest Card emesse</td><td data-l="Durata"><mark class="todo">[DA COMPLETARE: periodo deciso dal titolare; oggi non è prevista una cancellazione automatica]</mark></td></tr>
+<tr><td data-l="Dati">Email scambiate con te</td><td data-l="Durata"><mark class="todo">[DA COMPLETARE: periodo deciso dal titolare]</mark></td></tr>
+<tr><td data-l="Dati">Link personale all'area clienti</td><td data-l="Durata">Valido fino a 30 giorni dopo il check-out; l'accesso con codice e data di arrivo vale per 4 ore</td></tr>
+<tr><td data-l="Dati">Contatori di sicurezza (impronta dell'indirizzo IP)</td><td data-l="Durata">Da 10 minuti a 24 ore</td></tr>
+<tr><td data-l="Dati">Dati tecnici di navigazione nei log di hosting</td><td data-l="Durata"><mark class="todo">[DA COMPLETARE: durata dei log secondo il piano dei fornitori di hosting]</mark></td></tr>
+</tbody>
+</table>
 
-<h2 id="destinatari">5. A chi comunichiamo i dati</h2>
-<p>I dati sono trattati dal titolare e dal gestore della struttura e, per la sola parte necessaria, dai seguenti soggetti:</p>
+<h2 id="destinatari">6. A chi comunichiamo i dati</h2>
+<p>I dati sono trattati dal titolare e dal gestore della struttura. Per la sola parte necessaria li ricevono anche:</p>
+<h3>Autorità ed enti pubblici</h3>
 <ul>
-<li><strong>Autorità</strong>: Questura tramite il portale <em>Alloggiati Web</em> (Polizia di Stato); enti competenti per l'imposta di soggiorno e per le statistiche turistiche.</li>
-<li><strong>Fornitori di servizi tecnici</strong>, che trattano i dati per nostro conto: Vercel (hosting del sito e del sistema di check-in), Neon (archivio temporaneo del check-in), Upstash (archivio delle prenotazioni), GitHub (pubblicazione della pagina di check-in), Google (Gmail, Fogli e Drive di Google, caratteri tipografici Google Fonts), Browserless (generazione del riepilogo PDF per il gestore).</li>
+<li>Polizia di Stato – Questura, tramite il portale <em>Alloggiati Web</em>.</li>
+<li>Provincia autonoma di Trento, per la rilevazione statistica ISTAT (dati senza nomi).</li>
+<li>Gli enti competenti per l'imposta di soggiorno, se previsto dalla relativa normativa.</li>
+</ul>
+<h3>Fornitori di servizi tecnici</h3>
+<ul>
+<li><strong>Vercel</strong>: hosting del sito e del sistema di check-in.</li>
+<li><strong>GitHub</strong>: pubblicazione della pagina di check-in.</li>
+<li><strong>Upstash</strong>: archivio delle prenotazioni del sito.</li>
+<li><strong>Neon</strong>: archivio temporaneo del check-in.</li>
+<li><strong>Google</strong>:
+<ul>
+<li>Gmail, per l'invio delle email;</li>
+<li>Google Fogli e Google Drive, per il registro delle prenotazioni, il foglio di lavoro del check-in e il file per la Questura;</li>
+<li>Google Fonts, per i caratteri tipografici della pagina di check-in.</li>
+</ul></li>
+<li><strong>Browserless</strong>: generazione del riepilogo PDF del check-in.</li>
+</ul>
+<p><mark class="todo">[DA COMPLETARE: ruolo di ciascun fornitore (responsabile del trattamento ex art. 28 o titolare autonomo) dopo la verifica dei contratti]</mark></p>
+<h3>Altri soggetti</h3>
+<ul>
 <li><strong>Stripe</strong>, per i pagamenti con carta (prenotazioni e imposta di soggiorno).</li>
-<li><strong>Sistema Trentino Guest Card</strong>, solo se richiedi la Guest Card.</li>
+<li><strong>Sistema Trentino Guest Card</strong> (Trentino Marketing), solo se richiedi la Guest Card <mark class="todo">[DA COMPLETARE: ruolo e link all'informativa del gestore della Guest Card]</mark>.</li>
+<li><strong>Booking.com e Airbnb</strong>: se hai prenotato tramite queste piattaforme, trattano i tuoi dati secondo le proprie informative. Con loro il sito scambia solo il calendario delle date occupate.</li>
 </ul>
-<p>Alcuni di questi fornitori hanno sede o server fuori dall'Unione europea (in particolare negli Stati Uniti). In questi casi il trasferimento avviene sulla base delle garanzie previste dal GDPR: decisione di adeguatezza UE-USA (<em>EU-U.S. Data Privacy Framework</em>) per i fornitori aderenti oppure clausole contrattuali standard approvate dalla Commissione europea.</p>
-<p>Se hai prenotato tramite Booking.com o Airbnb, quelle piattaforme trattano i tuoi dati come titolari autonomi secondo le proprie informative.</p>
+<h3>Trasferimenti fuori dall'Unione europea</h3>
+<p>Il riepilogo PDF del check-in è generato da Browserless su un server indicato come situato negli Stati Uniti (San Francisco): i dati anagrafici contenuti nel riepilogo sono quindi trasferiti fuori dall'Unione europea. <mark class="todo">[DA COMPLETARE: garanzia che rende lecito il trasferimento, ad es. adesione del fornitore al Data Privacy Framework UE-USA o clausole contrattuali standard, dopo verifica del contratto; in alternativa usare un server del fornitore nell'Unione europea]</mark></p>
+<p>Per gli altri fornitori la sede dei server e le eventuali garanzie per i trasferimenti sono in corso di verifica: <mark class="todo">[DA COMPLETARE: per ciascun fornitore, paese dei server e garanzia applicabile]</mark>.</p>
 
-<h2 id="tecnico">6. Cookie e memorizzazione nel browser</h2>
-<p>Il sito non usa cookie di profilazione né di analisi. Usa solo una memorizzazione tecnica temporanea nel browser (<em>sessionStorage</em>), che si cancella alla chiusura della scheda, per ricordare il codice prenotazione nell'area clienti. I caratteri tipografici sono caricati dai server di Google Fonts, che ricevono l'indirizzo IP del visitatore. La pagina di pagamento è gestita da Stripe, con le sue regole sui cookie.</p>
+<h2 id="browser">7. Cookie, memoria del browser e contenuti di terze parti</h2>
+<ul>
+<li><strong>Cookie.</strong> Il sito e la pagina di check-in <strong>non installano cookie</strong> e non usano strumenti di analisi, pixel pubblicitari o profilazione. Per questo non c'è un banner dei cookie.</li>
+<li><strong>Memoria temporanea del browser</strong> (<em>sessionStorage</em>, si cancella alla chiusura della scheda), usata solo per far funzionare i servizi richiesti:
+<ul>
+<li>nell'area clienti, il codice prenotazione e la chiave di accesso alla tua prenotazione;</li>
+<li>nel pannello riservato al gestore, la sessione di lavoro.</li>
+</ul></li>
+<li><strong>Memoria locale del browser</strong> (<em>local storage</em>): nella pagina di check-in conserva solo la lingua scelta, finché non la cancelli dalle impostazioni del browser.</li>
+<li><strong>Contenuti di terze parti.</strong> Il tuo browser si collega direttamente a server di terzi, che ricevono il tuo indirizzo IP, in questi casi:
+<ul>
+<li>la pagina di check-in carica i caratteri tipografici da Google Fonts;</li>
+<li>alcune schede delle pagine "Luoghi di interesse" e "Convenzioni" mostrano immagini prese dai siti turistici ufficiali (ad esempio visittrentino.info);</li>
+<li>la pagina di pagamento è gestita da Stripe e la apri solo quando scegli di pagare, con le regole di Stripe su cookie e privacy <mark class="todo">[DA COMPLETARE: link all'informativa privacy e cookie di Stripe]</mark>;</li>
+<li>i link a Google Maps, alle recensioni e ai siti esterni si aprono solo se ci clicchi.</li>
+</ul></li>
+</ul>
 
-<h2 id="diritti">7. I tuoi diritti</h2>
-<p>Puoi chiedere in ogni momento l'accesso ai tuoi dati, la rettifica, la cancellazione, la limitazione del trattamento, la portabilità e opporti ai trattamenti basati sul legittimo interesse (artt. 15–22 GDPR), scrivendo a <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>. Alcuni diritti (per esempio la cancellazione) sono limitati quando il trattamento è imposto dalla legge, come la comunicazione alla Questura.</p>
-<p>Hai inoltre il diritto di presentare reclamo al <strong>Garante per la protezione dei dati personali</strong> (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener">www.garanteprivacy.it</a>).</p>
-<p>Non vengono prese decisioni basate unicamente su trattamenti automatizzati.</p>
-
-<p><em>Ultimo aggiornamento: 27 ottobre 2026.</em></p>
+<h2 id="diritti">8. I tuoi diritti</h2>
+<ul>
+<li><strong>Diritti sui tuoi dati.</strong> In qualsiasi momento puoi chiedere l'accesso, la rettifica, la cancellazione, la limitazione del trattamento e la portabilità dei tuoi dati (artt. 15–20 GDPR).</li>
+<li><strong>Opposizione.</strong> Puoi opporti ai trattamenti basati sul legittimo interesse, come la pubblicazione della tua recensione sul sito (art. 21).</li>
+<li><strong>Come esercitarli.</strong> Scrivi a <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>. Ti rispondiamo senza ingiustificato ritardo e, in genere, entro un mese.</li>
+<li><strong>Limiti.</strong> Alcuni diritti, come la cancellazione, sono limitati quando il trattamento è imposto dalla legge, come la comunicazione alla Questura.</li>
+<li><strong>Reclamo.</strong> Hai il diritto di proporre reclamo al <strong>Garante per la protezione dei dati personali</strong> (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener noreferrer">www.garanteprivacy.it</a>).</li>
+<li><strong>Nessuna decisione automatizzata.</strong> Non vengono prese decisioni basate unicamente su trattamenti automatizzati, né c'è profilazione. I limiti automatici ai tentativi di accesso servono solo alla sicurezza e si sbloccano da soli dopo qualche minuto.</li>
+</ul>
+<p><em>Ultimo aggiornamento: <mark class="todo">[DA COMPLETARE: data di pubblicazione definitiva]</mark>. Versione precedente: 27 ottobre 2026.</em></p>
 
 <h2 id="english">Privacy notice – summary in English</h2>
-<p><strong>Data controller</strong>: Andrea Scozzafava, Via Centrale 48, 38123 Trento (TN), Italy, owner of La Columbera. Contact: <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>.</p>
+<p>This is a summary. The Italian text above is the complete notice.</p>
 <ul>
-<li><strong>Bookings</strong> (name, email, phone, dates, guests, amount): to manage your stay and payment (contract, Art. 6(1)(b) GDPR) and for tax and accounting obligations (Art. 6(1)(c)). Card details are entered only on Stripe's page.</li>
-<li><strong>Online check-in</strong> (personal details of every guest; document type, number, place of issue and image for the lead guest): Italian law (Art. 109 TULPS) requires us to report all guests to the police through the <em>Alloggiati Web</em> portal and to collect the tourist tax (Art. 6(1)(c) GDPR). Providing these data is <strong>mandatory</strong>; without them you cannot stay. Filling in the form and sending a photo of your ID is not enough to identify you: on arrival the host checks the original documents.</li>
-<li><strong>Retention</strong>: check-in data, ID images, the summary and the police file are deleted within <strong>24 hours</strong> of registration on <em>Alloggiati Web</em>; the Alloggiati receipt is kept for 5 years; accounting records for 10 years.</li>
-<li><strong>Recipients</strong>: the police (Alloggiati Web), the authorities in charge of tourist tax and statistics, Stripe, and technical providers acting on our behalf (Vercel, Neon, Upstash, GitHub, Google, Browserless). Transfers outside the EU rely on the EU-U.S. Data Privacy Framework or standard contractual clauses.</li>
-<li><strong>No marketing, profiling, analytics or advertising pixels.</strong> Only temporary technical browser storage is used.</li>
-<li><strong>Your rights</strong> (Arts. 15–22 GDPR): access, rectification, erasure, restriction, portability and objection, by writing to <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>. You may lodge a complaint with the Italian Data Protection Authority (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener">www.garanteprivacy.it</a>).</li>
+<li><strong>Data controller.</strong> Andrea Scozzafava, Via Centrale 48, 38123 Trento (TN), Italy, owner of La Columbera. Contact: <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>.</li>
+<li><strong>Direct bookings and payment</strong> (name, email, optional phone, dates, guests, amount): to manage your booking (contract, Art. 6(1)(b) GDPR). Card details are entered only on Stripe's page. Name and email are required to book online.</li>
+<li><strong>Online check-in.</strong> Italian law (Art. 109 TULPS) requires us to report every guest to the police through <em>Alloggiati Web</em> (legal obligation, Art. 6(1)(c)). These data are <strong>mandatory</strong>. Dates of birth are also used for the tourist tax.
+<ul>
+<li>For now the host receives the lead guest's ID image and a PDF summary by email, to check the data. The PDF is generated by Browserless on a server indicated as located in the USA.</li>
+<li>The working sheet, the police file and these emails are deleted <strong>within 24 hours</strong> of registration on <em>Alloggiati Web</em>; the receipt is kept for 5 years.</li>
+<li>The online form and the ID image are not enough for identification.</li>
+</ul></li>
+<li><strong>Trentino Guest Card</strong> (optional): your email, stay dates and number of people are sent to the Guest Card system to issue the card.</li>
+<li><strong>Recipients.</strong> Police (<em>Alloggiati Web</em>), the Province of Trento for official statistics (no names), Stripe, and technical providers: Vercel, GitHub, Upstash, Neon, Google (Gmail, Sheets, Drive, Fonts on the check-in page) and Browserless.</li>
+<li><strong>Cookies and tracking.</strong> No cookies, analytics, profiling or advertising. Only temporary technical browser storage is used.</li>
+<li><strong>Your rights</strong> (Arts. 15–21 GDPR): write to <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>. You may lodge a complaint with the Italian Data Protection Authority (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener noreferrer">www.garanteprivacy.it</a>).</li>
 </ul>
 
 </div></section>

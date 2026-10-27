@@ -506,6 +506,7 @@ section{position:relative;padding:clamp(80px,10vw,140px) 0}
 .book-card .price{font-family:var(--serif);font-style:italic;font-size:1.9rem;color:var(--wine);line-height:1}
 .book-card .price small{font-family:var(--sans);font-style:normal;font-size:.85rem;color:var(--muted)}
 .book-note{font-size:.85rem;color:var(--muted);margin:8px 0 4px}
+.book-note a{color:var(--wine);text-decoration:underline;overflow-wrap:anywhere}
 .book-card h3{font-size:1.3rem;margin-bottom:6px}
 
 .cal-head{display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px}
