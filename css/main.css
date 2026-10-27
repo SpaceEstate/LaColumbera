@@ -448,6 +448,8 @@ section{position:relative;padding:clamp(80px,10vw,140px) 0}
   margin-top:44px;padding-top:22px;border-top:1px solid rgba(233,215,180,.12);
   color:#8B7D64;font-size:.84rem;letter-spacing:.02em;
 }
+.footer-bottom a{color:inherit;text-decoration:underline;text-underline-offset:3px;display:inline-block;padding:10px 2px;margin:-10px 0}
+.footer-bottom a:hover,.footer-bottom a:focus-visible{color:#E9D7B4}
 
 /* ---------- PAGINA APPARTAMENTO ---------- */
 .page-hero{
