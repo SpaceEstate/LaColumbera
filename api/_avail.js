@@ -106,6 +106,16 @@ function minCheckinDate(nowMs, st) {
   return c;
 }
 
+/* ============================ orizzonte di prenotazione per gli ospiti ============================ */
+// Dal sito si prenota al massimo GUEST_MONTHS mesi in avanti: il calendario non mostra date più lontane e il server le rifiuta.
+// Ultimo giorno scegliibile (anche come partenza) = oggi + 6 mesi, stesso giorno del mese (o l'ultimo, se il mese di arrivo è più corto: 31 agosto → 28 febbraio).
+const GUEST_MONTHS = 6;
+const addMonthsIso = (s, n) => {
+  const [y, m, d] = s.split('-').map(Number), t = m - 1 + n, yy = y + Math.floor(t / 12), mm = ((t % 12) + 12) % 12;
+  return toIso(new Date(Date.UTC(yy, mm, Math.min(d, new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate()))));
+};
+const maxBookingDate = nowMs => addMonthsIso(todayRome(nowMs), GUEST_MONTHS);
+
 /* ============================ parser iCal ============================ */
 function splitUnquoted(s, sep) {
   const out = []; let cur = '', q = false;
@@ -624,7 +634,8 @@ function makeEngine(deps) {
     if (config.closed && config.closed[aptId]) for (let i = 0; i < 731; i++) add(addDays(today, i), 'CHIUSO', '');
     let notice = null;
     if (mode === 'guest') {
-      const h0 = addDays(today, T.horizonDays); for (let i = 0; i < 731; i++) add(addDays(h0, i), 'ORIZZONTE', '');
+      // orizzonte: il più vicino tra i 6 mesi e il limite in giorni (ORIZZONTE_MAX_GIORNI). L'ultimo giorno scegliibile vale solo come partenza: la sua notte non si prenota
+      const h0 = [addDays(today, T.horizonDays), maxBookingDate(t)].sort()[0]; for (let i = 0; i < 731; i++) add(addDays(h0, i), 'ORIZZONTE', '');
       // preavviso minimo: nessun soggiorno può iniziare prima del primo arrivo prenotabile adesso, quindi quelle notti non sono prenotabili dal sito
       const nt = noticeSettings(config), first = minCheckinDate(t, nt);
       for (let d = today; d < first; d = addDays(d, 1)) add(d, 'PREAVVISO', '');
@@ -637,7 +648,7 @@ function makeEngine(deps) {
   // calendario pubblico / checkout
   async function guestBusy(config, aptId) {
     const occ = computeOccupancy(config, aptId, await loadFresh(config, aptId), { mode: 'guest' });
-    return { status: occ.status, asOf: occ.asOf, dates: Object.keys(occ.days).sort(), problems: occ.problems, notice: occ.notice };
+    return { status: occ.status, asOf: occ.asOf, dates: Object.keys(occ.days).sort(), problems: occ.problems, notice: occ.notice, limit: { mesi: GUEST_MONTHS, ultimoGiorno: maxBookingDate(now()) } };
   }
   // verifica puntuale di un intervallo (checkout / conferma tardiva). ignoreHold = i miei stessi hold.
   async function checkRange(config, aptId, da, a, { ignoreHold, mode = 'guest', fresh = true } = {}) {
@@ -931,4 +942,4 @@ function makeEngine(deps) {
 }
 
 module.exports = { makeEngine, parseICS, icalDate, icalFeed, rangeDays, addDays, nightsBetween, todayRome, isIso, hmac, srcOf, LUA_ACQUIRE, LUA_RELEASE, K,
-  noticeSettings, parseNoticeInput, noticeCutoffMs, noticeOk, minCheckinDate, NOTICE_MAX_DAYS };
+  noticeSettings, parseNoticeInput, noticeCutoffMs, noticeOk, minCheckinDate, NOTICE_MAX_DAYS, GUEST_MONTHS, addMonthsIso, maxBookingDate };

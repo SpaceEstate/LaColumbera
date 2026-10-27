@@ -66,11 +66,12 @@ test('T4  prenotazione dal sito Torre: hold → Stripe → webhook → confermat
   const before = gas.rows().length; await H.webhook('checkout.session.completed', H.paidSession(code)); await H.webhook('checkout.session.async_payment_succeeded', H.paidSession(code));
   eq([gas.rows().length, global.__mails.length], [before, 2], 'webhook ripetuto: nessuna riga e nessuna mail in più');
 });
-test('T5  due/quattro utenti prenotano contemporaneamente le stesse date: solo uno procede (40 round, Lua reale)', async () => {
+test('T5  due/quattro utenti prenotano contemporaneamente le stesse date: solo uno procede (28 round, Lua reale)', async () => {
   await base(); kv.jitter = 6;
   let wins = 0;
-  for (let k = 0; k < 40; k++) {
-    const d0 = new Date(Date.UTC(2027, 0, 10 + k * 6)).toISOString().slice(0, 10), plus = n => new Date(Date.UTC(2027, 0, 10 + k * 6 + n)).toISOString().slice(0, 10);
+  // le date devono restare entro i 6 mesi da oggi (2 ott 2026 → 2 apr 2027): dal sito non si prenota più in là
+  for (let k = 0; k < 28; k++) {
+    const d0 = new Date(Date.UTC(2026, 9, 10 + k * 6)).toISOString().slice(0, 10), plus = n => new Date(Date.UTC(2026, 9, 10 + k * 6 + n)).toISOString().slice(0, 10);
     // utenti diversi = indirizzi IP diversi (il limite di frequenza del checkout è per IP: qui si prova la concorrenza, non il limite)
     const reqs = [[0, 3], [1, 4], [2, 5], [0, 3]].map(([a, b], i) => H.api('checkout', { id: 'torre', da: plus(a), a: plus(b), ospiti: 2, email: 'u' + i + '@t.it', nome: 'U' + i }, { headers: { 'x-real-ip': '10.5.' + k + '.' + i } }));
     const out = await Promise.all(reqs), ok = out.map((r, i) => ({ r, w: [[0, 3], [1, 4], [2, 5], [0, 3]][i] })).filter(x => x.r.status === 200);
@@ -78,7 +79,7 @@ test('T5  due/quattro utenti prenotano contemporaneamente le stesse date: solo u
     for (let i = 0; i < ok.length; i++) for (let j = i + 1; j < ok.length; j++) assert(!(ok[i].w[0] < ok[j].w[1] && ok[j].w[0] < ok[i].w[1]), 'round ' + k + ': due prenotazioni sovrapposte hanno ottenuto lo stesso periodo');
     out.filter(r => r.status !== 200).forEach(r => eq(r.status, 409)); wins += ok.length;
   }
-  console.log('      (' + wins + ' checkout riusciti su 160, nessuna sovrapposizione)');
+  console.log('      (' + wins + ' checkout riusciti su 112, nessuna sovrapposizione)');
 });
 test('T6  cancellazione Booking: STATO=ANNULLATA + annullata_il, riga conservata, disponibilità ricalcolata', async () => {
   const { gas } = await base();
@@ -418,7 +419,7 @@ test('X18 configurazione pubblica: niente URL iCal (token), chiusure e blocchi m
   await base();
   const cfg = JSON.parse(kv.exec(['GET', 'cfg'])); cfg.closed = { corte: false }; cfg.apts.find(a => a.id === 'torre').blocked = { '2026-12-05': true }; kv.exec(['SET', 'cfg', JSON.stringify(cfg)]);
   const pub = await H.api('cfg', {}, { method: 'GET' });
-  eq(pub.status, 200); eq(Object.keys(pub.body).sort(), ['apts', 'chi']);
+  eq(pub.status, 200); eq(Object.keys(pub.body).sort(), ['apts', 'chi', 'cipat']);
   assert(pub.body.apts.every(a => !('blocked' in a)), 'nessun blocco manuale');
   for (const k of ['ical.booking.com', 'airbnb.com/calendar', 'TOKEN', 'ATOK', 'CTOK']) assert(!pub.text.includes(k), 'nel testo pubblico compare ' + k);
   assert(pub.body.apts.length === 2 && pub.body.apts[0].foto.length > 0 && pub.body.apts[0].base > 0, 'restano i dati che servono alle pagine');

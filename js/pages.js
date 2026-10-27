@@ -10,9 +10,40 @@ const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.p
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
 const minFor=(p,da)=>{const r=(p.minPeriodi||[]).find(q=>q.da&&q.a&&da>=q.da&&da<=q.a);return+(r?r.min:p.min)||1};
 const tot=(p,da,a,n)=>days(da,a).reduce((s,d)=>s+np(p,d)+sup(p,n),0);
-// testo leggibile degli scaglioni: "+10 € dal 2° ospite · +25 € dal 3° · +50 € dal 4°"
-const stepsTxt=p=>{const st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0],base=(p.inclusi||1);if(!st.some(v=>+v))return'';const o=[];for(let i=0;i<Math.min(p.max-base,6);i++){const v=+st[Math.min(i,st.length-1)]||0;o.push(`+${eur(v)} ${i?'dal':'dal'} ${base+i+1}° ospite`)}return o.join(' · ')};
 const fmtD=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+const fmtW=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
+const fmtL=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const money=n=>'€'+Math.round(n).toLocaleString('it-IT');
+const pad=n=>String(n).padStart(2,'0');
+// Testo semplice per le sezioni scritte da Gestione: "## Titolo" apre una sezione, le righe vuote separano i paragrafi, "- voce" fa un elenco
+const mdLite=t=>{const out=[];let cur=null;
+  for(const raw of String(t||'').replace(/\r/g,'').split('\n')){const l=raw.trim();
+    if(!l){cur=null;continue}
+    if(l.startsWith('## ')){out.push({h:l.slice(3).trim()});cur=null;continue}
+    if(l.startsWith('- ')){if(!cur||!cur.li){cur={li:[]};out.push(cur)}cur.li.push(l.slice(2).trim());continue}
+    if(!cur||cur.p===undefined){cur={p:l};out.push(cur)}else cur.p+='\n'+l}
+  return out};
+// elenco servizi: gruppi (titolo + voci)
+const srvGroups=t=>{const g=[];let cur=null;
+  for(const b of mdLite(t)){if(b.h){cur={t:b.h,v:[]};g.push(cur)}else if(b.li){if(!cur){cur={t:'',v:[]};g.push(cur)}cur.v.push(...b.li)}}
+  return g.filter(x=>x.v.length)};
+// Finestra sopra la pagina (servizi): chiude con X, Esc o clic fuori; il focus resta dentro finché è aperta e torna al pulsante che l'ha aperta
+function modal(title,html,trigger){
+  const m=document.createElement('div');m.className='modal';m.dataset.testid='modal';
+  m.innerHTML=`<div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="md-t"><div class="modal-head"><h2 id="md-t">${esc(title)}</h2><button type="button" class="modal-x" aria-label="Chiudi" data-testid="modal-close">×</button></div><div class="modal-body">${html}</div></div>`;
+  const box=m.firstElementChild;
+  const close=()=>{document.removeEventListener('keydown',key);m.remove();document.body.classList.remove('modal-open');if(trigger&&trigger.focus)trigger.focus()};
+  const key=e=>{
+    if(e.key==='Escape'){e.preventDefault();close();return}
+    if(e.key!=='Tab')return;
+    const f=[...box.querySelectorAll('button,a[href]')];if(!f.length)return;
+    const a=f[0],z=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}
+    else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}};
+  m.addEventListener('click',e=>{if(e.target===m||e.target.closest('.modal-x'))close()});
+  document.addEventListener('keydown',key);
+  document.body.appendChild(m);document.body.classList.add('modal-open');box.querySelector('.modal-x').focus();
+  return close}
 // Accesso alla prenotazione: il codice è solo un identificativo, l'accesso lo dà un token segreto (api/_accesso.js).
 // Il token arriva dal checkout o dal link della mail ("#c=…&t=…": il frammento non va mai al server né ad altri siti),
 // resta solo in sessionStorage (si cancella chiudendo la scheda) e viene tolto subito dall'indirizzo.
@@ -38,9 +69,22 @@ async function apt(c){
   $('#apt-nome').textContent=short(p);
   $('#apt-sotto').textContent=p.sotto;
   $('#pr').textContent=eur(p.base);
-  $('#note').textContent=`${p.inclusi} ${p.inclusi===1?'ospite incluso':'ospiti inclusi'} nel prezzo${stepsTxt(p)?' · a notte: '+stepsTxt(p):''} · soggiorno minimo ${p.min} notti${(p.minPeriodi||[]).length?' (in alcuni periodi di più)':''}`;
+  $('#note').textContent=`Soggiorno minimo ${p.min} notti${(p.minPeriodi||[]).length?' (in alcuni periodi di più)':''} · fino a ${p.max} ospiti`;
   $('#desc').textContent=p.testo;
-  $('#chips').innerHTML=[`fino a ${p.max} ospiti`,p.id==='torre'?'due livelli':'piano terra',`${p.inclusi} ${p.inclusi===1?'ospite incluso':'ospiti inclusi'}`,`minimo ${p.min} notti`,'check-in autonomo'].map(x=>`<span>${esc(x)}</span>`).join('');
+  $('#chips').innerHTML=[`fino a ${p.max} ospiti`,p.id==='torre'?'due livelli':'piano terra',`minimo ${p.min} notti`,'check-in autonomo'].map(x=>`<span>${esc(x)}</span>`).join('');
+  // CIN e CIPAT: obbligatori negli annunci. Si impostano da Gestione (il CIPAT può arrivare dalla struttura); senza valore la riga non compare.
+  const cd=window.lcCodici?window.lcCodici(p,c.cipat):'';
+  if(cd){$('#codes').innerHTML=cd;$('#codes').hidden=false}
+  // testo di approfondimento (Gestione → appartamento → Testi)
+  const more=mdLite(p.dettagli);
+  if(more.length){$('#more').innerHTML=more.map(b=>b.h?`<h3>${esc(b.h)}</h3>`:b.p!==undefined?`<p>${esc(b.p)}</p>`:`<ul>${b.li.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`).join('');$('#more').hidden=false}
+  // servizi: i primi in evidenza, tutti in una finestra
+  const sg=srvGroups(p.servizi),sAll=sg.flatMap(g=>g.v);
+  if(sAll.length){
+    $('#srv-top').innerHTML=sAll.slice(0,8).map(x=>`<li>${esc(x)}</li>`).join('');
+    $('#srv-open').textContent=`Mostra tutti i servizi (${sAll.length})`;
+    $('#srv').hidden=false;
+    $('#srv-open').onclick=e=>modal('Servizi · '+short(p),sg.map(g=>`<div class="srv-group">${g.t?`<h3>${esc(g.t)}</h3>`:''}<ul class="srv-list">${g.v.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join(''),e.currentTarget)}
   if(other){
     $('#other-title').textContent=short(other);
     $('#other-name').textContent=short(other);
@@ -64,7 +108,7 @@ async function apt(c){
   $('#g-prev').onclick=()=>goTo(cur-1);
   $('#g-next').onclick=()=>goTo(cur+1);
   th.onclick=e=>{const b=e.target.closest('button');if(b)goTo(+b.dataset.i)};
-  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
+  document.addEventListener('keydown',e=>{if(document.body.classList.contains('modal-open'))return;if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
 
   // Swipe col dito sulla foto grande (mobile): trascina a sinistra = avanti, a destra = indietro
   if(N>1){
@@ -100,62 +144,108 @@ async function apt(c){
     box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card.</p></div>`;
     return;
   }
-  // Risposta v2: {v:2,status:'ok'|'degraded',asOf,dates:[…]}. Se la disponibilità non è verificabile il server risponde 503 (get() → null):
+  // Risposta v2: {v:2,status:'ok'|'degraded',asOf,dates:[…],notice,limit}. Se la disponibilità non è verificabile il server risponde 503 (get() → null):
   // in quel caso non si mostra mai un calendario "libero" a caso, ma si invita a scrivere o chiamare.
   const bz=await get('a=busy&id='+p.id);
   if(!bz||bz.v!==2||!Array.isArray(bz.dates)){
     box.innerHTML=`<div class="offline-note" data-testid="booking-offline"><h3>Disponibilità e prenotazioni</h3><p>In questo momento non riesco a verificare la disponibilità del calendario. Per prenotare scrivici a <a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594">+39 351 704 3594</a>.</p></div>`;
     return;
   }
-  const busy=new Set(bz.dates),today=iso(new Date());
+  let busy=new Set(bz.dates);const today=iso(new Date()),RE_D=/^\d{4}-\d\d-\d\d$/;
   // preavviso minimo: il primo arrivo prenotabile lo calcola il SERVER (ora di Roma), il browser non fa conti sull'orologio.
   // I giorni prima di quella data compaiono come non disponibili; l'avviso si vede solo se il titolare ha impostato almeno 1 giorno.
-  const first=bz.notice&&/^\d{4}-\d\d-\d\d$/.test(bz.notice.primoArrivo||'')?bz.notice.primoArrivo:'',
+  const first=bz.notice&&RE_D.test(bz.notice.primoArrivo||'')?bz.notice.primoArrivo:'',
     nt=first&&+bz.notice.giorni>0?+bz.notice.giorni:0,
     ntMsg=nt?`Prenotazioni online con almeno ${nt} ${nt===1?'giorno':'giorni'} di preavviso: il primo arrivo possibile è il ${fmtD(first)}.`:'';
-  let da='',a='',m=new Date();m.setDate(1);
+  // orizzonte: dal sito si prenota al massimo 6 mesi in avanti. L'ultimo giorno lo indica il server; se manca si calcola qui.
+  const lim={mesi:+(bz.limit&&bz.limit.mesi)||6,last:bz.limit&&RE_D.test(bz.limit.ultimoGiorno||'')?bz.limit.ultimoGiorno:''};
+  if(!lim.last){const d=new Date();d.setMonth(d.getMonth()+lim.mesi);lim.last=iso(d)}
+  const last=lim.last,mk=d=>d.getFullYear()*12+d.getMonth(),kLast=+last.slice(0,4)*12+(+last.slice(5,7)-1);
+  let da='',a='',n=Math.min(2,p.max),step=1,stale=false,m=new Date();m.setDate(1);const k0=mk(m);
   box.innerHTML=`
-  <div class="cal-head"><button type="button" class="cal-nav" id="pv" aria-label="Mese precedente">‹</button><b id="mt" data-testid="cal-month"></b><button type="button" class="cal-nav" id="nx" aria-label="Mese successivo">›</button></div>
-  <div class="cal" id="cal" data-testid="calendar"></div>
-  <p class="quote-line" id="q" data-testid="quote"></p>
-  ${ntMsg?`<p class="book-note" id="nt" data-testid="notice-note">${esc(ntMsg)}</p>`:''}
-  <form id="f" data-testid="booking-form">
-    <div class="field"><label for="osp">Ospiti (max ${p.max})</label><select id="osp" name="ospiti" data-testid="booking-guests">${Array.from({length:p.max},(_,i)=>`<option value="${i+1}"${i===1?' selected':''}>${i+1}</option>`).join('')}</select></div>
-    <div class="field"><label for="bn">Nome e cognome</label><input id="bn" name="nome" required data-testid="booking-name"></div>
-    <div class="field"><label for="be">Email</label><input id="be" name="email" type="email" required data-testid="booking-email"></div>
-    <div class="field"><label for="bt">Telefono <small>(facoltativo)</small></label><input id="bt" name="tel" data-testid="booking-phone"></div>
-    <p class="book-note" data-testid="booking-privacy">Nome ed email servono per registrare la prenotazione e inviarti la conferma; il telefono, se lo indichi, solo per contattarti in caso di necessità sul soggiorno. Il pagamento avviene sulla pagina sicura di Stripe. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
-    <button class="btn btn-wine" style="width:100%;justify-content:center" data-testid="booking-submit">Prenota</button>
-    <p class="form-err" id="e" data-testid="booking-error"></p>
-  </form>`;
+  <ol class="bk-steps" data-testid="booking-steps" aria-label="Fasi della prenotazione"><li class="on" data-s="1"><span>1</span>Date</li><li data-s="2"><span>2</span>Dati</li><li data-s="3"><span>3</span>Pagamento</li></ol>
+  <p class="form-err" id="e" data-testid="booking-error" role="alert"></p>
+  <div class="bk-pane" id="p1">
+    <div class="cal-head"><button type="button" class="cal-nav" id="pv" aria-label="Mese precedente">‹</button><b id="mt" data-testid="cal-month" aria-live="polite"></b><button type="button" class="cal-nav" id="nx" aria-label="Mese successivo">›</button></div>
+    <div class="cal" id="cal" data-testid="calendar"></div>
+    <p class="book-note" data-testid="booking-limit">Prenotabile fino al ${esc(fmtD(last))}.</p>
+    ${ntMsg?`<p class="book-note" id="nt" data-testid="notice-note">${esc(ntMsg)}</p>`:''}
+    <div class="bk-range"><div class="bk-box on" id="b-in"><span>Arrivo</span><b id="v-in" data-testid="booking-arrival">—</b></div><div class="bk-box" id="b-out"><span>Partenza</span><b id="v-out" data-testid="booking-departure">—</b></div></div>
+    <div class="bk-guests"><div class="lab">Ospiti<small>massimo ${p.max}</small></div><div class="stepper"><button type="button" id="g-dec" aria-label="Un ospite in meno" data-testid="booking-guests-minus">−</button><b id="g-val" data-testid="booking-guests" aria-live="polite">${n}</b><button type="button" id="g-inc" aria-label="Un ospite in più" data-testid="booking-guests-plus">+</button></div></div>
+    <div class="bk-quote">
+      <p class="quote-line" id="q" data-testid="quote"></p>
+      <div class="bk-total" id="tot" hidden><span>Totale soggiorno</span><b id="tot-v" data-testid="booking-total"></b></div>
+      <button type="button" class="btn btn-wine bk-cta" id="go" data-testid="booking-continue" hidden>Prenota</button>
+    </div>
+  </div>
+  <div class="bk-pane" id="p2" hidden>
+    <div class="bk-recap" data-testid="booking-recap"><b id="r-apt"></b><span id="r-dates"></span><div class="r-tot" id="r-tot"></div><button type="button" class="link-btn" id="back" data-testid="booking-back">Modifica date e ospiti</button></div>
+    <form id="f" data-testid="booking-form">
+      <div class="field-row">
+        <div class="field"><label for="bn">Nome</label><input id="bn" name="nome" required autocomplete="given-name" data-testid="booking-name"></div>
+        <div class="field"><label for="bs">Cognome</label><input id="bs" name="cognome" required autocomplete="family-name" data-testid="booking-surname"></div>
+      </div>
+      <div class="field"><label for="be">Email</label><input id="be" name="email" type="email" required autocomplete="email" data-testid="booking-email"></div>
+      <div class="field"><label for="bt">Telefono <small>(facoltativo)</small></label><input id="bt" name="tel" type="tel" autocomplete="tel" data-testid="booking-phone"></div>
+      <p class="book-note" data-testid="booking-privacy">Nome ed email servono per registrare la prenotazione e inviarti la conferma; il telefono, se lo indichi, solo per contattarti in caso di necessità sul soggiorno. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
+      <button class="btn btn-wine bk-cta" data-testid="booking-submit">Vai al pagamento</button>
+      <p class="bk-secure">Il pagamento avviene sulla pagina sicura di Stripe: l'importo è quello che vedi qui sopra.</p>
+    </form>
+  </div>`;
+  const msg=t=>{const el=$('#e');el.textContent=t||'';if(t&&el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})};
   if(pagamento==='annullato'){
     const cc=(qp.get('code')||'').trim().toUpperCase(),s=accGet();if(cc&&s&&s.c===cc)api('checkout_cancel',{code:cc,t:s.t}).catch(()=>{});      // libera subito le notti trattenute durante il pagamento (serve il token del checkout)
     history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
-  const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate();
+  // importo e pulsante "Prenota": compaiono solo con arrivo e partenza scelti. Qui non si mostra mai il prezzo di una singola notte.
+  const upd=()=>{
+    const ok=!!a,nn=ok?days(da,a).length:0;
+    $('#v-in').textContent=da?fmtW(da):'—';$('#v-out').textContent=a?fmtW(a):'—';
+    $('#b-in').classList.toggle('on',!da);$('#b-out').classList.toggle('on',!!da&&!a);
+    $('#g-dec').disabled=n<=1;$('#g-inc').disabled=n>=p.max;
+    $('#q').textContent=ok?`${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`:da?'Ora scegli il giorno di partenza.':'Scegli arrivo e partenza: qui compare l’importo.';
+    $('#tot').hidden=!ok;$('#go').hidden=!ok;
+    if(ok)$('#tot-v').textContent=money(tot(p,da,a,n))};
+  const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,nd=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
-    let h='LMMGVSD'.split('').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);
-    for(let i=1;i<=n;i++){const d=`${y}-${String(mo+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`,x=d<today||(first&&d<first)||busy.has(d);
-      h+=`<div class="d${x?' x':''}${d===da||d===a?' s':''}${da&&a&&d>da&&d<a?' r':''}" data-d="${d}">${i}<small>${x?'':eur(np(p,d))}</small></div>`}
-    $('#cal').innerHTML=h;
-    $('#q').textContent=a?`${days(da,a).length} notti · totale ${eur(tot(p,da,a,+$('#osp').value))}`:'Scegli arrivo e partenza. Sotto ogni giorno trovi il prezzo per notte.'};
+    $('#pv').disabled=mk(m)<=k0;$('#nx').disabled=mk(m)>=kLast;      // né indietro oltre il mese in corso né avanti oltre i 6 mesi
+    let h='LMMGVSD'.split('').map(x=>`<b aria-hidden="true">${x}</b>`).join('')+'<i></i>'.repeat(f);
+    for(let i=1;i<=nd;i++){const d=`${y}-${pad(mo+1)}-${pad(i)}`,beyond=d>last,x=beyond||d<today||(first&&d<first)||busy.has(d);
+      h+=`<button type="button" class="d${x?' x':''}${beyond||d<today?' f':''}${d===da||d===a?' s':''}${da&&a&&d>da&&d<a?' r':''}" data-d="${d}" aria-label="${esc(fmtL(d))}${x?', non disponibile':''}"${x?' aria-disabled="true"':''}>${i}</button>`}
+    $('#cal').innerHTML=h;upd()};
   $('#pv').onclick=()=>{m.setMonth(m.getMonth()-1);draw()};
   $('#nx').onclick=()=>{m.setMonth(m.getMonth()+1);draw()};
-  $('#osp').onchange=draw;
+  const setN=v=>{n=Math.min(p.max,Math.max(1,v));$('#g-val').textContent=n;upd()};
+  $('#g-dec').onclick=()=>setN(n-1);$('#g-inc').onclick=()=>setN(n+1);
   $('#cal').onclick=e=>{const el=e.target.closest('.d');if(!el)return;const d=el.dataset.d,second=da&&!a&&d>da;
-    if(el.classList.contains('x')&&!second){if(nt&&d>=today&&d<first)$('#e').textContent=ntMsg;return}
-    if(!second){da=d;a='';$('#e').textContent=''}
+    if(d>last){msg(`Si può prenotare fino al ${fmtD(last)}: al massimo ${lim.mesi} mesi in anticipo.`);return}
+    if(el.classList.contains('x')&&!second){if(nt&&d>=today&&d<first)msg(ntMsg);return}
+    if(!second){da=d;a='';msg('')}
     else{const g=days(da,d);
-      const mn=minFor(p,da);if(g.length<mn){$('#e').textContent='Soggiorno minimo per queste date: '+mn+' notti';return}
-      if(g.some(z=>busy.has(z))){$('#e').textContent='Nel periodo scelto ci sono date occupate';return}
-      a=d;$('#e').textContent=''}
+      const mn=minFor(p,da);if(g.length<mn){msg('Soggiorno minimo per queste date: '+mn+' notti');return}
+      if(g.some(z=>busy.has(z))){msg('Nel periodo scelto ci sono date occupate');return}
+      a=d;msg('')}
     draw()};
+  // passo 1 (date e ospiti) → passo 2 (dati e pagamento)
+  const goStep=k=>{step=k;$('#p1').hidden=k!==1;$('#p2').hidden=k!==2;
+    box.querySelectorAll('.bk-steps li').forEach(li=>{const s=+li.dataset.s;li.classList.toggle('on',s===k);li.classList.toggle('done',s<k);li.firstElementChild.textContent=s<k?'✓':String(s)});
+    $('.book-card').classList.toggle('step2',k===2);      // con il modulo aperto basta il riepilogo: la carta resta corta
+    if(window.matchMedia&&matchMedia('(max-width:960px)').matches)$('.book-card').scrollIntoView({behavior:'smooth',block:'start'})};
+  $('#go').onclick=()=>{if(!a)return;msg('');
+    const nn=days(da,a).length;
+    $('#r-apt').textContent=short(p);$('#r-dates').textContent=`${fmtW(da)} → ${fmtW(a)} · ${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`;$('#r-tot').textContent=money(tot(p,da,a,n));
+    goStep(2);$('#bn').focus({preventScroll:true})};
+  $('#back').onclick=async()=>{msg('');goStep(1);
+    if(stale){stale=false;      // dopo un errore del server le date potrebbero non essere più libere: si ricarica il calendario
+      const z=await get('a=busy&id='+p.id);
+      if(z&&z.v===2&&Array.isArray(z.dates)){busy=new Set(z.dates);if(a&&days(da,a).some(d=>busy.has(d))){da=a='';msg('Queste date non sono più disponibili: scegline altre.')}draw()}}};
   $('#f').onsubmit=async e=>{e.preventDefault();
-    if(!a){$('#e').textContent='Scegli le date sul calendario';return}
+    if(!a){goStep(1);msg('Scegli le date sul calendario');return}
     const btn=e.target.querySelector('[data-testid="booking-submit"]');
-    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Reindirizzo al pagamento…';$('#e').textContent='';
-    try{const r=await api('checkout',{...Object.fromEntries(new FormData(e.target)),id:p.id,da,a});
+    if(btn.dataset.loading)return;btn.dataset.loading='1';const orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Reindirizzo al pagamento…';msg('');
+    const fd=Object.fromEntries(new FormData(e.target));
+    try{const r=await api('checkout',{id:p.id,da,a,ospiti:n,nome:`${String(fd.nome||'').trim()} ${String(fd.cognome||'').trim()}`.trim(),email:fd.email,tel:fd.tel});
       accSet(r.code,r.t);location.href=r.url}
-    catch(x){$('#e').textContent=x.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
+    catch(x){stale=true;msg(x.message);btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   draw();
 }
 
@@ -254,10 +344,14 @@ async function eventi(c){
   const auto=Array.isArray(feed)?feed:[];
   const man=Array.isArray(manual)?manual:[];
   const today=iso(new Date());
-  const all=[...auto,...man].filter(x=>x.date>=today).sort((a,b)=>a.date<b.date?-1:1);
+  const all=[...auto,...man].filter(x=>x&&x.date>=today).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
   if(!all.length){box.innerHTML='<p class="book-note">Nessun evento in programma al momento.</p>';return}
+  // gli eventi sono raggruppati per mese: la pagina resta leggibile anche con molti appuntamenti
+  let mese='';
   box.innerHTML=all.map(x=>{
-    const u=safeUrl(x.url),
+    const m=String(x.date).slice(0,7),
+    head=m!==mese?(mese=m,`<h2 class="ev-month" data-testid="ev-month-${esc(m)}">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{month:'long',year:'numeric'}))}</h2>`):'',
+    u=safeUrl(x.url),
     inner=`
       <div class="body">
         <span class="section-kicker">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}${x.source?' · '+esc(x.source):''}</span>
@@ -265,9 +359,9 @@ async function eventi(c){
         <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
         ${u?`<div class="cta"><span class="cta-link">Scopri di più <span aria-hidden="true">→</span></span></div>`:''}
       </div>`;
-    return u
+    return head+(u
       ?`<a class="apt-card ev-card ev-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer" aria-label="Apri la pagina dell'evento: ${esc(x.title)}" data-testid="ev-${esc(x.date)}">${inner}</a>`
-      :`<article class="apt-card ev-card" data-testid="ev-${esc(x.date)}">${inner}</article>`}).join('');
+      :`<article class="apt-card ev-card" data-testid="ev-${esc(x.date)}">${inner}</article>`)}).join('');
 }
 
 const P={apt,clienti,guestcard,eventi};

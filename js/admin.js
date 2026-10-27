@@ -33,7 +33,12 @@ const route=()=>{const[s,sub]=(location.hash||'#panoramica').slice(1).split('/')
 const norm=()=>{S.ical=S.ical||{};S.closed=S.closed||{};S.chi=S.chi||'';
   const pg=Number(S.preavvisoGiorni);S.preavvisoGiorni=Number.isInteger(pg)&&pg>=0&&pg<=365?pg:0;S.checkinOra=/^([01]\d|2[0-3]):[0-5]\d$/.test(S.checkinOra)?S.checkinOra:'16:00';
   S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[];p.blocked=p.blocked||{};p.minPeriodi=p.minPeriodi||[];p.foto=p.foto||[];p.inclusi=p.inclusi||1;
-    if(!Array.isArray(p.extraSteps)||!p.extraSteps.length)p.extraSteps=(+p.extra>0)?[+p.extra]:[0]})};
+    if(!Array.isArray(p.extraSteps)||!p.extraSteps.length)p.extraSteps=(+p.extra>0)?[+p.extra]:[0];
+    // Il prezzo base è quello del 1° ospite e ogni ospite dopo il primo ha il suo supplemento. Un vecchio "N ospiti inclusi" diventa
+    // N-1 supplementi a 0: i prezzi a notte per 1, 2, 3… ospiti restano identici a prima (il sito e il server non cambiano).
+    if(p.inclusi>1){p.extraSteps=[...Array(p.inclusi-1).fill(0),...p.extraSteps];p.inclusi=1}
+    p.extraSteps=p.extraSteps.slice(0,Math.max(1,(+p.max||1)-1));
+    ['cin','cipat','dettagli','servizi'].forEach(k=>{if(typeof p[k]!=='string')p[k]=''})})};
 const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
   (D.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>BUSY[e.id]&&BUSY[e.id].add(x)));
   (D.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>BUSY[x.id]&&BUSY[x.id].add(z)))};
@@ -113,22 +118,32 @@ function aptAfter(p,sub){const i=idx(p.id);
 const sTesti=(p,i)=>`<div class="field"><label>Nome</label><input data-b="a:${i}:nome" value="${esc(p.nome)}"></div>
   <div class="field"><label>Sottotitolo</label><input data-b="a:${i}:sotto" value="${esc(p.sotto)}"></div>
   <div class="field"><label>Descrizione</label><textarea rows="10" data-b="a:${i}:testo">${esc(p.testo)}</textarea></div>
-  <div class="fields-grid"><div class="field"><label>Ospiti massimi</label><input type="number" min="1" data-b="a:${i}:max" value="${p.max}"></div></div>`;
+  <div class="fields-grid"><div class="field"><label>Ospiti massimi</label><input type="number" min="1" data-b="a:${i}:max" value="${p.max}"></div></div>
+  <h3>Codici dell'alloggio</h3>
+  <p class="book-note">CIN e CIPAT compaiono sotto la descrizione, nella pagina dell'appartamento e nella scheda in home. Un campo lasciato vuoto non compare. Se il CIPAT è vuoto vale quello della struttura (variabile ISTAT_CIPAT su Vercel), se impostato.</p>
+  <div class="fields-grid"><div class="field"><label>CIN</label><input data-b="a:${i}:cin" value="${esc(p.cin)}" autocomplete="off" data-testid="admin-cin-${p.id}"></div>
+  <div class="field"><label>CIPAT</label><input data-b="a:${i}:cipat" value="${esc(p.cipat)}" autocomplete="off" data-testid="admin-cipat-${p.id}"></div></div>
+  <h3>Approfondimento</h3>
+  <p class="book-note">Testo che compare sotto la descrizione. Scrivi «## Titolo» per aprire una sezione e lascia una riga vuota tra un paragrafo e l'altro.</p>
+  <div class="field"><textarea rows="16" data-b="a:${i}:dettagli" data-testid="admin-dettagli-${p.id}">${esc(p.dettagli)}</textarea></div>
+  <h3>Servizi</h3>
+  <p class="book-note">L'elenco che si apre con «Mostra tutti i servizi». Scrivi «## Gruppo» per aprire un gruppo; ogni servizio è una riga che inizia con «- ». I primi 8 compaiono anche nella pagina.</p>
+  <div class="field"><textarea rows="16" data-b="a:${i}:servizi" data-testid="admin-servizi-${p.id}">${esc(p.servizi)}</textarea></div>`;
 
 const sFoto=(p,i)=>`<p class="book-note">Trascina le foto per cambiare l'ordine oppure usa le frecce. La <b>prima</b> è la copertina (★ per usarne un'altra). Le foto vengono ridimensionate automaticamente.</p>
   <div class="pm-grid" id="pm-${i}"></div>
   <div class="upload-row"><label class="upload-btn">+ Aggiungi foto<input type="file" accept="image/*" multiple class="up" data-i="${i}"></label><span class="admin-msg" id="om${i}"></span></div>`;
 
-const sPrezzi=(p,i)=>`<h3>Prezzo base</h3>
-  <div class="fields-grid"><div class="field"><label>Prezzo a notte (€)</label><input type="number" min="0" data-b="a:${i}:base" value="${p.base}"></div>
-  <div class="field"><label>Ospiti inclusi nel prezzo</label><input type="number" min="1" data-b="a:${i}:inclusi" value="${p.inclusi}"></div></div>
-  <h3>Supplemento per ospiti extra (a notte)</h3>
-  <p class="book-note">Ogni ospite oltre quelli inclusi aggiunge un importo a notte, diverso per ciascun ospite. Esempio: 1 ospite incluso e scaglioni +10 · +25 · +50 → 2 ospiti €110, 3 ospiti €135, 4 ospiti €185 (a notte, sul prezzo base di €100). L'ultimo importo vale anche per gli ospiti successivi.</p>
+const sPrezzi=(p,i)=>`<h3>Prezzo del 1° ospite</h3>
+  <div class="fields-grid"><div class="field"><label>Prezzo a notte con 1 ospite (€)</label><input type="number" min="0" data-b="a:${i}:base" value="${p.base}" data-testid="admin-base-${p.id}"></div></div>
+  <p class="book-note">È il prezzo a notte per il primo ospite: gli ospiti in più si aggiungono qui sotto. I prezzi di stagione e quelli per singola notte sostituiscono questo importo.</p>
+  <h3>Ospiti in più (a notte)</h3>
+  <p class="book-note">Ogni ospite dopo il primo aggiunge un importo a notte, diverso per ciascuno: metti 0 se quell'ospite non costa di più. Esempio: 1° ospite €100 e supplementi +10 · +25 · +50 → 2 ospiti €110, 3 ospiti €135, 4 ospiti €185 a notte. L'ultimo importo vale anche per gli ospiti successivi.</p>
   <div id="steps-${i}"></div>
   <button type="button" class="btn btn-line" data-act="stepAdd" data-i="${i}">+ Aggiungi scaglione</button>
   <div id="prev-${i}" class="adm-prev"></div>
   <h3>Prezzi per periodo (stagioni)</h3>
-  <p class="book-note">Un prezzo base diverso per un intervallo di date (es. estate, Natale). I prezzi impostati sulle singole notti hanno la precedenza.</p>
+  <p class="book-note">Un prezzo del 1° ospite diverso per un intervallo di date (es. estate, Natale): i supplementi per gli ospiti in più restano quelli di sopra. I prezzi impostati sulle singole notti hanno la precedenza.</p>
   <div id="per-${i}"></div>
   <button type="button" class="btn btn-line" data-act="perAdd" data-i="${i}">+ Aggiungi periodo</button>
   <h3>Prezzo per singola notte</h3>${calTools(i,'price')}<div id="cal-${i}"></div>`;
@@ -153,7 +168,7 @@ function stepsRender(i){const p=S.apts[i],el=$('#steps-'+i);if(!el)return;
   el.innerHTML=`<div class="adm-rows">${p.extraSteps.map((v,j)=>`<div class="adm-row"><span>Dal <b>${p.inclusi+j+1}° ospite</b>${j===p.extraSteps.length-1&&p.max>p.inclusi+j+1?' in poi':''}</span><div class="adm-inp"><span>+ €</span><input type="number" min="0" data-step="${i}:${j}" value="${v}" aria-label="Supplemento a notte"></div>${p.extraSteps.length>1?`<button type="button" class="stato-select" data-act="stepDel" data-i="${i}" data-j="${j}" aria-label="Rimuovi">✕</button>`:''}</div>`).join('')}</div>`}
 function prevRender(i){const p=S.apts[i],el=$('#prev-'+i);if(!el)return;
   const o=[];for(let n=1;n<=Math.max(1,p.max);n++)o.push(`<span><b>${n} ${n===1?'ospite':'ospiti'}</b> ${eur((+p.base||0)+sup(p,n))}<small>/notte</small></span>`);
-  el.innerHTML='<div class="adm-prev-t">Anteprima prezzo a notte (sul prezzo base)</div><div class="adm-prev-r">'+o.join('')+'</div>'}
+  el.innerHTML='<div class="adm-prev-t">Anteprima: prezzo a notte per numero di ospiti</div><div class="adm-prev-r">'+o.join('')+'</div>'}
 
 // --- periodi (stagioni) ---
 function perRender(i){const p=S.apts[i],el=$('#per-'+i);if(!el)return;
@@ -172,7 +187,7 @@ const resize=f=>new Promise((res,rej)=>{const im=new Image;im.onload=()=>{const 
 // --- calendario (prezzi / disponibilità) ---
 const calTools=(i,mode)=>`<div class="pcal-sel"><div class="adm-inp"><span>Intervallo dal</span><input type="date" id="rf-${i}" min="${today}"></div><div class="adm-inp"><span>al</span><input type="date" id="rt-${i}" min="${today}"></div><button type="button" class="btn btn-line" data-act="selRange" data-i="${i}">Aggiungi alla selezione</button><button type="button" class="btn btn-line" data-act="selMonth" data-i="${i}">Seleziona mese</button><button type="button" class="btn btn-line" data-act="selClear" data-i="${i}">Deseleziona</button></div>
   <div class="pcal-tools">${mode==='price'
-   ?`<div class="field" style="margin:0"><label>Prezzo a notte (€)</label><input type="number" min="0" id="pv-${i}" placeholder="es. 200"></div><button type="button" class="btn btn-wine" data-act="applyPrice" data-i="${i}">Applica a <span data-selcount="${i}">0</span> giorni</button><button type="button" class="btn btn-line" data-act="resetPrice" data-i="${i}">Ripristina prezzo base</button>`
+   ?`<div class="field" style="margin:0"><label>Prezzo del 1° ospite (€)</label><input type="number" min="0" id="pv-${i}" placeholder="es. 200"></div><button type="button" class="btn btn-wine" data-act="applyPrice" data-i="${i}">Applica a <span data-selcount="${i}">0</span> giorni</button><button type="button" class="btn btn-line" data-act="resetPrice" data-i="${i}">Ripristina prezzo base</button>`
    :`<button type="button" class="btn btn-wine" data-act="block" data-i="${i}">Blocca <span data-selcount="${i}">0</span> notti</button><button type="button" class="btn btn-line" data-act="unblock" data-i="${i}">Sblocca</button>`}</div>`;
 function calRender(i){const p=S.apts[i],el=$('#cal-'+i);if(!el)return;
   const mode=route().sub==='prezzi'?'price':'avail';
@@ -309,7 +324,7 @@ function adpAfter(){const el=$('#adp-root');if(!el)return;
   mod.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()}})}
 
 // ---------- Eventi ----------
-function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono anche nella sezione «Eventi in programma» della pagina Luoghi di interesse.</p>
+function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono nella pagina «Eventi» del sito.</p>
   <form id="evform" class="ev-form"><div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div><div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div><div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div><div class="field" style="margin:0"><label>Luogo</label><input name="location" data-testid="ev-loc"></div><div class="field" style="margin:0"><label>Link (facoltativo)</label><input name="url" placeholder="https://" data-testid="ev-url"></div><button class="btn btn-wine" data-testid="ev-add">+ Aggiungi</button></form>
   <div class="table-wrap tw-stack" style="margin-top:16px"><table class="data stack" data-testid="ev-table"><thead><tr><th>Titolo</th><th>Data</th><th>Ora</th><th>Luogo</th><th></th></tr></thead><tbody>${EV.length?EV.map(x=>`<tr><td data-label="Titolo"><b>${esc(x.title)}</b></td><td data-label="Data">${esc(x.date)}</td><td data-label="Ora">${esc(x.time||'')}</td><td data-label="Luogo">${esc(x.location||'')}</td><td class="td-azioni"><button type="button" class="stato-select" data-act="evDel" data-id="${esc(x.id)}">Elimina</button></td></tr>`).join(''):'<tr><td colspan="5" class="td-empty">Nessun evento manuale.</td></tr>'}</tbody></table></div></div>`}
 

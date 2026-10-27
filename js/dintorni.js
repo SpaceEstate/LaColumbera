@@ -1,4 +1,4 @@
-// La Columbera · Luoghi di interesse, Eventi per stagione e Convenzioni.
+// La Columbera · Luoghi di interesse, cosa fare per stagione e Convenzioni (gli eventi in programma sono nella pagina eventi.html).
 // Dati statici: per cambiare testi, link o foto basta modificare questo file.
 //
 // FOTO — ogni scheda mostra una foto vera del luogo, mai casuale, in quest'ordine:
@@ -43,15 +43,15 @@
   // Se il sito è compilato e il dominio è aggiunto a OG_HOSTS (variabile Vercel), la foto arriva da lì.
   // Foto propria: basta aggiungere il file in img/convenzioni/<id>.jpg, ha sempre la precedenza.
   var CONVENZIONI=[
-    {id:'pizzeria-da-mimmo',nome:'Pizzeria Da Mimmo',cat:'Pizzeria · Cucina',zona:'Ravina',badge:'Convenzionata',sito:'',maps:'Pizzeria Ristorante Da Mimmo, Ravina, Trento',
+    {id:'pizzeria-da-mimmo',nome:'Pizzeria Da Mimmo',cat:'Pizzeria · Cucina',zona:'Ravina',sito:'',maps:'Pizzeria Ristorante Da Mimmo, Ravina, Trento',
      d:'La pizzeria del borgo, a due passi dalla dimora: impasto curato, forno a legna e piatti della tradizione.'},
     {id:'sun7-caffe',nome:'Sun7 Caffè',cat:'Caffè · Colazioni & aperitivi',zona:'Ravina',badge:'Convenzionato',sito:'',maps:'Sun7 Caffè, Ravina, Trento',
      d:'Il punto di riferimento per la colazione e l\u2019aperitivo: caffetteria, brioche e un dehor dove fermarsi con calma.'},
     {id:'forst-biergarten',nome:'La Torre · Biergarten Forst',cat:'Birreria · Giardino',zona:'Nei dintorni',badge:'Solo estate',estate:true,sito:'https://www.forst.it/it/locali/la-torre-biergarten-forst/',maps:'La Torre Biergarten Forst, Trento',
      d:'Il giardino estivo all\u2019aperto: birre Forst alla spina, piatti tirolesi e lunghe serate sotto gli alberi. Aperto nella bella stagione.'},
-    {id:'bisto',nome:'Bistò',cat:'Bistrot · Cucina & drink',zona:'Nei dintorni',badge:'Convenzionato',sito:'',maps:'Bistò, Trento',
+    {id:'bisto',nome:'Bistò',cat:'Bistrot · Cucina & drink',zona:'Nei dintorni',sito:'',maps:'Bistò, Trento',
      d:'Bistrot moderno dove la cucina di stagione incontra una drink list curata: perfetto per una cena diversa dal solito.'},
-    {id:'palestra-juta',nome:'Palestra Juta',cat:'Sport · Fitness',zona:'Nei dintorni',badge:'Convenzionata',sito:'https://www.palestra-trento-juta.it/palestra-a-ravina/',maps:'Palestra Juta, Trento',
+    {id:'palestra-juta',nome:'Palestra Juta',cat:'Sport · Fitness',zona:'Nei dintorni',sito:'https://www.palestra-trento-juta.it/palestra-a-ravina/',maps:'Palestra Juta, Trento',
      d:'Per chi non rinuncia all\u2019allenamento in vacanza: sala attrezzi e corsi a pochi minuti dalla struttura.'}
   ];
 
@@ -78,8 +78,8 @@
        d:'Il castello sull\u2019acqua, una passeggiata lungolago e una sosta nelle cantine della valle.',
        link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
       {t:'Gli eventi dell\u2019estate a Trento',m:'sempre aggiornato',alt:'Eventi in Trentino',
-       d:'Festival, concerti e appuntamenti estivi in città: qui sopra trovi gli eventi in programma, sempre aggiornati.',
-       link:'#eventi',lt:'Vai agli eventi in programma',og:VT+'guida/cosa-fare/eventi'}
+       d:'Festival, concerti e appuntamenti estivi in città: nella pagina Eventi trovi tutti gli appuntamenti in programma, sempre aggiornati.',
+       link:'eventi.html',lt:'Vai agli eventi in programma',og:VT+'guida/cosa-fare/eventi'}
     ],
     autunno:[
       {t:'Vendemmia e Strada del Vino',m:'settembre – ottobre',alt:'Vigneti del Trentino in autunno',

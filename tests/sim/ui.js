@@ -6,8 +6,8 @@
 //
 // Senza jsdom il file esce senza errori (le prove UI vengono saltate).
 const path = require('path'), fs = require('fs'), assert = require('assert');
-let JSDOM;
-try { ({ JSDOM } = require(process.env.JSDOM_PATH || 'jsdom')); }
+let JSDOM, VirtualConsole;
+try { ({ JSDOM, VirtualConsole } = require(process.env.JSDOM_PATH || 'jsdom')); }
 catch (e) { console.log('jsdom non disponibile (npm i jsdom, oppure JSDOM_PATH=…): prove UI saltate'); process.exit(0); }
 const H = require('./harness'), { kv, clock, MIN } = H;
 const ROOT = path.join(__dirname, '..', '..');
@@ -15,8 +15,8 @@ const tick = (min = 11) => clock.advance(min * MIN);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const T = '"La Columbera - Torre, Appartamento con 2 camere da letto"', C = '"La Columbera - Corte, Appartamento con 1 camere da letto"', HDR = ['Numero Prenotazione', 'Data Check-in', 'Appartamento', 'Numero Ospiti', 'Numero Notti'];
 
-async function setup() {
-  const env = await H.newEnv({ legacyRows: [HDR, ['HMSEDESZCW', H.romeMidnight(2026, 10, 5), C, 2, 6], [6877180932, '02/10/2026', T, 4, 2]] });
+async function setup(envExtra) {
+  const env = await H.newEnv({ env: envExtra, legacyRows: [HDR, ['HMSEDESZCW', H.romeMidnight(2026, 10, 5), C, 2, 6], [6877180932, '02/10/2026', T, 4, 2]] });
   H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04')]);
   H.setFeed('airbnbCorte', [H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW')]);
   await H.runGas(env.gas, 'setup'); await H.runGas(env.gas, 'migraRegistro'); await H.sync();
@@ -89,7 +89,9 @@ function bridge(w, log) {
 async function load(file, { search = '', hash = '', token = '', session = {}, scripts, confirmAnswer = false } = {}) {
   const log = { calls: [], alerts: [], confirms: [], confirmAnswer };
   const html = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/<script[^>]*src=[^>]*><\/script>/g, '');      // gli script si eseguono a mano, nell'ordine voluto
-  const dom = new JSDOM(html, { url: 'https://www.lacolumbera.test/' + file + search + hash, runScripts: 'outside-only', pretendToBeVisual: true });
+  // Gli errori di jsdom restano visibili, tranne il cambio di pagina (location.href = pagina di pagamento Stripe): jsdom non naviga e lo segnala, ma è il comportamento giusto della pagina.
+  const vc = new VirtualConsole(); for (const k of ['log', 'info', 'warn', 'error', 'debug']) vc.on(k, (...a) => console[k](...a)); vc.on('jsdomError', e => { if (!/Not implemented: navigation/.test(e.message)) console.error(e.stack || e.message); });      // senza sendTo/forwardTo: il nome cambia da una versione di jsdom all'altra
+  const dom = new JSDOM(html, { url: 'https://www.lacolumbera.test/' + file + search + hash, runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc });
   const w = dom.window;
   w.__now = () => clock.now();
   w.eval('(function(){const R=Date;class F extends R{constructor(...a){a.length?super(...a):super(window.__now())} static now(){return window.__now()}};window.Date=F})()');      // stessa data simulata del server
@@ -299,7 +301,8 @@ test('U10 appartamento: se il limite scade mentre si compila il modulo il server
   await waitFor(() => doc.querySelector('#cal .d'), 'calendario');
   doc.querySelector('#cal .d[data-d="2026-10-16"]').click(); doc.querySelector('#cal .d[data-d="2026-10-18"]').click();
   assert(/2 notti/.test(text(doc.querySelector('#q'))), text(doc.querySelector('#q')));
-  doc.querySelector('[data-testid=booking-name]').value = 'Mario Rossi'; doc.querySelector('[data-testid=booking-email]').value = 'mario@test.it';
+  doc.querySelector('[data-testid=booking-continue]').click();                       // passo 2: compaiono i campi
+  doc.querySelector('[data-testid=booking-name]').value = 'Mario'; doc.querySelector('[data-testid=booking-surname]').value = 'Rossi'; doc.querySelector('[data-testid=booking-email]').value = 'mario@test.it';
   clock.advance(10 * MIN);                                                          // 15:05: il limite è passato mentre l'ospite compilava
   const stripeBefore = global.__stripeSessions.length;
   doc.querySelector('#f').requestSubmit();
@@ -339,6 +342,223 @@ test('U12 appartamento: a mezzanotte italiana (in UTC è ancora ieri) il giorno 
   await waitFor(() => doc.querySelector('#cal .d'), 'calendario');
   const x = [...doc.querySelectorAll('#cal .d.x')].map(c => c.dataset.d);
   assert(x.includes('2026-10-15') && !x.includes('2026-10-16'), 'il 15 per Roma è già ieri: ' + x.join(','));
+});
+
+/* ===================== prenotazione in due passi, orizzonte, servizi, codici, prezzi, eventi ===================== */
+const NIGHTS = { da: '2026-10-20', a: '2026-10-23' };      // 3 notti, tutte libere in setup()
+const pickDates = (doc, da, a) => { doc.querySelector('#cal .d[data-d="' + da + '"]').click(); doc.querySelector('#cal .d[data-d="' + a + '"]').click(); };
+const fill = (doc, v) => { for (const [k, x] of Object.entries(v)) doc.querySelector('[data-testid=booking-' + k + ']').value = x; };
+test('W1 prenotazione: prima date e importo (nessun prezzo per notte), poi i campi; "Modifica" riporta alle date senza perderle', async () => {
+  await setup();
+  const { doc, log, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => $('#cal .d'), 'calendario');
+  assert(!/€/.test($('#cal').textContent) && !$('#cal small'), 'nessun prezzo sotto i giorni del calendario');
+  assert(!/€|inclus|dal \d/.test(text($('#note'))) && /minimo 2 notti/.test(text($('#note'))) && /fino a 5 ospiti/.test(text($('#note'))), 'niente costi per ospite sopra il calendario: ' + text($('#note')));
+  assert(!/inclus/.test(text($('#chips'))), 'nemmeno nelle etichette: ' + text($('#chips')));
+  assert($('#tot').hidden && $('#go').hidden, 'senza date: niente importo e niente pulsante Prenota');
+  assert($('#p2').hidden, 'senza date: i campi non ci sono');
+  assert(/Scegli arrivo e partenza/.test(text($('#q'))), text($('#q')));
+  doc.querySelector('#cal .d[data-d="2026-10-20"]').click();
+  assert(/Ora scegli il giorno di partenza/.test(text($('#q'))) && $('#tot').hidden, 'dopo l\'arrivo si chiede la partenza');
+  doc.querySelector('#cal .d[data-d="2026-10-23"]').click();
+  assert(!$('#tot').hidden && !$('#go').hidden, 'con le date compaiono importo e Prenota');
+  assert.equal(text($('[data-testid=booking-total]')), '€540', '3 notti × €180, 2 ospiti');
+  assert(/3 notti · 2 ospiti/.test(text($('#q'))), text($('#q')));
+  assert(/20 ott/i.test(text($('#v-in'))) && /23 ott/i.test(text($('#v-out'))), 'arrivo e partenza scritti nei riquadri: ' + text($('#v-in')) + ' / ' + text($('#v-out')));
+  // ospiti: il totale segue (Torre: +€20 a notte dal 3° ospite), minimo 1, massimo 5
+  const plus = $('[data-testid=booking-guests-plus]'), minus = $('[data-testid=booking-guests-minus]');
+  plus.click(); assert.equal(text($('[data-testid=booking-total]')), '€600'); assert.equal(text($('[data-testid=booking-guests]')), '3');
+  plus.click(); plus.click(); assert.equal(text($('[data-testid=booking-total]')), '€720', '5 ospiti: 3 × (180 + 60)'); assert(plus.disabled, 'oltre il massimo non si sale');
+  for (let i = 0; i < 4; i++) minus.click(); assert(minus.disabled && text($('[data-testid=booking-guests]')) === '1', 'sotto 1 non si scende'); assert.equal(text($('[data-testid=booking-total]')), '€540', '1 ospite costa come 2 (€180 a notte)');
+  plus.click(); assert.equal(text($('[data-testid=booking-guests]')), '2');
+  // passo 2
+  $('[data-testid=booking-continue]').click();
+  assert($('#p1').hidden && !$('#p2').hidden, 'si passa ai dati');
+  const rc = text($('[data-testid=booking-recap]'));
+  assert(/Torre/.test(rc) && /3 notti/.test(rc) && /2 ospiti/.test(rc) && /€540/.test(rc), rc);
+  assert($('.bk-steps li[data-s="2"]').classList.contains('on') && $('.bk-steps li[data-s="1"]').classList.contains('done') && text($('.bk-steps li[data-s="1"] span')) === '✓', 'indicatore dei passi');
+  for (const t of ['name', 'surname', 'email', 'phone', 'submit']) assert($('[data-testid=booking-' + t + ']'), 'campo ' + t);
+  assert(/privacy\.html/.test($('[data-testid=booking-form]').innerHTML), 'informativa accanto ai campi');
+  // Modifica: si torna alle date, scelte e ospiti restano
+  $('[data-testid=booking-back]').click(); await sleep(20);
+  assert(!$('#p1').hidden && $('#p2').hidden && $('#cal .d.s[data-d="2026-10-20"]') && $('#cal .d.s[data-d="2026-10-23"]'), 'date ancora scelte');
+  assert.equal(text($('[data-testid=booking-total]')), '€540');
+  // si completa il modulo: parte la richiesta di pagamento con nome e cognome uniti e gli ospiti scelti
+  $('[data-testid=booking-continue]').click(); fill(doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it', phone: '333 1234567' });
+  const before = global.__stripeSessions.length; $('#f').requestSubmit();
+  await waitFor(() => log.calls.some(c => c.a === 'checkout' && c.status === 200), 'checkout');
+  const ss = global.__stripeSessions[before]; assert(ss, 'sessione Stripe creata');
+  assert.equal(ss.params.line_items[0].price_data.unit_amount, 54000, 'importo = quello mostrato');
+  const acc = JSON.parse(w.sessionStorage.getItem('lc_acc')), bk = JSON.parse(kv.exec(['HGET', 'bkh', acc.c]));
+  assert.deepEqual([bk.nome, bk.email, bk.tel, bk.ospiti, bk.totale, bk.da, bk.a, bk.stato], ['Mario Rossi', 'mario@test.it', '333 1234567', 2, 540, '2026-10-20', '2026-10-23', 'in_attesa']);
+});
+test('W2 prenotazione: errore del server (date non più libere) → messaggio chiaro; "Modifica" ricarica il calendario e toglie le date prese', async () => {
+  await setup();
+  const { doc, log } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => $('#cal .d'), 'calendario');
+  pickDates(doc, NIGHTS.da, NIGHTS.a); $('[data-testid=booking-continue]').click(); fill(doc, { name: 'Anna', surname: 'Verdi', email: 'anna@test.it' });
+  assert.equal((await checkout({ da: '2026-10-21', a: '2026-10-23', email: 'altro@test.it' })).status, 200);         // nel frattempo un altro ospite prende due notti
+  $('#f').requestSubmit();
+  await waitFor(() => /non più disponibili/.test(text($('#e'))), 'messaggio del server');
+  assert(!$('[data-testid=booking-submit]').disabled, 'il pulsante torna utilizzabile');
+  $('[data-testid=booking-back]').click();
+  await waitFor(() => /non sono più disponibili/.test(text($('#e'))), 'avviso dopo il ricaricamento');
+  assert(!$('#cal .d.s') && $('#cal .d[data-d="2026-10-21"].x'), 'date sbarrate e scelta azzerata');
+  assert(log.calls.filter(c => c.a === 'busy').length >= 2, 'calendario riscaricato');
+});
+test('W3 orizzonte: si vede e si prenota al massimo 6 mesi avanti (pagina e server)', async () => {
+  await setup();                                                                      // oggi = 2 ott 2026 → ultimo giorno 2 apr 2027
+  const b = await H.busy('torre'); assert.equal(b.status, 200);
+  assert.deepEqual(b.body.limit, { mesi: 6, ultimoGiorno: '2027-04-02' });
+  assert(b.body.dates.includes('2027-04-02') && !b.body.dates.includes('2027-04-01'), 'dal 2 aprile la notte non è prenotabile, quella prima sì');
+  const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s), month = () => text($('[data-testid=cal-month]')).toLowerCase();
+  await waitFor(() => $('#cal .d'), 'calendario');
+  assert(/2 apr 2027/.test(text($('[data-testid=booking-limit]'))), text($('[data-testid=booking-limit]')));
+  assert($('#pv').disabled && /ottobre 2026/.test(month()), 'indietro oltre il mese in corso non si va');
+  for (let i = 0; i < 6; i++) { assert(!$('#nx').disabled, 'avanti possibile al mese ' + i); $('#nx').click(); }
+  assert(/aprile 2027/.test(month()) && $('#nx').disabled, 'si ferma ad aprile 2027');
+  $('#nx').click(); assert(/aprile 2027/.test(month()), 'il clic su un pulsante spento non fa nulla');
+  assert($('#cal .d[data-d="2027-04-03"]').classList.contains('f') && $('#cal .d[data-d="2027-04-30"]').classList.contains('f'), 'dopo il limite i giorni sono spenti');
+  assert(!$('#cal .d[data-d="2027-04-01"]').classList.contains('f'), 'il giorno prima del limite no');
+  // partenza fino al 2 aprile compreso: 30 mar → 2 apr = 3 notti
+  $('#pv').click(); pickDates(doc, '2027-03-30', '2027-03-31'); assert(/Soggiorno minimo/.test(text($('#e'))), 'una notte sola non basta'); doc.querySelector('#cal .d[data-d="2027-03-30"]').click();
+  $('#nx').click(); doc.querySelector('#cal .d[data-d="2027-04-03"]').click();
+  assert(/fino al 2 apr 2027/.test(text($('#e'))) && !$('#cal .d.s[data-d="2027-04-03"]'), 'oltre il limite: messaggio e nessuna selezione: ' + text($('#e')));
+  doc.querySelector('#cal .d[data-d="2027-04-02"]').click();
+  assert(/3 notti/.test(text($('#q'))) && text($('#e')) === '', 'il 2 aprile come partenza va bene: ' + text($('#q')));
+  // il server fa rispettare lo stesso limite anche a chi non usa la pagina
+  const ok = await checkout({ da: '2027-03-30', a: '2027-04-02' }); assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  const no1 = await checkout({ da: '2027-04-01', a: '2027-04-03', email: 'b@t.it' }); assert.equal(no1.status, 409); assert.equal(no1.body.code, 'OLTRE_ORIZZONTE'); assert.equal(no1.body.ultimoGiorno, '2027-04-02'); assert(/2 aprile 2027/.test(no1.body.err), no1.body.err);
+  const no2 = await checkout({ da: '2027-06-10', a: '2027-06-12', email: 'c@t.it' }); assert.equal(no2.status, 409); assert.equal(no2.body.code, 'OLTRE_ORIZZONTE');
+  assert.equal(global.__stripeSessions.length, 1, 'nessun pagamento avviato per le date oltre il limite'); assert.equal(kv.exec(['HGETALL', 'holds:torre']).length > 0, true);
+});
+test('W4 servizi e approfondimento: testo sotto la descrizione, otto servizi in evidenza, finestra con tutti (Esc, X e clic fuori la chiudono)', async () => {
+  await setup();
+  const def = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')).apts.find(a => a.id === 'torre'), tot = def.servizi.split('\n').filter(l => l.startsWith('- ')).length, grp = def.servizi.split('\n').filter(l => l.startsWith('## ')).length;
+  const { doc, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => !$('#srv').hidden, 'servizi');
+  assert(!$('#more').hidden && [...doc.querySelectorAll('#more h3')].map(x => text(x)).includes('Gli spazi') && /travi in legno/.test(text($('#more'))), 'testo di approfondimento');
+  assert.equal(doc.querySelectorAll('#srv-top li').length, 8, 'otto servizi in evidenza');
+  const open = $('[data-testid=services-open]'); assert.equal(text(open), 'Mostra tutti i servizi (' + tot + ')');
+  assert(!$('[data-testid=modal]'), 'finestra chiusa');
+  open.focus(); open.click();
+  const m = $('[data-testid=modal]'); assert(m && doc.body.classList.contains('modal-open'), 'finestra aperta e pagina bloccata');
+  assert.equal(m.querySelectorAll('.srv-group').length, grp, 'tutti i gruppi'); assert.equal(m.querySelectorAll('.srv-list li').length, tot, 'tutti i servizi');
+  assert(/Servizi · Torre/.test(text(m.querySelector('h2'))) && m.querySelector('[role=dialog][aria-modal=true]'), 'titolo e ruolo accessibile');
+  assert.equal(doc.activeElement, m.querySelector('[data-testid=modal-close]'), 'il focus entra nella finestra');
+  doc.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert(!$('[data-testid=modal]') && !doc.body.classList.contains('modal-open') && doc.activeElement === open, 'Esc chiude e il focus torna al pulsante');
+  open.click(); $('[data-testid=modal-close]').click(); assert(!$('[data-testid=modal]'), 'la X chiude');
+  open.click(); $('[data-testid=modal]').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); assert(!$('[data-testid=modal]'), 'il clic fuori chiude');
+  open.click(); $('.modal-box').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); assert($('[data-testid=modal]'), 'il clic dentro la finestra non la chiude');
+  // il testo scritto in Gestione non diventa mai HTML
+  const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(a => a.id === 'torre').servizi = '## <b>Gruppo</b>\n- <img src=x onerror=alert(1)>\n- Voce & altra'; c.apts.find(a => a.id === 'torre').dettagli = '## <i>Titolo</i>\n<script>alert(1)</script>';
+  assert.equal((await H.adminApi('save', c)).status, 200);
+  const r2 = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r2.doc.querySelector('#srv').hidden, 'servizi (2)');
+  r2.doc.querySelector('[data-testid=services-open]').click();
+  assert(!r2.doc.querySelector('.modal img, .modal b, #more i, #more script, #srv-top img') && /<img src=x/.test(text(r2.doc.querySelector('.modal'))) && /Voce & altra/.test(text(r2.doc.querySelector('.modal'))), 'tutto resta testo');
+});
+test('W5 servizi mancanti nella configurazione salvata: valgono quelli di default.json; un salvataggio da una pagina di gestione vecchia non li cancella', async () => {
+  await setup();
+  const old = JSON.parse(kv.exec(['GET', 'cfg'])); old.apts.forEach(a => { delete a.servizi; delete a.dettagli; delete a.cin; delete a.cipat; }); kv.exec(['SET', 'cfg', JSON.stringify(old)]);      // configurazione salvata prima di questa versione
+  const def = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')).apts.find(a => a.id === 'corte');
+  let pub = (await H.api('cfg', {}, { method: 'GET' })).body; assert.equal(pub.apts.find(a => a.id === 'corte').servizi, def.servizi, 'default per i servizi');
+  assert.equal(pub.apts.find(a => a.id === 'corte').dettagli, def.dettagli);
+  // la pagina di gestione di prima non invia i campi nuovi: quelli già presenti restano
+  let full = (await H.adminApi('cfg_admin', {})).body; full.apts.find(a => a.id === 'corte').servizi = '## Solo\n- Questo'; assert.equal((await H.adminApi('save', full)).status, 200);
+  full = (await H.adminApi('cfg_admin', {})).body; for (const a of full.apts) { delete a.servizi; delete a.dettagli; delete a.cin; delete a.cipat; }
+  assert.equal((await H.adminApi('save', full)).status, 200);
+  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'corte').servizi, '## Solo\n- Questo', 'servizi già salvati non cancellati');
+  pub = (await H.api('cfg', {}, { method: 'GET' })).body; assert.equal(pub.apts.find(a => a.id === 'corte').servizi, '## Solo\n- Questo');
+  assert.equal(pub.apts.find(a => a.id === 'torre').servizi.split('\n')[0], '## Essenziali', 'Torre: ancora il default');
+});
+test('W6 CIN e CIPAT: sotto la descrizione e nelle schede della home; senza codici non compare nessun segnaposto', async () => {
+  await setup({ ISTAT_CIPAT: '022205-AT-012345' });
+  // 1) il CIPAT della struttura (ISTAT_CIPAT) vale per entrambi, il CIN non c'è ancora: compare solo il CIPAT
+  let r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => r.doc.querySelector('#cal .d'), 'calendario');
+  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIPAT: 022205-AT-012345'); assert(!r.doc.querySelector('[data-testid=apt-codes]').hidden);
+  // 2) il titolare imposta il CIN di Torre e un CIPAT proprio per Corte da Gestione
+  const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(a => a.id === 'torre').cin = ' IT022205C2TORRE001 '; c.apts.find(a => a.id === 'corte').cipat = '022205-AT-999999'; assert.equal((await H.adminApi('save', c)).status, 200);
+  r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici Torre');
+  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIN: IT022205C2TORRE001 · CIPAT: 022205-AT-012345', 'CIN (senza spazi) e CIPAT della struttura');
+  r = await load('corte.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici Corte');
+  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIPAT: 022205-AT-999999', 'il CIPAT proprio ha la precedenza');
+  const home = await load('index.html', { scripts: ['js/site.js'] });
+  await waitFor(() => !home.doc.querySelector('[data-testid=card-torre-codici]').hidden && !home.doc.querySelector('[data-testid=card-corte-codici]').hidden, 'codici nella home');
+  assert.equal(text(home.doc.querySelector('[data-testid=card-torre-codici]')), 'CIN: IT022205C2TORRE001 · CIPAT: 022205-AT-012345'); assert.equal(text(home.doc.querySelector('[data-testid=card-corte-codici]')), 'CIPAT: 022205-AT-999999');
+  // 3) nessun codice e nessun CIPAT di struttura: la riga non compare (mai segnaposto)
+  await setup(); const r3 = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => r3.doc.querySelector('#cal .d'), 'calendario');
+  assert(r3.doc.querySelector('[data-testid=apt-codes]').hidden && text(r3.doc.querySelector('[data-testid=apt-codes]')) === '', 'nessuna riga');
+  const h3 = await load('index.html', { scripts: ['js/site.js'] }); await sleep(120); assert(h3.doc.querySelector('[data-testid=card-torre-codici]').hidden, 'home: nessuna riga');
+  // 4) un ISTAT_CIPAT malformato non finisce mai sul sito
+  await H.newEnv({ legacyRows: [HDR], env: { ISTAT_CIPAT: '<script>x' } }); assert.equal((await H.api('cfg', {}, { method: 'GET' })).body.cipat, '');
+});
+test('W7 Gestione · Testi: CIN, CIPAT, approfondimento e servizi si modificano e si salvano; lo spazio attorno ai codici viene tolto', async () => {
+  await setup();
+  const r = await loadAdmin('#torre/testi'), $ = s => r.doc.querySelector(s), set = (el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
+  await waitFor(() => $('[data-testid=admin-cin-torre]'), 'campi');
+  assert.equal($('[data-testid=admin-cin-torre]').value, ''); assert(/^## Essenziali/.test($('[data-testid=admin-servizi-torre]').value), 'servizi di default già nel campo'); assert(/^## Gli spazi/.test($('[data-testid=admin-dettagli-torre]').value));
+  set($('[data-testid=admin-cin-torre]'), '  IT022205C2AAAA1111 '); set($('[data-testid=admin-cipat-torre]'), '022205-AT-012345'); set($('[data-testid=admin-servizi-torre]'), '## Extra\n- Culla\n- Seggiolone'); set($('[data-testid=admin-dettagli-torre]'), '## Novità\nCucina nuova.');
+  $('[data-testid=admin-save]').click(); await waitFor(() => /Salvato/.test(text($('[data-testid=admin-save-msg]'))), 'salvataggio');
+  const t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre');
+  assert.deepEqual([t.cin, t.cipat, t.servizi, t.dettagli], ['IT022205C2AAAA1111', '022205-AT-012345', '## Extra\n- Culla\n- Seggiolone', '## Novità\nCucina nuova.']);
+  const pub = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !pub.doc.querySelector('#srv').hidden, 'pagina aggiornata');
+  assert.equal(pub.doc.querySelectorAll('#srv-top li').length, 2); assert(/Cucina nuova/.test(text(pub.doc.querySelector('#more'))) && /IT022205C2AAAA1111/.test(text(pub.doc.querySelector('#codes'))));
+});
+test('W8 Gestione · Prezzi: il prezzo parte dal 1° ospite; i prezzi di prima restano identici per 1…5 ospiti e il server calcola lo stesso', async () => {
+  await setup();                                                                      // configurazione vecchia: €180 con 2 ospiti inclusi, +€20 dal 3°
+  const quote = async n => { const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => doc.querySelector('#cal .d'), 'calendario'); pickDates(doc, NIGHTS.da, NIGHTS.a); for (let i = 2; i < n; i++) doc.querySelector('[data-testid=booking-guests-plus]').click(); for (let i = 2; i > n; i--) doc.querySelector('[data-testid=booking-guests-minus]').click(); return text(doc.querySelector('[data-testid=booking-total]')); };
+  const prima = []; for (const n of [1, 2, 3, 4, 5]) prima.push(await quote(n));
+  assert.deepEqual(prima, ['€540', '€540', '€600', '€660', '€720']);
+  const r = await loadAdmin('#torre/prezzi'), $ = s => r.doc.querySelector(s), set = (el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
+  const base = await waitFor(() => $('[data-testid=admin-base-torre]'), 'prezzo del 1° ospite');
+  assert(/1° ospite/.test(text($('[data-testid=admin-apt-torre]'))) && !/Ospiti inclusi nel prezzo/.test(text($('[data-testid=admin-apt-torre]'))), 'il campo c\'è e "ospiti inclusi" non serve più');
+  assert.equal(base.value, '180'); assert.deepEqual([...r.doc.querySelectorAll('[data-step]')].map(x => x.value), ['0', '20'], 'il 2° ospite non costa di più, dal 3° +€20');
+  assert(/Dal 2° ospite/.test(text($('[id^=steps-]'))) && /Dal 3° ospite in poi/.test(text($('[id^=steps-]'))), 'supplementi dal 2° ospite');
+  const pv = () => text($('[id^=prev-]'));
+  assert(/1 ospite €180/.test(pv()) && /2 ospiti €180/.test(pv()) && /3 ospiti €200/.test(pv()) && /5 ospiti €240/.test(pv()), pv());
+  // il titolare abbassa il prezzo del 1° ospite e fa pagare di più il 2°
+  set(base, '150'); set(r.doc.querySelector('[data-step]'), '30');
+  assert(/1 ospite €150/.test(pv()) && /2 ospiti €180/.test(pv()) && /3 ospiti €200/.test(pv()) && /4 ospiti €220/.test(pv()), pv());
+  $('[data-testid=admin-save]').click(); await waitFor(() => /Salvato/.test(text($('[data-testid=admin-save-msg]'))), 'salvataggio');
+  const st = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre'); assert.deepEqual([st.base, st.inclusi, st.extraSteps], [150, 1, [30, 20]]);
+  const dopo = []; for (const n of [1, 2, 3, 4, 5]) dopo.push(await quote(n)); assert.deepEqual(dopo, ['€450', '€540', '€600', '€660', '€720'], 'la pagina mostra i nuovi importi');
+  // il server calcola gli stessi importi (2 notti ciascuna: il minimo è 2)
+  for (const [n, da, al, euro] of [[1, '2026-11-01', '2026-11-03', 300], [2, '2026-11-04', '2026-11-06', 360], [5, '2026-11-07', '2026-11-09', 480]]) {
+    const before = global.__stripeSessions.length, co = await checkout({ da, a: al, ospiti: n, email: 'p' + n + '@t.it' });
+    assert.equal(co.status, 200, JSON.stringify(co.body)); assert.equal(global.__stripeSessions[before].params.line_items[0].price_data.unit_amount, euro * 100, 'importo Stripe con ' + n + ' ospiti');
+  }
+});
+test('W9 Gestione · Prezzi: una configurazione con più ospiti inclusi si converte senza cambiare nessun importo', async () => {
+  await H.newEnv({ legacyRows: [HDR] }); const c = JSON.parse(kv.exec(['GET', 'cfg'])); const t = c.apts.find(a => a.id === 'torre'); Object.assign(t, { base: 100, inclusi: 3, extra: 0, extraSteps: [15, 25], max: 5 }); kv.exec(['SET', 'cfg', JSON.stringify(c)]); await H.sync();
+  const r = await loadAdmin('#torre/prezzi'), prev = () => text(r.doc.querySelector('[id^=prev-]'));
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-base-torre]'), 'prezzi');
+  assert(/1 ospite €100/.test(prev()) && /2 ospiti €100/.test(prev()) && /3 ospiti €100/.test(prev()) && /4 ospiti €115/.test(prev()) && /5 ospiti €140/.test(prev()), 'prima 3 inclusi, poi +15 e +25: ' + prev());
+  assert.deepEqual([...r.doc.querySelectorAll('[data-step]')].map(x => x.value), ['0', '0', '15', '25'], 'i 3 ospiti inclusi diventano due supplementi a 0');
+});
+test('W10 pagina Eventi: eventi automatici e inseriti a mano, raggruppati per mese in ordine; niente più eventi in Luoghi di interesse', async () => {
+  await setup();
+  assert.equal((await H.adminApi('event_add', { title: 'Serata in cantina', date: '2026-11-05', time: '21:00', location: 'Ravina' })).status, 200);
+  assert.equal((await H.adminApi('event_add', { title: 'Cena di Natale <b>x</b>', date: '2026-12-20', location: 'Trento' })).status, 200);
+  const { doc } = await load('eventi.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => doc.querySelector('#events .ev-card'), 'eventi');
+  assert(doc.querySelectorAll('#events .ev-month').length >= 2, 'titoli dei mesi');
+  const kids = [...$('#events').children], mesi = []; let cur = '';
+  for (const k of kids) { if (k.classList.contains('ev-month')) { cur = k.dataset.testid.replace('ev-month-', ''); mesi.push(cur); } else assert(k.dataset.testid.replace('ev-', '').startsWith(cur), 'ogni scheda sta sotto il suo mese: ' + k.dataset.testid + ' / ' + cur); }
+  assert.deepEqual(mesi, [...mesi].sort(), 'mesi in ordine'); assert.equal(new Set(mesi).size, mesi.length, 'un titolo per mese');
+  assert(/Serata in cantina/.test(text($('[data-testid="ev-2026-11-05"]'))) && /21:00/.test(text($('[data-testid="ev-2026-11-05"]'))), 'evento a mano');
+  assert(!$('#events b') && /Cena di Natale <b>x<\/b>/.test(text($('[data-testid="ev-2026-12-20"]'))), 'il titolo resta testo');
+  const all = [...doc.querySelectorAll('#events .ev-card')].map(c => c.dataset.testid.replace('ev-', '')); assert.deepEqual(all, [...all].sort(), 'schede in ordine di data');
+  // la pagina Luoghi di interesse non ha più la sezione e non carica il codice degli eventi
+  const html = fs.readFileSync(path.join(ROOT, 'dintorni.html'), 'utf8'); assert(!/id="eventi"|id="events"|data-p="eventi"|js\/pages\.js/.test(html), 'dintorni.html senza eventi');
+});
+test('W11 Convenzioni: niente etichetta "Convenzionato" su Pizzeria Da Mimmo, Bistò e Palestra Juta', async () => {
+  const { doc } = await load('convenzioni.html', { scripts: ['js/dintorni.js', 'js/site.js'] });
+  await waitFor(() => doc.querySelector('[data-testid=partner-card-bisto]'), 'schede');
+  const tag = id => { const t = doc.querySelector('[data-testid=partner-card-' + id + '] .apt-tag'); return t ? text(t) : null; };
+  assert.deepEqual(['pizzeria-da-mimmo', 'bisto', 'palestra-juta'].map(tag), [null, null, null], 'nessuna etichetta');
+  assert.equal(tag('sun7-caffe'), 'Convenzionato', 'le altre schede non cambiano'); assert.equal(tag('forst-biergarten'), 'Solo estate');
+  assert.equal(doc.querySelectorAll('[data-testid^=partner-card-]').length, 5);
 });
 
 /* ===================== Adempimenti → Alloggiati Web (js/adempimenti.js) ===================== */

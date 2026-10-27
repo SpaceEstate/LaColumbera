@@ -65,3 +65,27 @@ window.lcPhotos = function(root){
   });
 };
 lcPhotos();
+
+
+// CIN e CIPAT degli alloggi: per legge compaiono negli annunci. Arrivano dalla configurazione (Gestione → appartamento → Testi),
+// quindi si cambiano senza toccare il codice. Il CIPAT può essere unico per la struttura: vale per gli appartamenti che non ne hanno uno proprio.
+// Senza nessun codice impostato la riga non compare (mai segnaposto sul sito pubblico).
+window.lcCodici = function(p, cipatStruttura){
+  var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var cin = String(p && p.cin || '').trim(), cipat = String(p && p.cipat || cipatStruttura || '').trim(), o = [];
+  if(cin) o.push('CIN: <b>' + esc(cin) + '</b>');
+  if(cipat) o.push('CIPAT: <b>' + esc(cipat) + '</b>');
+  return o.join(' · ');
+};
+// Schede degli appartamenti nella home (e ovunque ci sia un elemento con data-codici="<id appartamento>")
+(function(){
+  var els = document.querySelectorAll('[data-codici]');
+  if(!els.length || !window.fetch) return;
+  fetch('api/x?a=cfg').then(function(r){ return r.ok ? r.json() : null; }).then(function(c){
+    if(!c || !c.apts) return;
+    els.forEach(function(el){
+      var p = c.apts.filter(function(x){ return x.id === el.dataset.codici; })[0], t = p ? window.lcCodici(p, c.cipat) : '';
+      if(t){ el.innerHTML = t; el.hidden = false; }
+    });
+  }).catch(function(){});
+})();

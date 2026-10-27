@@ -128,7 +128,7 @@ global.fetch = (...a) => routeFetch(...a);
 /* ---------------- ambiente Vercel ---------------- */
 const SECRETS = { SYNC_SECRET: 'sync-test-secret', SHEET_SECRET: 'sheet-test-secret', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 function setEnv(extra) {
-  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_)/.test(k)) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_)/.test(k)) delete process.env[k];
   Object.assign(process.env, { KV_REST_API_URL: KV_URL, KV_REST_API_TOKEN: 'tok', SHEET_WEBAPP_URL: WEBAPP_URL, SHEET_SECRET: SECRETS.SHEET_SECRET, SYNC_SECRET: SECRETS.SYNC_SECRET,
     STRIPE_SECRET_KEY: 'sk_test', STRIPE_WEBHOOK_SECRET: SECRETS.STRIPE_WEBHOOK_SECRET, GMAIL_USER: 'info@test', GMAIL_APP_PASSWORD: 'x', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 'sess',
     OWNER_EMAIL: 'owner@test', FEED_TIMEOUT_MS: '150', REG_TIMEOUT_MS: '300' }, extra || {});

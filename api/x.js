@@ -15,7 +15,15 @@ const eq=(x,y)=>c.timingSafeEqual(sha(x),sha(y));
 const S=()=>process.env.SESSION_SECRET||process.env.ADMIN_PASSWORD||'';
 const sign=p=>p+'.'+c.createHmac('sha256',S()).update(p).digest('hex');
 const auth=r=>{const t=r.headers.authorization||'',p=t.split('.')[0];return !!S()&&+p>Date.now()&&eq(t,sign(p))};
-const cfg=async r=>(await jg('cfg'))||await(await fetch('https://'+r.headers.host+'/data/default.json')).json();
+// Campi di contenuto aggiunti dopo il primo salvataggio dal pannello (servizi, testo di approfondimento, CIN, CIPAT): finché il titolare non li salva
+// (cfg senza quel campo) valgono quelli di data/default.json, così il sito li mostra subito senza sovrascrivere i testi che ha già modificato.
+// require statico: Vercel include sicuramente il file nella funzione.
+const DEF=require('../data/default.json'),FILL=['servizi','dettagli','cin','cipat'];
+const withDefaults=c=>{if(!c||!Array.isArray(c.apts))return c;const d=new Map((DEF.apts||[]).map(p=>[p.id,p]));
+ return{...c,apts:c.apts.map(p=>{const q=d.get(p.id);if(!q)return p;const o={...p};for(const k of FILL)if(o[k]===undefined&&q[k]!==undefined)o[k]=q[k];return o})}};
+const cfg=async r=>withDefaults((await jg('cfg'))||await(await fetch('https://'+r.headers.host+'/data/default.json')).json());
+// CIPAT della struttura (lo stesso usato per l'ISTAT, variabile ISTAT_CIPAT): è un codice che per legge compare negli annunci, quindi può essere pubblico. Solo se ha la forma giusta.
+const cipatPub=()=>{const v=String(process.env.ISTAT_CIPAT||'').trim();return /^[A-Za-z0-9-]{16}$/.test(v)?v:''};
 const AV=require('./_avail.js'),days=AV.rangeDays,addDays=AV.addDays,todayRome=AV.todayRome;
 // Motore unico di disponibilità: tutta la logica "busy" (iCal, foglio, sito, hold, blocchi) vive in _avail.js
 const E=AV.makeEngine({kv,kvp,fetch:(...a)=>fetch(...a),env:process.env});
@@ -306,14 +314,14 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
 }
 // Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali.
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
-if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,apts:(c0.apts||[]).map(({blocked,...p})=>p)})}
+if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,...p})=>p)})}
 if(a==='busy'){const id=String(req.query.id||'');
  // Fail-closed: se la disponibilità non è verificabile NON si mostrano date libere (503 → il sito mostra "non verificabile")
  try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
   const r=await E.guestBusy(config,id);
   if(r.status==='unverifiable'){res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}
   res.setHeader('Cache-Control','public, s-maxage=15, stale-while-revalidate=15');
-  return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates,notice:r.notice})}
+  return res.json({v:2,status:r.status,asOf:r.asOf,dates:r.dates,notice:r.notice,limit:r.limit})}
  catch(e){console.error('busy:',e.message);res.setHeader('Cache-Control','no-store');return res.status(503).json({v:2,status:'unverifiable'})}}
 if(a==='ical'&&String(req.query.for||'').toLowerCase()==='all'){
  // Calendario PERSONALE con tutte le prenotazioni (nomi ospiti inclusi): richiede la chiave ICAL_PERSONAL_KEY (variabile d'ambiente Vercel), passata come &k=
@@ -344,6 +352,9 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||typeof b.nome!=='string'||!b.nome.trim()||typeof b.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email.trim())||(b.tel!=null&&typeof b.tel!=='string'&&typeof b.tel!=='number'))return res.status(400).json({err:'Dati non validi'});
  if(config.closed&&config.closed[p.id])return res.status(409).json({err:'Appartamento non disponibile in questo periodo'});
  const g=days(b.da,b.a);const mn=minFor(p,b.da);if(g.length<mn||g.length>60)return res.status(400).json({err:'Durata non valida (minimo '+mn+' notti per queste date)'});
+ // Orizzonte: dal sito si prenota al massimo 6 mesi in avanti. Il calendario non permette di scegliere date più lontane; qui lo si fa rispettare anche a chi chiama l'API a mano.
+ const lastDay=AV.maxBookingDate(Date.now());
+ if(b.a>lastDay)return res.status(409).json({err:'Dal sito si può prenotare fino al '+fmtLong(lastDay)+' (al massimo '+AV.GUEST_MONTHS+' mesi in anticipo). Per date più lontane scrivici a lacolumbera@gmail.com o chiamaci al +39 351 704 3594.',code:'OLTRE_ORIZZONTE',ultimoGiorno:lastDay});
  // Preavviso minimo (impostazione del titolare, Gestione → Prenotazioni): il controllo è QUI, sul server, prima di hold e pagamento. Cambiare il browser non lo aggira.
  const nt=AV.noticeSettings(config),noticeErr=()=>{const t=Date.now();return AV.noticeOk(b.da,t,nt)?null:noticeBody(nt,t)};
  const ne=noticeErr();if(ne)return res.status(409).json(ne);
@@ -522,7 +533,9 @@ if(a==='event_del'){let list=(await jg('events'))||[];list=list.filter(x=>x.id!=
 if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img||'');if(!m)return res.status(400).json({err:'Immagine non valida'});
  const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
 if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.err)return res.status(400).json({err:pre.err});
- const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
+ // campi di contenuto nuovi: una pagina di gestione non aggiornata (non li invia) non deve cancellare quelli già salvati
+ const oa=new Map((old.apts||[]).map(x=>[String(x.id),x])),saved=(p,k)=>p[k]!==undefined?p[k]:(oa.get(String(p.id))||{})[k],ostr=(v,n)=>v===undefined?undefined:String(v).trim().slice(0,n);
+ const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
  for(const k of Object.keys(b.ical||{}))n.ical[k]=String(b.ical[k]||'');
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
  const keep=new Set(n.apts.flatMap(p=>p.foto));

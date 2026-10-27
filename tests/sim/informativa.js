@@ -12,12 +12,10 @@ const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const tests = []; const test = (n, f) => tests.push({ n, f });
 
 const HTML = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
-const REDIRECT = new Set(['eventi.html']);          // pagina di solo reindirizzamento (noindex), senza contenuti
 const JS = fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js')).map(f => 'js/' + f);
 
 test('I1 link all\'informativa nel footer di ogni pagina pubblica', () => {
   for (const f of HTML) {
-    if (REDIRECT.has(f)) { assert(/http-equiv="refresh"/.test(read(f)), f + ': attesa pagina di reindirizzamento'); continue; }
     const s = read(f), foot = s.slice(s.indexOf('<footer'));
     assert(s.includes('<footer'), f + ': footer mancante');
     assert(/href="privacy\.html"/.test(foot), f + ': link privacy.html mancante nel footer');
