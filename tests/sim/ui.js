@@ -39,6 +39,28 @@ const callAdp = (handler, a, body, headers) => new Promise((resolve, reject) => 
   const res = { setHeader() { return res; }, status(s) { out.status = s; return res; }, json(o) { out.text = JSON.stringify(o); resolve(out); return res; } };
   Promise.resolve(handler(req, res)).catch(reject);
 });
+// ISTAT: stessa funzione di Vercel (api/istat.js) con servizio ISTAT simulato (tests/sim/istat-mock.js, segue il protocollo del PDF) e archivio proprio (serve INCRBY/EXPIRE).
+let ist = null;
+function makeIstKv() {
+  const d = new Map(), live = k => { const e = d.get(k); if (!e) return null; if (e.exp && e.exp <= clock.now()) { d.delete(k); return null; } return e; };
+  const kvf = async (...c) => {
+    const [op, k, v, ...o] = c, O = String(op).toUpperCase();
+    if (O === 'GET') { const e = live(k); return e ? e.v : null; }
+    if (O === 'SET') { let nx = false, ex = 0; for (let i = 0; i < o.length; i++) { const u = String(o[i]).toUpperCase(); if (u === 'NX') nx = true; else if (u === 'EX') ex = +o[++i]; } if (nx && live(k)) return null; d.set(k, { v: String(v), exp: ex ? clock.now() + ex * 1000 : 0 }); return 'OK'; }
+    if (O === 'DEL') return d.delete(k) ? 1 : 0;
+    if (O === 'INCRBY') { const e = live(k), n = (e ? parseInt(e.v, 10) : 0) + parseInt(v, 10); d.set(k, { v: String(n), exp: e ? e.exp : 0 }); return n; }
+    if (O === 'EXPIRE') { const e = live(k); if (!e) return 0; e.exp = clock.now() + parseInt(v, 10) * 1000; return 1; }
+    throw new Error('KV non simulato: ' + op);
+  };
+  kvf.d = d; return kvf;
+}
+function makeIst(o) {
+  o = o || {};
+  const IST = require('../../api/istat.js'), { makeIstatMock } = require('./istat-mock.js'), svc = makeIstatMock(Object.assign({ now: () => clock.now() }, o.svcOpts)), k = makeIstKv();
+  const env = Object.assign({ ISTAT_CIPAT: '022001-AT-012345', ISTAT_WS_USER: 'ws-user', ISTAT_WS_PASSWORD: 'ws-pass', ISTAT_SEND_ENABLED: 'true', VERCEL_ENV: 'production', SESSION_SECRET: 'sess' }, o.env);      // stesso segreto di sessione del login (la conferma è firmata con quel segreto)
+  const handler = IST.make({ env, kv: k, auth: H.V().handler.auth, fetch: (...a) => svc.fetch(...a), now: () => clock.now() });
+  return { svc, handler, kv: k, forceSend: null };
+}
 // fetch() del browser → handler di Vercel (stesse regole: metodo, query, intestazioni, corpo JSON)
 function bridge(w, log) {
   const resp = (status, text) => ({ ok: status >= 200 && status < 300, status, json: async () => JSON.parse(text), text: async () => text });
@@ -49,6 +71,12 @@ function bridge(w, log) {
       const headers = {}; for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
       if (a === 'al_send' && adp.forceSend) { if (adp.forceSend.throw) throw new TypeError('Failed to fetch'); log.calls.push({ a, status: adp.forceSend.status, q: {} }); return resp(adp.forceSend.status, adp.forceSend.text); }
       const out = await callAdp(adp.handler, a, init.body ? JSON.parse(init.body) : {}, headers);
+      log.calls.push({ a, status: out.status, q: {} }); return resp(out.status, out.text || '');
+    }
+    if (u.pathname.endsWith('/api/istat') && a && ist) {
+      const headers = {}; for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
+      if (a === 'is_send' && ist.forceSend) { if (ist.forceSend.throw) throw new TypeError('Failed to fetch'); log.calls.push({ a, status: ist.forceSend.status, q: {} }); return resp(ist.forceSend.status, ist.forceSend.text); }
+      const out = await callAdp(ist.handler, a, init.body ? JSON.parse(init.body) : {}, headers);
       log.calls.push({ a, status: out.status, q: {} }); return resp(out.status, out.text || '');
     }
     if (!u.pathname.endsWith('/api/x') || !a) return resp(404, '{}');
@@ -88,7 +116,7 @@ async function waitFor(fn, what, tries = 150) {
 }
 const text = el => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
 const adminToken = async () => (await H.api('login', { u: 'admin', p: 'pw' })).body.t;
-const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/adempimenti.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
+const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
 const goto = async (r, hash, sel) => { r.w.location.hash = hash; await waitFor(() => r.doc.querySelector(sel), 'sezione ' + hash); };
 
 const tests = [];
@@ -409,11 +437,156 @@ test('U25 Adempimenti: cambiando sezione con la finestra di modifica aperta la f
   r.w.location.hash = '#adempimenti'; await waitFor(() => r.doc.querySelectorAll('[data-testid^=adp-row-]').length === 4, 'elenco ancora presente'); assert(r.doc.body.classList.contains('adp-active'));
 });
 
+/* ===================== Adempimenti → ISTAT (js/istat.js) ===================== */
+const ISTF = n => fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'istat', n), 'utf8');
+const cell = (r, i, f) => r.doc.querySelector('input.ist-in[data-i="' + i + '"][data-f="' + f + '"]');
+const typeIn = (r, i, f, v) => { const el = cell(r, i, f); el.value = v; fire(el, 'input'); fire(el, 'change'); return el; };
+const nRows = r => r.doc.querySelectorAll('[data-testid^=ist-row-]').length;
+const IST_CIPAT = '022001-AT-012345';
+const openIst = async (o, wait) => { await setup(); clock.set((o && o.now) || '2026-09-26T10:00:00Z'); ist = makeIst(o); const r = await loadAdmin('#adempimenti/istat'); if (wait !== false) await waitFor(() => /Configurazione completa/.test(text(r.doc.querySelector('[data-testid=ist-status]'))), 'configurazione completa'); return r; };
+const istLoad = async (r, txt, name) => { pickFile(r, txt === undefined ? ISTF('movimenti.csv') : txt, name || 'movimenti.csv'); await waitFor(() => nRows(r) > 0 && r.doc.querySelector('[data-testid=ist-seg], [data-testid=ist-ready], [data-testid=ist-notready]'), 'tabella'); };
+const istCheck = async r => { r.doc.querySelector('[data-testid=ist-check]').click(); await waitFor(() => r.doc.querySelector('[data-testid=ist-riepilogo]'), 'riepilogo'); };
+const istSend = async r => { await istCheck(r); const c = r.doc.querySelector('[data-testid=ist-confirm]'); c.checked = true; fire(c, 'change'); await waitFor(() => { const b = r.doc.querySelector('[data-testid=ist-send]'); return b && !b.disabled; }, 'invio abilitato'); r.doc.querySelector('[data-testid=ist-send]').click(); };
+const istRes = (r, st) => r.doc.querySelector('[data-testid=ist-result][data-stato=' + st + ']');
+
+test('U26 ISTAT: scheda accanto ad Alloggiati Web, stato della configurazione senza segreti, nessuna chiamata ad Alloggiati; configurazione incompleta spiegata', async () => {
+  const r = await openIst();
+  const tabs = [...r.doc.querySelectorAll('[data-testid=adp-tabs] a')]; assert.deepEqual(tabs.map(a => text(a) + ':' + a.classList.contains('on')), ['Alloggiati Web:false', 'ISTAT:true']);
+  assert(r.doc.body.classList.contains('adp-active'), 'barra "Salva modifiche" nascosta in questa sezione');
+  const st = text(r.doc.querySelector('[data-testid=ist-status]')); assert(/022001-AT-012345/.test(st) && /presenti \(ws\u2022\u2022\u2022er\)/.test(st) && /Invio reale attivo/.test(st) && /statweb\.provincia\.tn\.it/.test(st) && /249 stati e 111 province/.test(st), st);
+  assert(!/ws-pass|ws-user/.test(r.doc.documentElement.outerHTML), 'nessun segreto nella pagina'); assert.deepEqual(r.log.calls.filter(c => /^(al|is)_/.test(c.a)).map(c => c.a), ['is_status'], 'solo lo stato ISTAT: niente Alloggiati, niente servizio');
+  assert.equal(ist.svc.requests.length, 0); assert(!r.doc.querySelector('[data-testid=ist-table]'), 'nessuna tabella finché non si carica qualcosa');
+  const r2 = await openIst({ env: { ISTAT_CIPAT: '', ISTAT_WS_PASSWORD: '' } }, false); await waitFor(() => /Configurazione incompleta/.test(text(r2.doc.querySelector('[data-testid=ist-status]'))), 'configurazione incompleta');
+  const t2 = text(r2.doc.querySelector('[data-testid=ist-status]')); assert(/non configurato/.test(t2) && /mancanti: ISTAT_WS_PASSWORD/.test(t2) && r2.doc.querySelector('[data-testid=ist-status] details').open, t2);
+});
+test('U27 ISTAT: carico il CSV → tabella con CIPAT, arrivo, partenza, notti, provenienza (codice e descrizione) e persone; riepilogo; controlli superati; nessuna chiamata al servizio', async () => {
+  const r = await openIst(); await istLoad(r); assert.equal(nRows(r), 20); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'controlli superati');
+  const head = [...r.doc.querySelectorAll('[data-testid=ist-table] thead th')].map(th => text(th)); assert.deepEqual(head, ['N.', 'CIPAT', 'Arrivo', 'Partenza', 'Notti', 'Provenienza', 'Persone', 'Stato', '']);
+  const row0 = r.doc.querySelector('[data-testid=ist-row-0]'); assert.deepEqual(['cipat', 'arrivo', 'partenza', 'sigla', 'persone'].map(f => cell(r, 0, f).value), [IST_CIPAT, '20260808', '20260811', 'PG', '3']);
+  assert(/Perugia/.test(text(row0)) && /provincia/.test(text(row0)) && /08\/08\/2026/.test(text(row0)) && /11\/08\/2026/.test(text(row0)) && text(row0.querySelector('.ist-notti')) === '3', text(row0));
+  assert(/Spagna|SPAGNA/.test(text(r.doc.querySelector('[data-testid=ist-row-1]'))), 'stato estero con descrizione');
+  const sum = text(r.doc.querySelector('[data-testid=ist-summary]')); assert(/20 movimenti/.test(sum) && /40 persone/.test(sum) && /CIPAT 022001-AT-012345/.test(sum) && /dal 08\/08\/2026 al 25\/09\/2026/.test(sum) && /nessun errore/.test(sum), sum);
+  assert(!r.doc.querySelector('[data-testid=ist-row-0] .ist-in.bad') && !r.doc.querySelector('.ist-iss-row'), 'nessuna segnalazione; stesso CIPAT e stesso arrivo non sono segnalati');
+  assert(/File caricato: movimenti\.csv/.test(text(r.doc.querySelector('[data-testid=ist-origine]')))); assert(!r.doc.querySelector('[data-testid=ist-check]').disabled, 'validazione finale disponibile'); assert.equal(ist.svc.requests.length, 0, 'il caricamento non chiama il servizio');
+  assert.deepEqual([...r.doc.querySelectorAll('.ist-steps li')].map(l => l.className), ['done', 'done', 'cur', '']);
+});
+test('U28 ISTAT: errori sulle righe giuste con riga, campo e motivo (CIPAT diverso blocca); avvisi distinti e non bloccanti; riga ricostruita da confermare', async () => {
+  const r = await openIst(); const t = ISTF('movimenti.csv').split('\n'); t[4] = t[4].replace(IST_CIPAT, '022001-AT-999999'); t[6] = t[6].split(';').map((x, i) => i === 3 ? 'pg' : x).join(';'); t[8] = t[8].replace(/;\d+$/, ';0'); t[9] = t[9].replace(/;[^;]*$/, '');
+  await istLoad(r, t.join('\n'), 'difettoso.csv'); await waitFor(() => r.doc.querySelector('[data-testid=ist-notready]'), 'errori');
+  assert(/5 errori/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && r.doc.querySelectorAll('tr.ist-row.bad').length === 4, 'quattro righe con problemi (la riga con 4 colonne ha due errori: colonne e CIPAT mancante)');
+  const seg = text(r.doc.querySelector('[data-testid=ist-seg]')); assert(/Errore · riga 5 · CIPAT:.*diverso da quello della struttura/.test(seg) && /Errore · riga 7 · Provenienza:.*non è nell'elenco ufficiale/.test(seg) && /Errore · riga 9 · Numero di persone:/.test(seg) && /Errore · riga 10:.*4 colonne/.test(seg), seg);
+  assert(cell(r, 4, 'cipat').classList.contains('bad') && cell(r, 6, 'sigla').classList.contains('bad') && cell(r, 8, 'persone').classList.contains('bad') && !cell(r, 0, 'cipat').classList.contains('bad'), 'solo i campi sbagliati sono evidenziati');
+  assert(/1 errore/.test(text(r.doc.querySelector('[data-testid=ist-row-4]'))) && /ok/.test(text(r.doc.querySelector('[data-testid=ist-row-0]')))); assert(r.doc.querySelector('[data-testid=ist-check]').disabled, 'con errori il riepilogo e l\'invio sono bloccati');
+  assert.equal(cell(r, 6, 'sigla').value, 'pg', 'la sigla minuscola non viene convertita da sola'); assert(/PG \(Perugia\)/.test(text(r.doc.querySelector('[data-testid=ist-row-6]').nextElementSibling)), 'suggerimento, non correzione');
+  // riga ricostruita (4 colonne): serve la conferma a mano
+  assert(r.doc.querySelector('[data-testid=ist-okrow-9]'), 'riga ricostruita: serve la conferma a mano'); assert.equal(cell(r, 9, 'cipat').value, IST_CIPAT); assert.equal(cell(r, 9, 'persone').value, '', 'riga con 4 colonne: le colonne restano al loro posto e manca l\'ultima'); assert.equal(cell(r, 9, 'arrivo').value.length, 8);
+  r.doc.querySelector('[data-testid=ist-okrow-9]').click(); await waitFor(() => !r.doc.querySelector('[data-testid=ist-okrow-9]') && /Errore · riga 10 · Numero di persone:.*mancante/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'dopo la conferma resta solo l\'errore vero (persone mancanti)'); assert(!/4 colonne|ricostruita/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))));
+  // avvisi non bloccanti, distinti dagli errori: con la data di ottobre gli arrivi di agosto sono fuori periodo
+  const w = await openIst({ now: '2026-10-05T10:00:00Z' }); await istLoad(w); await waitFor(() => r.doc.querySelector('[data-testid=ist-n-warn]') || w.doc.querySelector('[data-testid=ist-n-warn]'), 'avvisi');
+  assert(/6 avvisi/.test(text(w.doc.querySelector('[data-testid=ist-n-warn]'))) && /nessun errore/.test(text(w.doc.querySelector('[data-testid=ist-n-err]'))), 'avvisi e errori sono distinti'); assert(/Avviso · riga 1 · Data di arrivo:.*fuori dal periodo/.test(text(w.doc.querySelector('[data-testid=ist-seg]'))));
+  assert(w.doc.querySelector('[data-testid=ist-ready]') && !w.doc.querySelector('[data-testid=ist-check]').disabled, 'gli avvisi non bloccano'); assert(w.doc.querySelector('[data-testid=ist-row-0] .ist-in.warn'));
+});
+test('U29 ISTAT: ogni campo si modifica nella tabella, i controlli si rifanno da soli senza togliere il cursore; la provenienza si cerca nell\'elenco ufficiale senza conversioni automatiche', async () => {
+  const r = await openIst(); await istLoad(r); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'pronto');
+  let el = cell(r, 0, 'persone'); el.focus(); el.value = '0'; fire(el, 'input'); await waitFor(() => /1 errore/.test(text(r.doc.querySelector('[data-testid=ist-row-0]'))), 'errore dopo la modifica'); assert.strictEqual(r.doc.activeElement, el, 'il campo che si sta scrivendo resta lo stesso (tastiera e cursore non si perdono)'); assert(el.isConnected);
+  assert(/Errore · riga 1 · Numero di persone/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))) && /1 errore/.test(text(r.doc.querySelector('[data-testid=ist-summary]')))); assert(r.doc.querySelector('[data-testid=ist-check]').disabled);
+  typeIn(r, 0, 'persone', '5'); await waitFor(() => /nessun errore/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && /42 persone/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))), 'riepilogo aggiornato (42 persone)');
+  typeIn(r, 0, 'partenza', '20260813'); await waitFor(() => text(r.doc.querySelector('[data-testid=ist-row-0] .ist-notti')) === '5', 'notti ricalcolate'); assert(/13\/08\/2026/.test(text(r.doc.querySelector('[data-testid=ist-row-0]'))));
+  typeIn(r, 0, 'arrivo', '20260814'); await waitFor(() => /Errore · riga 1 · Data di partenza:.*dopo l'arrivo/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'partenza non dopo l\'arrivo');
+  typeIn(r, 0, 'arrivo', '20260808'); typeIn(r, 0, 'cipat', '022001-AT-111111'); await waitFor(() => /CIPAT:.*diverso/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'CIPAT diverso'); typeIn(r, 0, 'cipat', IST_CIPAT);
+  typeIn(r, 0, 'sigla', 'FR'); await waitFor(() => /Frosinone/.test(text(r.doc.querySelector('[data-testid=ist-row-0] .ist-desc'))), 'FR = Frosinone'); assert.equal(cell(r, 0, 'sigla').value, 'FR');
+  typeIn(r, 0, 'sigla', 'fr'); await waitFor(() => /FR \(Frosinone\)/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'minuscola: suggerimento'); assert.equal(cell(r, 0, 'sigla').value, 'fr', 'nessuna conversione automatica');
+  r.doc.querySelector('[data-testid=ist-find-0]').click(); const q = await waitFor(() => r.doc.querySelector('#ist-q'), 'finestra di ricerca'); setv(q, 'germ'); const li = await waitFor(() => r.doc.querySelector('#ist-lb li[data-code="DEU"]'), 'risultati'); assert(/Germania|GERMANIA/i.test(text(li))); li.click();
+  await waitFor(() => !r.doc.querySelector('[data-testid=ist-search]') && cell(r, 0, 'sigla').value === 'DEU' && /GERMANIA/i.test(text(r.doc.querySelector('[data-testid=ist-row-0] .ist-desc'))), 'sigla scelta dall\'elenco con descrizione'); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'di nuovo senza errori');
+  r.doc.querySelector('[data-testid=ist-find-1]').click(); const q2 = await waitFor(() => r.doc.querySelector('#ist-q'), 'ricerca'); setv(q2, 'fr'); await waitFor(() => r.doc.querySelector('#ist-lb li[data-code="FR"]') && r.doc.querySelector('#ist-lb li[data-code="FRA"]'), 'FR e FRA sono voci distinte'); r.doc.querySelector('[data-testid=ist-search-cancel]').click(); assert(!r.doc.querySelector('[data-testid=ist-search]'), 'annulla chiude senza scegliere'); assert.equal(cell(r, 1, 'sigla').value, 'ESP');
+  el = cell(r, 2, 'persone'); el.focus(); fire(el, 'input'); const ke = new r.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }); el.dispatchEvent(ke); assert.strictEqual(r.doc.activeElement, cell(r, 3, 'persone'), 'Invio passa alla riga sotto');
+  assert.equal(adp === null || true, true); assert.equal(ist.svc.requests.length, 0, 'nessuna chiamata al servizio');
+});
+test('U30 ISTAT: aggiungo e elimino movimenti; la tabella e il riepilogo seguono i dati correnti; bozza solo in memoria', async () => {
+  const r = await openIst(); await istLoad(r); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'pronto');
+  r.doc.querySelector('[data-testid=ist-add2]').click(); await waitFor(() => nRows(r) === 21, 'riga aggiunta'); assert.equal(cell(r, 20, 'cipat').value, IST_CIPAT, 'CIPAT della struttura già inserito'); assert.strictEqual(r.doc.activeElement, cell(r, 20, 'arrivo'), 'il cursore è sulla data di arrivo');
+  await waitFor(() => /5 errori|4 errori/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && /Errore · riga 21 · Data di arrivo: Data di arrivo mancante|Errore · riga 21/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'riga vuota = errori sulla riga 21');
+  typeIn(r, 20, 'arrivo', '20260926'); typeIn(r, 20, 'partenza', '20260929'); typeIn(r, 20, 'sigla', 'DEU'); typeIn(r, 20, 'persone', '4');
+  await waitFor(() => /21 movimenti/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && /44 persone/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && /nessun errore/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))), 'movimento aggiunto a mano valido: 21 movimenti, 44 persone');
+  r.doc.querySelector('[data-testid=ist-del-0]').click(); assert.equal(nRows(r), 21, 'senza conferma non si elimina'); r.log.confirmAnswer = true; r.doc.querySelector('[data-testid=ist-del-0]').click();
+  await waitFor(() => nRows(r) === 20 && /20 movimenti/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))) && /41 persone/.test(text(r.doc.querySelector('[data-testid=ist-summary]'))), 'eliminato: 20 movimenti, 41 persone'); assert.equal(cell(r, 0, 'arrivo').value, '20260819', 'la prima riga è ora la seconda del file');
+  r.doc.querySelector('[data-testid=ist-clear]').click(); await waitFor(() => !r.doc.querySelector('[data-testid=ist-table]'), 'tabella svuotata'); assert.equal(ist.svc.requests.length, 0);
+  const o = await r.doc.querySelector('[data-testid=ist-origine]'); assert(/non viene salvata né sul sito né nel browser/.test(text(o))); assert(!/localStorage|sessionStorage/.test(fs.readFileSync(path.join(ROOT, 'js', 'istat.js'), 'utf8').replace(/\/\/.*$/gm, '')), 'nessun salvataggio nel browser');
+});
+test('U31 ISTAT: percorso completo — validazione finale, riepilogo, conferma, invio; nessuna trasmissione prima della conferma, una sola anche con doppio clic, tabella bloccata, stesso file rifiutato', async () => {
+  const r = await openIst(); await istLoad(r); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'pronto'); assert(!r.doc.querySelector('[data-testid=ist-riepilogo]') && !r.doc.querySelector('[data-testid=ist-send]'), 'prima della validazione finale non c\'è il pulsante di invio');
+  await istCheck(r); const rs = text(r.doc.querySelector('[data-testid=ist-riepilogo]')); assert(/Movimenti 20/.test(rs) && /Persone in totale 40/.test(rs) && /CIPAT 022001-AT-012345/.test(rs) && /dal 08\/08\/2026 al 25\/09\/2026/.test(rs) && /Avvisi 0/.test(rs) && /valida fino alle/.test(rs), rs);
+  assert.equal(ist.svc.count('upload'), 0, 'il riepilogo non trasmette nulla'); const send = () => r.doc.querySelector('[data-testid=ist-send]'), conf = () => r.doc.querySelector('[data-testid=ist-confirm]');
+  assert(/Conferma e invia all'ISTAT/.test(text(send())) && send().disabled, 'senza conferma il pulsante è spento'); send().click(); await sleep(60); assert.equal(ist.svc.count('upload'), 0, 'clic su un pulsante spento: nessuna trasmissione');
+  conf().checked = true; fire(conf(), 'change'); await waitFor(() => !send().disabled, 'invio abilitato dopo la conferma'); const btn = send(); btn.click(); btn.click();      // doppio clic
+  await waitFor(() => istRes(r, 'inviato'), 'inviato'); assert.equal(ist.svc.count('upload'), 1, 'una sola trasmissione'); const q = ist.svc.requests[0];
+  assert.deepEqual([q.method, q.url, q.headers.username, q.headers.password, q.headers['content-type']], ['POST', 'https://statweb.provincia.tn.it/istatAlloggi/upload.aspx?ws', 'ws-user', 'ws-pass', 'application/json']); assert.deepEqual(JSON.parse(q.raw), require('../../api/_istat.js').toServiceBody(require('../../api/_istat.js').parseText(ISTF('movimenti.csv')).rows), 'trasmessi esattamente i movimenti confermati'); assert.deepEqual(ist.svc.protocolErrors, []);
+  const res = text(istRes(r, 'inviato')); assert(/Inviato: il servizio ha acquisito 20 movimenti su 20/.test(res) && /20\/20 movimenti caricati/.test(res), res); assert(/20\/20 movimenti caricati/.test(text(r.doc.querySelector('[data-testid=ist-info]'))), 'esito realmente restituito dal servizio');
+  assert(!r.doc.querySelector('[data-testid=ist-send]') && !r.doc.querySelector('[data-testid=ist-del-0]') && !r.doc.querySelector('[data-testid=ist-add]:not([disabled])') && cell(r, 0, 'persone').readOnly, 'tabella bloccata dopo l\'invio'); assert.equal(r.doc.querySelectorAll('.ist-steps li.done').length, 4);
+  r.doc.querySelector('[data-testid=ist-res-newlist]').click(); await waitFor(() => !r.doc.querySelector('[data-testid=ist-table]'), 'nuovo elenco vuoto');
+  await istLoad(r); await waitFor(() => /già acquisito dal servizio/.test(text(r.doc.querySelector('[data-testid=ist-row-0]').nextElementSibling || r.doc.body)), 'movimenti già acquisiti'); assert(r.doc.querySelector('[data-testid=ist-notready]') && r.doc.querySelector('[data-testid=ist-check]').disabled, 'lo stesso file non si può rimandare'); assert.equal(ist.svc.count('upload'), 1);
+});
+test('U32 ISTAT: modificare un dato dopo il riepilogo annulla la conferma; una conferma scaduta non si può usare', async () => {
+  const r = await openIst(); await istLoad(r); await istCheck(r); assert(r.doc.querySelector('[data-testid=ist-send]'));
+  const tot = 40 - +require('../../api/_istat.js').parseText(ISTF('movimenti.csv')).rows[3].persone + 9; typeIn(r, 3, 'persone', '9'); await waitFor(() => !r.doc.querySelector('[data-testid=ist-riepilogo]') && !r.doc.querySelector('[data-testid=ist-send]'), 'riepilogo e conferma annullati'); await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]') && new RegExp(tot + ' persone').test(text(r.doc.querySelector('[data-testid=ist-summary]'))), 'ricontrollato');
+  await istCheck(r); assert(new RegExp('Persone in totale ' + tot).test(text(r.doc.querySelector('[data-testid=ist-riepilogo]'))), 'il riepilogo riflette i dati modificati'); const c = r.doc.querySelector('[data-testid=ist-confirm]'); c.checked = true; fire(c, 'change'); await waitFor(() => { const b = r.doc.querySelector('[data-testid=ist-send]'); return b && !b.disabled; }, 'invio abilitato');
+  clock.advance(21 * MIN); r.doc.querySelector('[data-testid=ist-send]').click(); await waitFor(() => /scaduta/.test(text(r.doc.querySelector('[data-testid=ist-msg]'))), 'conferma scaduta'); assert(!r.doc.querySelector('[data-testid=ist-send]'), 'serve un nuovo riepilogo'); assert.equal(ist.svc.count('upload'), 0); assert(!r.log.calls.some(x => x.a === 'is_send'), 'il server non è stato nemmeno interpellato');
+});
+test('U33 ISTAT: esito parziale (testo del servizio mostrato com\'è), rifiutato, e verifica con l\'elenco sul portale', async () => {
+  let r = await openIst({ svcOpts: { rowCheck: (x, i) => i === 3 ? 'provenienza incorretta ' + x.CIPAT + '(' + x.siglaProvenienza + ')' : null } }); await istLoad(r); await istSend(r); await waitFor(() => istRes(r, 'parziale'), 'parziale');
+  const res = text(istRes(r, 'parziale')); assert(/Invio parziale: acquisiti 19 movimenti su 20/.test(res) && /19\/20 movimenti caricati – provenienza incorretta 022001-AT-012345\(/.test(text(r.doc.querySelector('[data-testid=ist-info]'))) && /NON rinviare l'intero elenco/.test(res), res);
+  assert(!istRes(r, 'inviato') && !r.doc.querySelector('[data-testid=ist-send]') && cell(r, 0, 'persone').readOnly, 'mai "inviato" per un esito parziale; tabella bloccata'); assert.equal(ist.svc.count('upload'), 1);
+  r.doc.querySelector('[data-testid=ist-res-list]').click(); const l = await waitFor(() => r.doc.querySelector('[data-testid=ist-result] [data-testid=ist-list]'), 'elenco'); assert(/19 element/.test(text(l)) && /"siglaProvenienza":"PG"/.test(text(l)), text(l)); assert.equal(ist.svc.count('list'), 1);
+  r = await openIst({ svcOpts: { rowCheck: () => 'respinto di prova' } }); await istLoad(r); await istSend(r); await waitFor(() => istRes(r, 'rifiutato'), 'rifiutato');
+  assert(/Nessun movimento acquisito/.test(text(istRes(r, 'rifiutato'))) && /0\/20 movimenti caricati – respinto di prova/.test(text(r.doc.querySelector('[data-testid=ist-info]'))), 'motivo del servizio'); assert(cell(r, 0, 'persone') && !cell(r, 0, 'persone').readOnly, 'dopo un rifiuto totale la tabella resta modificabile'); r.doc.querySelector('[data-testid=ist-res-dismiss]').click(); assert(!r.doc.querySelector('[data-testid=ist-result]'));
+});
+test('U34 ISTAT: esito incerto (il servizio non risponde): istruzioni chiare, nessun ritentativo, tabella bloccata finché non si sceglie; l\'elenco sul portale dice cosa è arrivato', async () => {
+  const r = await openIst({ svcOpts: { modo: { upload: 'dopo-abort' } } }); await istLoad(r); await istSend(r); await waitFor(() => istRes(r, 'esito_incerto'), 'esito incerto');
+  const res = text(istRes(r, 'esito_incerto')); assert(/NON inviare di nuovo/.test(res) && /Elenco movimenti sul portale/.test(res), res); assert.equal(ist.svc.count('upload'), 1, 'nessun ritentativo'); assert(!r.doc.querySelector('[data-testid=ist-send]') && cell(r, 0, 'persone').readOnly, 'niente pulsante di invio, tabella bloccata');
+  r.doc.querySelector('[data-testid=ist-res-list]').click(); const l = await waitFor(() => r.doc.querySelector('[data-testid=ist-result] [data-testid=ist-list]'), 'elenco'); assert(/20 element/.test(text(l)), 'il servizio aveva già acquisito i movimenti: l\'elenco lo mostra');
+  r.doc.querySelector('[data-testid=ist-res-unlock]').click(); assert.equal(r.log.confirms.length, 1); assert(/NON risultano caricati/.test(r.log.confirms[0])); assert(istRes(r, 'esito_incerto'), 'senza conferma resta bloccato');
+  r.log.confirmAnswer = true; r.doc.querySelector('[data-testid=ist-res-unlock]').click(); await waitFor(() => !r.doc.querySelector('[data-testid=ist-result]'), 'sbloccata'); assert(!cell(r, 0, 'persone').readOnly && /Ripeti il controllo/.test(text(r.doc.querySelector('[data-testid=ist-msg]')))); assert(!r.doc.querySelector('[data-testid=ist-send]'), 'serve un nuovo riepilogo'); assert.equal(ist.svc.count('upload'), 1);
+});
+test('U35 ISTAT: 504, risposta non JSON, rete caduta durante l\'invio = esito incerto (mai "non inviato"); un rifiuto chiaro è un errore normale; credenziali rifiutate non trasmettono nulla', async () => {
+  let r = await openIst(); await istLoad(r); ist.forceSend = { status: 504, text: '<html>Gateway Timeout</html>' }; await istSend(r); await waitFor(() => istRes(r, 'esito_incerto'), 'incerto per 504'); assert(/NON inviare di nuovo/.test(text(istRes(r, 'esito_incerto')))); assert(!r.doc.querySelector('[data-testid=ist-send]'));
+  r = await openIst(); await istLoad(r); ist.forceSend = { status: 500, text: JSON.stringify({ err: 'Errore interno: nessun dato è stato conservato' }) }; await istSend(r); await waitFor(() => istRes(r, 'esito_incerto'), 'incerto per 500 senza stato');
+  r = await openIst(); await istLoad(r); ist.forceSend = { status: 200, text: '{}' }; await istSend(r); await waitFor(() => istRes(r, 'esito_incerto'), 'incerto per risposta sconosciuta');
+  r = await openIst(); await istLoad(r); ist.forceSend = { throw: true }; await istSend(r); await waitFor(() => istRes(r, 'esito_incerto'), 'incerto per rete caduta');
+  r = await openIst(); await istLoad(r); ist.forceSend = { status: 400, text: JSON.stringify({ err: 'Richiesta rifiutata dal server di prova' }) }; await istSend(r); await waitFor(() => istRes(r, 'errore'), 'errore'); assert(/Richiesta rifiutata dal server di prova/.test(text(istRes(r, 'errore')))); assert(!cell(r, 0, 'persone').readOnly, 'con un rifiuto chiaro la tabella resta modificabile'); r.doc.querySelector('[data-testid=ist-res-dismiss]').click(); assert(!r.doc.querySelector('[data-testid=ist-result]'));
+  r = await openIst({ env: { ISTAT_WS_PASSWORD: 'sbagliata' } }); await istLoad(r); await istSend(r); await waitFor(() => istRes(r, 'credenziali_non_valide'), 'credenziali'); const cr = text(istRes(r, 'credenziali_non_valide')); assert(/Credenziali non accettate/.test(cr) && /Non è stato trasmesso nulla/.test(cr) && !/sbagliata/.test(r.doc.documentElement.outerHTML), cr); assert(!cell(r, 0, 'persone').readOnly);
+});
+test('U36 ISTAT: invio reale disattivato (preview) o credenziali mancanti: il riepilogo funziona, l\'invio resta spento e spiegato', async () => {
+  let r = await openIst({ env: { VERCEL_ENV: 'preview' } }); await istLoad(r); await istCheck(r); const off = text(r.doc.querySelector('[data-testid=ist-send-off]')); assert(/Invio reale disattivato/.test(off) && /preview/.test(off), off);
+  assert(r.doc.querySelector('[data-testid=ist-confirm]').disabled && r.doc.querySelector('[data-testid=ist-send]').disabled); r.doc.querySelector('[data-testid=ist-send]').click(); await sleep(60); assert.equal(ist.svc.count('upload'), 0);
+  r = await openIst({ env: { ISTAT_WS_USER: '' } }, false); await waitFor(() => /Configurazione incompleta/.test(text(r.doc.querySelector('[data-testid=ist-status]'))), 'stato'); await istLoad(r); await istCheck(r); assert(/Mancano le credenziali del servizio ISTAT \(ISTAT_WS_USER\)/.test(text(r.doc.querySelector('[data-testid=ist-cred-off]')))); assert(r.doc.querySelector('[data-testid=ist-send]').disabled && ist.svc.count('upload') === 0);
+  r = await openIst({ env: { ISTAT_CIPAT: '' } }, false); await waitFor(() => /Configurazione incompleta/.test(text(r.doc.querySelector('[data-testid=ist-status]'))), 'stato'); await istLoad(r); await waitFor(() => r.doc.querySelector('[data-testid=ist-notready]'), 'errore'); assert(/CIPAT della struttura non è configurato/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))) && r.doc.querySelector('[data-testid=ist-check]').disabled, 'senza CIPAT configurato non si procede');
+});
+test('U37 ISTAT: sessione scaduta → si torna al login senza perdere la tabella; passando da una scheda all\'altra i dati restano; ciò che si scrive non diventa mai HTML', async () => {
+  const r = await openIst(); await istLoad(r); const evil = '<img src=x onerror="window.__xss=1">'; typeIn(r, 0, 'cipat', evil); await waitFor(() => /CIPAT/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))) && r.doc.querySelector('[data-testid=ist-row-0] .ist-in.bad'), 'errore sul CIPAT');
+  assert(!r.doc.querySelector('[data-testid=ist-table] img, [data-testid=ist-seg] img, script'), 'nessun elemento creato dal testo'); assert.equal(r.w.__xss, undefined); assert.equal(cell(r, 0, 'cipat').value, evil, 'nel campo il valore è identico'); typeIn(r, 0, 'cipat', IST_CIPAT);
+  // il testo scritto finisce anche nei messaggi del server (che lo riportano) e negli attributi quando la tabella viene ridisegnata: mai come HTML
+  const ev2 = '"><script>window.__xss=2</script><u>', ev3 = '<i onmouseover="window.__xss=3">x</i>'; typeIn(r, 1, 'arrivo', ev2); typeIn(r, 1, 'sigla', ev3); typeIn(r, 1, 'persone', evil);
+  await waitFor(() => /Errore · riga 2 · Data di arrivo/.test(text(r.doc.querySelector('[data-testid=ist-seg]'))), 'errori sulla riga 2'); const seg = r.doc.querySelector('[data-testid=ist-seg]'), tr = r.doc.querySelector('[data-testid=ist-row-1]');
+  assert(!r.doc.querySelector('[data-testid=ist-table] img, [data-testid=ist-table] u, [data-testid=ist-table] i, [data-testid=ist-seg] u, [data-testid=ist-seg] i, [data-testid=ist-seg] img, script'), 'messaggi e segnalazioni: nessun elemento creato dal testo');
+  assert(/<script>|<i onmouseover|<img src=x/.test(text(seg) + text(tr.nextElementSibling)), 'il testo compare così com\'è nelle segnalazioni');
+  r.doc.querySelector('[data-testid=ist-add2]').click(); await waitFor(() => nRows(r) === 21, 'riga aggiunta: la tabella viene ridisegnata');
+  assert.deepEqual([cell(r, 1, 'arrivo').value, cell(r, 1, 'sigla').value, cell(r, 1, 'persone').value], [ev2, ev3, evil], 'dopo il ridisegno i valori sono identici (attributi protetti)'); assert(!r.doc.querySelector('[data-testid=ist-table] img, [data-testid=ist-table] u, [data-testid=ist-table] i, script'), 'nessun elemento creato nell\'attributo value'); assert.equal(r.w.__xss, undefined);
+  r.log.confirmAnswer = true; r.doc.querySelector('[data-testid=ist-del-20]').click(); await waitFor(() => nRows(r) === 20, 'riga di prova eliminata'); typeIn(r, 1, 'arrivo', '20260819'); typeIn(r, 1, 'sigla', 'ESP'); typeIn(r, 1, 'persone', '3');
+  await waitFor(() => r.doc.querySelector('[data-testid=ist-ready]'), 'a posto'); await goto(r, '#adempimenti', '[data-testid=adp-root] [data-testid=adp-head]'); assert(!r.doc.querySelector('[data-testid=ist-table]'), 'scheda Alloggiati Web'); await goto(r, '#adempimenti/istat', '[data-testid=ist-table]'); assert.equal(nRows(r), 20, 'la tabella ISTAT è ancora lì');
+  clock.advance(9 * 60 * MIN); r.doc.querySelector('[data-testid=ist-check]').click(); await waitFor(() => r.doc.querySelector('[data-testid=admin-login-form]'), 'login'); assert(!r.doc.querySelector('[data-testid=ist-table]'));
+  r.doc.querySelector('#au').value = 'admin'; r.doc.querySelector('#ap').value = 'pw'; r.doc.querySelector('#l').requestSubmit(); await waitFor(() => nRows(r) === 20, 'tabella ancora presente'); assert.equal(ist.svc.count('upload'), 0, 'nessuna trasmissione con la sessione scaduta');
+});
+test('U38 ISTAT: la scheda ISTAT non cambia Alloggiati Web e viceversa (stato separato)', async () => {
+  const r = await openIst(); await istLoad(r); await goto(r, '#adempimenti', '[data-testid=adp-head]'); adp = makeAdp(); r.w.location.hash = '#adempimenti'; await sleep(40);
+  assert(r.doc.querySelector('[data-testid=adp-tab-alloggiati]').classList.contains('on') && !r.doc.querySelector('[data-testid=adp-tab-istat]').classList.contains('on')); assert(r.doc.querySelector('[data-testid=adp-origine]'), 'compare la scheda Alloggiati Web'); assert(!r.doc.querySelector('[data-testid=ist-origine]'));
+  await goto(r, '#adempimenti/istat', '[data-testid=ist-table]'); assert.equal(nRows(r), 20); assert(r.doc.querySelector('[data-testid=adp-tab-istat]').classList.contains('on'));
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();
   for (const [name, fn] of tests) {
-    if (only && !name.startsWith(only)) continue;
+    if (only && !only.split(',').some(f => name.startsWith(f))) continue;      // più filtri separati da virgola, es. U26,U27
     pageErrors.length = 0;
     try { await fn(); await sleep(40); if (pageErrors.length) throw pageError(); pass++; console.log('  ✔ ' + name); }
     catch (e) { fail++; console.log('  ✘ ' + name + '\n      → ' + String(e && e.stack || e).split('\n').slice(0, only ? 14 : 4).join('\n        ')); }

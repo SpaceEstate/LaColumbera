@@ -1,0 +1,47 @@
+/* La Columbera · Gestione → Adempimenti → ISTAT. Caricato solo da admin.html: non tocca le altre pagine.
+   Riusa gli stili .adp-* di adempimenti.css (avanzamento, messaggi, segnalazioni, finestra, elenco di ricerca). */
+.ist-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:16px}
+.ist-table{width:100%;border-collapse:separate;border-spacing:0;font-size:.9rem}
+.ist-table th{white-space:nowrap}
+.ist-table td{padding:8px;vertical-align:top;border-bottom:1px solid var(--line)}
+.ist-row.bad td{background:rgba(122,46,57,.04)}
+.ist-n{font-weight:700;color:var(--wine);width:36px}
+.ist-in{width:100%;min-width:0;font:inherit;font-size:16px;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink)}      /* 16px: Safari su iPhone non ingrandisce la pagina */
+.ist-in:focus{outline:none;border-color:var(--wine);box-shadow:0 0 0 3px rgba(122,46,57,.12)}
+.ist-in.bad{border-color:#c9a2a8;background:#fbf1f2}
+.ist-in.warn{border-color:var(--gold);background:rgba(176,141,60,.1)}
+.ist-in[readonly]{background:#f6f1e6;color:var(--muted)}
+.ist-table td:nth-child(3) .ist-in,.ist-table td:nth-child(4) .ist-in{min-width:118px}
+.ist-table td:nth-child(2) .ist-in{min-width:170px}
+.ist-table td.ist-prov{min-width:190px}
+.ist-table td:nth-child(7) .ist-in{min-width:64px}
+.ist-h{display:block;min-height:1.1em;margin-top:2px;color:var(--muted);font-size:.78rem}
+.ist-sigla{display:flex;gap:6px;align-items:center}
+.ist-sigla .ist-in{max-width:90px}
+.ist-find{min-height:44px;padding:6px 12px;flex:0 0 auto}
+.ist-desc{display:block;margin-top:3px;font-size:.85rem}
+.ist-notti{font-weight:700}
+.ist-iss-row td{padding:0 8px 12px;border-bottom:1px solid var(--line)}
+.ist-iss-row .adp-iss{margin:0}
+.ist-seg{margin-bottom:6px}
+.ist-quote{margin:8px 0;padding:10px 14px;border-left:4px solid var(--gold);background:var(--paper-2);border-radius:8px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.ist-raw{margin:8px 0 0;padding:10px 12px;background:var(--paper-2);border-radius:10px;max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+.ist-sheet .adp-combo ul{position:static;max-height:50vh;box-shadow:none;margin:0}
+.adp-tabs{margin-top:0}
+
+/* telefono: ogni movimento diventa una scheda con i campi etichettati (niente scorrimento in orizzontale) */
+@media (max-width:760px){
+  .ist-wrap{overflow:visible}
+  .ist-table,.ist-table tbody{display:block;width:100%}
+  .ist-table thead{display:none}
+  .ist-table tr.ist-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 12px 12px;margin-top:12px}
+  .ist-table tr.ist-row.bad{border-color:#c9a2a8}
+  .ist-table tr.ist-row td{display:block;border:0;padding:6px 0;min-width:0;background:none}
+  .ist-table tr.ist-row td::before{content:attr(data-label);display:block;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--wine);margin-bottom:2px}
+  .ist-table tr.ist-row td.td-azioni::before{display:none}
+  .ist-table td.ist-prov,.ist-table td.ist-st,.ist-table td.td-azioni{grid-column:1/-1}
+  .ist-table td .ist-in{min-width:0 !important;max-width:none}
+  .ist-sigla .ist-in{max-width:none}
+  .ist-table tr.ist-iss-row{display:block;margin-top:-8px;background:var(--paper);border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;padding:12px 12px 8px}
+  .ist-table tr.ist-iss-row td{display:block;padding:0;border:0}
+}

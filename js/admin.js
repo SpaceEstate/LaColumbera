@@ -140,13 +140,13 @@ const sDisp=(p,i)=>`<div class="field"><label class="closed-toggle"><input type=
   <div id="minper-${i}"></div>
   <button type="button" class="btn btn-line" data-act="minAdd" data-i="${i}">+ Aggiungi periodo</button>
   <h3>Blocca date</h3>
-  <p class="book-note">Le notti bloccate risultano non prenotabili sul sito; il calendario iCal verso Booking e Airbnb contiene solo le prenotazioni del sito.</p>
+  <p class="book-note">Le notti bloccate risultano non prenotabili sul sito e vengono segnalate anche ad Airbnb e Booking tramite il calendario iCal.</p>
   <div class="adm-chips" id="chips-${i}"></div>
   ${calTools(i,'avail')}<div id="cal-${i}"></div>
   <h4 class="adm-h4">Notti bloccate</h4><div id="br-${i}" class="adm-ranges"></div>`;
 
 const sCal=(p,i)=>`<div class="field"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input data-b="ical:${p.id}" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
-  <div class="field"><label>Calendario iCal SOLO prenotazioni del sito (inseriscilo su Booking e Airbnb: contiene solo le prenotazioni fatte sul sito, non quelle di Booking/Airbnb)</label><div class="adm-copy"><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&for=site&id=${p.id}" data-testid="admin-ical-export-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${location.origin}/api/x?a=ical&for=site&id=${p.id}">Copia</button></div></div>`;
+  <div class="field"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito e le notti bloccate qui)</label><div class="adm-copy"><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${location.origin}/api/x?a=ical&id=${p.id}">Copia</button></div></div>`;
 
 // --- scaglioni ospiti ---
 function stepsRender(i){const p=S.apts[i],el=$('#steps-'+i);if(!el)return;
@@ -300,10 +300,13 @@ function vGc(){
   <pre id="gcout" style="white-space:pre-wrap;word-break:break-word;margin-top:12px;font-size:.85rem"></pre></details></div>`}
 
 // ---------- Adempimenti (Alloggiati Web): la sezione vive in js/adempimenti.js; i dati degli ospiti restano solo in memoria ----------
-function vAdp(){return '<div id="adp-root" data-testid="adp-root"></div>'}
+function vAdp(){const sub=route().sub==='istat'?'istat':'alloggiati';
+  return `<div class="adm-tabs adp-tabs" data-testid="adp-tabs"><a href="#adempimenti" class="${sub==='alloggiati'?'on':''}" data-testid="adp-tab-alloggiati">Alloggiati Web</a><a href="#adempimenti/istat" class="${sub==='istat'?'on':''}" data-testid="adp-tab-istat">ISTAT</a></div><div id="adp-root" data-testid="adp-root"></div>`}
 function adpAfter(){const el=$('#adp-root');if(!el)return;
-  if(!window.LCAdempimenti){el.innerHTML='<div class="admin-card"><p class="form-err">Modulo Adempimenti non caricato: ricarica la pagina.</p></div>';return}
-  window.LCAdempimenti.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()}})}
+  const ist=route().sub==='istat',mod=ist?window.LCIstat:window.LCAdempimenti;
+  if(!mod){el.innerHTML='<div class="admin-card"><p class="form-err">Modulo Adempimenti non caricato: ricarica la pagina.</p></div>';return}
+  if(ist){document.querySelectorAll('.adp-modal').forEach(n=>n.remove());document.body.classList.remove('adp-noscroll')}      // una finestra dell'altra scheda rimasta aperta non resta sopra questa pagina
+  mod.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()}})}
 
 // ---------- Eventi ----------
 function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono anche nella sezione «Eventi in programma» della pagina Luoghi di interesse.</p>
@@ -369,7 +372,7 @@ function cellClick(cell,e){
 // ---------- Eventi DOM ----------
 function wire(){
   M.addEventListener('click',e=>{
-    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;document.body.classList.remove('adp-active');window.LCAdempimenti&&window.LCAdempimenti.reset();login();return}
+    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;document.body.classList.remove('adp-active');window.LCAdempimenti&&window.LCAdempimenti.reset();window.LCIstat&&window.LCIstat.reset();login();return}
     if(e.target.id==='save'){save();return}
     const a=e.target.closest('[data-act]');if(a){ACT[a.dataset.act]&&ACT[a.dataset.act](a,e);return}
     const c=e.target.closest('.pcell');if(c)cellClick(c,e)});
