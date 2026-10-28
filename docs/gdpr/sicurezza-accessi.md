@@ -69,6 +69,7 @@ I contatori usano una finestra fissa: `SET k 0 EX finestra NX` seguito da `INCR 
 | `failCode` | 10 ogni 24 h per codice | tentativi falliti **senza token** sullo stesso codice. Il token resta utilizzabile |
 | `checkoutIp` | 10 ogni 30 min per IP | avvii di pagamento (evita l'accumulo di blocchi sulle notti) |
 | `loginIp` | 10 ogni 15 min per IP | login admin falliti |
+| `statusIp` | 60 ogni 10 min per IP | controlli «com'è andato il pagamento» (`checkout_status`, richiede il token del pagamento) |
 
 - Superata una soglia la risposta è **429**, con `Retry-After` e un messaggio uniforme che invita ad aprire il link della mail.
 - Il backoff è la finestra stessa: non si riprova prima della scadenza.
