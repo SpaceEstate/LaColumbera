@@ -18,9 +18,10 @@ const auth=r=>{const t=r.headers.authorization||'',p=t.split('.')[0];return !!S(
 // Campi di contenuto aggiunti dopo il primo salvataggio dal pannello (servizi, testo di approfondimento, CIN, CIPAT): finché il titolare non li salva
 // (cfg senza quel campo) valgono quelli di data/default.json, così il sito li mostra subito senza sovrascrivere i testi che ha già modificato.
 // require statico: Vercel include sicuramente il file nella funzione.
-const DEF=require('../data/default.json'),FILL=['servizi','dettagli','cin','cipat'];
+// I codici (CIN, CIPAT) valgono anche se il campo salvato è vuoto: sono obbligatori negli annunci, un campo lasciato vuoto per sbaglio non deve farli sparire dal sito.
+const DEF=require('../data/default.json'),FILL=['servizi','dettagli','cin','cipat'],CODICI=new Set(['cin','cipat']);
 const withDefaults=c=>{if(!c||!Array.isArray(c.apts))return c;const d=new Map((DEF.apts||[]).map(p=>[p.id,p]));
- return{...c,apts:c.apts.map(p=>{const q=d.get(p.id);if(!q)return p;const o={...p};for(const k of FILL)if(o[k]===undefined&&q[k]!==undefined)o[k]=q[k];return o})}};
+ return{...c,apts:c.apts.map(p=>{const q=d.get(p.id);if(!q)return p;const o={...p};for(const k of FILL)if((o[k]===undefined||(CODICI.has(k)&&String(o[k]).trim()===''))&&q[k]!==undefined)o[k]=q[k];return o})}};
 const cfg=async r=>withDefaults((await jg('cfg'))||await(await fetch('https://'+r.headers.host+'/data/default.json')).json());
 // CIPAT della struttura (lo stesso usato per l'ISTAT, variabile ISTAT_CIPAT): è un codice che per legge compare negli annunci, quindi può essere pubblico. Solo se ha la forma giusta.
 const cipatPub=()=>{const v=String(process.env.ISTAT_CIPAT||'').trim();return /^[A-Za-z0-9-]{16}$/.test(v)?v:''};
@@ -145,7 +146,7 @@ const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!pro
 // Un appartamento "non verificabile" ferma le prenotazioni dal sito (scelta voluta: meglio fermarsi che mostrare date sbagliate), ma il titolare
 // deve saperlo senza aprire il pannello: una mail per episodio, un promemoria ogni 6 ore finché dura, una mail quando torna tutto a posto.
 // Stato per appartamento in KV (alert:nv:<apt>); la mail conta come inviata solo se l'invio riesce, altrimenti si riprova al giro successivo.
-const OWNER_EMAIL=process.env.OWNER_EMAIL||'patrick.comper@yahoo.com',ALERT_REMIND_MS=6*3600e3;
+const OWNER_EMAIL=process.env.OWNER_EMAIL||'patrick.comper@yahoo.com',REPLY_TO=process.env.REPLY_TO||'lacolumbera@gmail.com',ALERT_REMIND_MS=6*3600e3;      // REPLY_TO: a chi risponde l'ospite alla conferma (predefinito: l'indirizzo pubblicato sul sito)
 const hx=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 async function syncAlerts(config,req){
  if((await kv('SET','alert:lock','1','NX','EX','60'))!=='OK')return;      // un solo controllo alla volta
@@ -217,74 +218,6 @@ const feed=async()=>{
  }catch{}
  return curated();
 };
-
-// ---- Google Reviews: cache server-side di 24 ore ----
-const GOOGLE_REVIEWS_KEY='google:reviews';
-const GOOGLE_REVIEWS_TTL=24*60*60*1000;
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function googleReviews(req,res){
- const apiKey=process.env.GOOGLE_PLACES_API_KEY||'';
- const placeId=process.env.GOOGLE_PLACE_ID||'';
- if(!apiKey||!placeId)return res.status(500).json({err:'Google Reviews non configurate: mancano GOOGLE_MAPS_API_KEY e/o GOOGLE_PLACE_ID su Vercel'});
- let cached=null;
- try{cached=await jg(GOOGLE_REVIEWS_KEY)}catch{}
- const age=cached&&cached.fetchedAt?Date.now()-Number(cached.fetchedAt):Infinity;
- if(cached&&cached.data&&age<GOOGLE_REVIEWS_TTL){
-  res.setHeader('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-  return res.json(cached.data);
- }
- const lockKey='google:reviews:lock';
- let locked=false;
- try{locked=(await kv('SET',lockKey,String(Date.now()),'NX','EX','120'))==='OK'}catch{}
- if(!locked&&cached&&cached.data){
-  res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
-  return res.json(cached.data);
- }
- try{
-  const url='https://places.googleapis.com/v1/places/'+encodeURIComponent(placeId);
-  const r=await fetch(url,{headers:{
-   'X-Goog-Api-Key':apiKey,
-   'X-Goog-FieldMask':'id,displayName,rating,userRatingCount,reviews,googleMapsUri',
-   'Accept':'application/json'
-  }});
-  const txt=await r.text();let j;
-  try{j=JSON.parse(txt)}catch{j={}};
-  if(!r.ok||!j.id){
-   if(cached&&cached.data){
-    res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
-    return res.json(cached.data);
-   }
-   return res.status(502).json({err:'Google Places non ha restituito le recensioni'});
-  }
-  const data={
-   placeId:j.id,
-   name:j.displayName&&j.displayName.text||'La Columbera',
-   rating:typeof j.rating==='number'?j.rating:null,
-   userRatingCount:typeof j.userRatingCount==='number'?j.userRatingCount:null,
-   googleMapsUri:j.googleMapsUri||'',
-   reviews:(Array.isArray(j.reviews)?j.reviews:[]).map(r=>({
-    text:r.originalText&&r.originalText.text||r.text&&r.text.text||'',
-    rating:typeof r.rating==='number'?r.rating:null,
-    author:r.authorAttribution&&r.authorAttribution.displayName||'Utente Google',
-    authorUri:r.authorAttribution&&r.authorAttribution.uri||'',
-    photoUri:r.authorAttribution&&r.authorAttribution.photoUri||'',
-    publishTime:r.publishTime||'',
-    googleMapsUri:r.googleMapsUri||''
-   })).filter(r=>r.text)
-  };
-  await kv('SET',GOOGLE_REVIEWS_KEY,JSON.stringify({fetchedAt:Date.now(),data}));
-  res.setHeader('Cache-Control','public, s-maxage=3600, stale-while-revalidate=86400');
-  return res.json(data);
- }catch(e){
-  if(cached&&cached.data){
-   res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=3600');
-   return res.json(cached.data);
-  }
-  return res.status(502).json({err:'Errore nel recupero delle recensioni Google'});
- }finally{
-  if(locked)await kv('DEL',lockKey).catch(()=>{});
- }
-}
 
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body&&typeof req.body==='object'?req.body:{};res.setHeader('Cache-Control','no-store');
 try{
@@ -395,6 +328,15 @@ if(a==='checkout_cancel'){ // l'ospite torna indietro dalla pagina Stripe: liber
  const code=String(b.code||'').trim().toUpperCase();
  if(code&&await ACC.verify(code,b.t)){const x=await E.bkGet(code);if(x&&x.stato==='in_attesa')await E.holdRelease(x.id,days(x.da,x.a),x.code)}
  return res.json({ok:1})}
+if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? Se il webhook non è ancora arrivato lo si chiede a Stripe (rete di sicurezza: stesso percorso di conferma del webhook)
+ const lim=await ACC.limitIp(req,'cs',ACC.RL.statusIp);if(lim)return deny(res,lim);
+ const code=String(b.code||'').trim().toUpperCase();
+ if(!(code&&await ACC.verify(code,b.t)))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ let bk=await E.bkGet(code);if(!bk)return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ if(bk.stato==='in_attesa'){
+  try{await require('./_pagato.js').riconcilia(bk,req)}catch(e){console.error('checkout_status:',String(e&&(e.code||e.message)||'errore').slice(0,80))}      // un errore (Stripe, passo già in corso) non cambia la risposta: si dice lo stato attuale
+  bk=await E.bkGet(code)||bk}
+ return res.json({stato:bk.stato,email:maskEmail(bk.email)})}
 // Area clienti e Guest Card: il codice da solo NON basta. Serve il token (link della mail / sessione) oppure codice + data di arrivo + email.
 const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t,da:b.da,email:b.email},async code=>findBooking(await cfg(req),code));
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
@@ -455,12 +397,18 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
  if(!machine()&&!auth(req))return res.status(401).json({err:'Non autorizzato'});
  const config=await cfg(req);
  if(a==='sync'){const out=await E.syncAll(config,{force:!!b.force,feeds:b.feeds!==false,registry:b.registry!==false,drain:!!b.drain,events:!!b.events});
-  await syncAlerts(config,req).catch(e=>console.error('syncAlerts:',e.message));return res.json(out)}
+  await syncAlerts(config,req).catch(e=>console.error('syncAlerts:',e.message));
+  // rete di sicurezza dei pagamenti: prenotazioni rimaste "in attesa" con una sessione Stripe già pagata (webhook perso) vengono confermate qui
+  out.pagamenti=await require('./_pagato.js').riconciliaInAttesa(req).catch(e=>({controllate:0,recuperate:0,errori:[String(e&&e.message||e).slice(0,80)]}));
+  return res.json(out)}
  if(a==='reconcile')return res.json(await E.reconcile(config,{days:Math.min(Math.max(+b.days||90,7),180)}));
  const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
  return res.json(Object.assign(await E.syncState(config,{}),{lastReconcile:last,log:(logs||[]).map(x=>{try{return JSON.parse(x)}catch{return {msg:String(x)}}})}))}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
 if(a==='cfg_admin')return res.json(await cfg(req));
+if(a==='health')return res.json(await require('./_pagato.js').salute(req,await cfg(req)));
+if(a==='test_mail'){const P=require('./_pagato.js'),r=await sendMail(P.OWNER_EMAIL,'Prova email · La Columbera','<p>Se leggi questo messaggio le email di <b>La Columbera</b> partono correttamente: riceverai così anche le conferme di prenotazione.</p><p>Inviata da Gestione → Sincronizzazione → Pagamenti ed email.</p>',{text:'Se leggi questo messaggio le email di La Columbera partono correttamente: riceverai così anche le conferme di prenotazione.'});
+ return res.json({esito:r===true?'inviata':r===null?'non_configurata':'errore',destinatario:P.mask(P.OWNER_EMAIL)})}
 if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
  const state=c.randomBytes(16).toString('hex');
@@ -518,7 +466,7 @@ if(a==='stato'){const x=await E.bkGet(b.code);
  if(b.stato==='confermata'&&was==='da_verificare'&&x.pagamento&&/.+@.+\..+/.test(x.email||'')&&(await kv('SET','done:'+x.code+':mail_ospite',new Date().toISOString(),'NX'))==='OK'){
   let tk=null;try{tk=await ACC.issueForBooking(x,'mail')}catch(e){console.error('stato/token:',e.message)}
   const gm=require('./_mail.js').guestMail(x,process.env.SITE_URL||'https://'+req.headers.host,tk);
-  if((await sendMail(x.email,gm.subject,gm.html,{text:gm.text,replyTo:process.env.REPLY_TO||'info@lacolumbera.it'}))===false)await kv('DEL','done:'+x.code+':mail_ospite').catch(()=>{});
+  if((await sendMail(x.email,gm.subject,gm.html,{text:gm.text,replyTo:REPLY_TO}))===false)await kv('DEL','done:'+x.code+':mail_ospite').catch(()=>{});
  }
  return res.json({ok:1,changed:1})}
 if(a==='book_del'){const x=await E.bkGet(b.code);if(!x)return res.json({ok:1,removed:0});
@@ -547,4 +495,4 @@ res.status(404).json({err:'?'})}catch(e){console.error('x:',a,String(e&&e.messag
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
 module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
-module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;
+module.exports.OWNER_EMAIL=OWNER_EMAIL;module.exports.REPLY_TO=REPLY_TO;module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;

@@ -106,7 +106,6 @@ function make(deps) {
     }
     return { v, tabs, degradato };
   }
-  const sendInfo = () => WS.readConfig(env).send;
   const accountInfo = () => { const c = WS.readConfig(env); return { utente: WS.maskUser(c.utente), send: c.send, ambiente: String(env.VERCEL_ENV || 'locale') }; };
 
   // Segna come "già inviate" le schedine che il servizio ha acquisito (solo l'impronta della riga, 7 giorni). Se l'archivio non risponde non cambia l'esito dell'invio.

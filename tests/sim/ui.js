@@ -164,6 +164,49 @@ test('U4 pagamento annullato: le notti trattenute si liberano subito (checkout_c
   await waitFor(() => /Pagamento annullato/.test(text(doc.querySelector('#e'))), 'messaggio');
 });
 
+test('U4e ritorno dal pagamento: la pagina chiede lo stato al server e dice la verità (webhook perso → il server controlla Stripe e conferma)', async () => {
+  await setup();
+  const co = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body, c = co.code, sess = JSON.parse(kv.exec(['HGET', 'bkh', c])).sessione;
+  global.__stripeState[sess] = { paid: true };                                                  // ha pagato su Stripe ma il webhook non è mai arrivato
+  assert.equal(stato(c), 'in_attesa');
+  const { doc, log, w } = await load('torre.html', { search: '?pagamento=successo&code=' + c, session: { lc_acc: JSON.stringify({ c, t: co.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => doc.querySelector('[data-testid=booking-success][data-stato=confermata]'), 'conferma mostrata');
+  const t = text(doc.querySelector('[data-testid=booking-success]'));
+  assert(/Prenotazione confermata/.test(t) && t.includes(c) && /ma\*\*\*@test\.it/.test(t) && /spam/.test(t), t);
+  assert(!/mario@test\.it/.test(t), 'l\'email intera non compare nella pagina');
+  assert.equal(stato(c), 'confermata'); assert(global.__mails.some(m => m.to === 'owner@test') && global.__mails.some(m => m.to === 'mario@test.it'), 'email partite');
+  assert(log.calls.some(x => x.a === 'checkout_status' && x.status === 200)); assert.equal(w.location.search, '', 'indirizzo ripulito');
+});
+test('U4f ritorno dal pagamento: da un altro browser (senza token) o con il server giù non si promette nulla di falso, ma si dice cosa fare', async () => {
+  await setup();
+  const co = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body, c = co.code;
+  const a = await load('torre.html', { search: '?pagamento=successo&code=' + c, scripts: ['js/site.js', 'js/pages.js'] });      // nessun token nella scheda
+  await waitFor(() => a.doc.querySelector('[data-testid=booking-success]'), 'messaggio');
+  const t = text(a.doc.querySelector('[data-testid=booking-success]'));
+  assert(/stiamo registrando/.test(t) && t.includes(c) && /lacolumbera@gmail\.com/.test(t) && !/confermata 🎉/.test(t), t);
+  assert(!a.log.calls.some(x => x.a === 'checkout_status'), 'senza token non si chiede nulla');
+  global.__stripeRetrieveFail = true; global.__stripeState[JSON.parse(kv.exec(['HGET', 'bkh', c])).sessione] = { paid: true };
+  const b = await load('torre.html', { search: '?pagamento=successo&code=' + c, session: { lc_acc: JSON.stringify({ c, t: co.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => b.log.calls.filter(x => x.a === 'checkout_status').length >= 2, 'secondo tentativo', 400);
+  assert(/stiamo registrando/.test(text(b.doc.querySelector('[data-testid=booking-success]'))), 'finché non è sicuro, nessuna conferma finta');
+  assert.equal(stato(c), 'in_attesa'); assert.equal(global.__mails.length, 0);
+});
+test('U4g ritorno dal pagamento: il webhook arriva mentre la pagina controlla → compare la conferma; se le date sono andate perse: "stiamo verificando"', async () => {
+  await setup();
+  const co = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body, c = co.code;
+  const { doc } = await load('torre.html', { search: '?pagamento=successo&code=' + c, session: { lc_acc: JSON.stringify({ c, t: co.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => /stiamo registrando/.test(text(doc.querySelector('[data-testid=booking-success]'))), 'prima: in registrazione');
+  await H.webhook('checkout.session.completed', H.paidSession(c));
+  await waitFor(() => doc.querySelector('[data-testid=booking-success][data-stato=confermata]'), 'dopo il webhook: confermata', 400);
+  // pagamento tardivo con date perse
+  const x1 = (await checkout({ da: '2026-12-20', a: '2026-12-22' })).body; tick(40);
+  const x2 = (await checkout({ da: '2026-12-20', a: '2026-12-22', email: 'altro@t.it' })).body; await H.webhook('checkout.session.completed', H.paidSession(x2.code));
+  await H.webhook('checkout.session.completed', H.paidSession(x1.code)); assert.equal(stato(x1.code), 'da_verificare');
+  const d = await load('torre.html', { search: '?pagamento=successo&code=' + x1.code, session: { lc_acc: JSON.stringify({ c: x1.code, t: x1.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => d.doc.querySelector('[data-testid=booking-success][data-stato=da_verificare]'), 'in verifica');
+  const t = text(d.doc.querySelector('[data-testid=booking-success]')); assert(/Stiamo verificando/.test(t) && /lacolumbera@gmail\.com/.test(t) && !/confermata 🎉/.test(t), t);
+});
+
 test('U4b area clienti dal link della mail (#c=…&t=…): entra subito, il token sparisce dall\'indirizzo e passa alla Guest Card', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body;
@@ -230,6 +273,43 @@ test('U5 admin · Sincronizzazione: stato per appartamento, calendari, riconcili
   assert(/Airbnb/.test(text(riga.children[col('Corte')])) && /libera/.test(text(riga.children[col('Torre')])), 'il 5 ott: Corte occupata da Airbnb, Torre libera → ' + text(riga));
   assert(/Eseguita/.test(text(r.doc.querySelector('#sync-rec'))), 'esito della riconciliazione');
 });
+test('U5b admin · Pagamenti ed email: semaforo (webhook, email, foglio), email di prova, prenotazioni rimaste a metà', async () => {
+  await setup();
+  const r = await loadAdmin('#sync'), card = () => text(r.doc.querySelector('[data-testid=admin-pay]')), summary = () => text(r.doc.querySelector('[data-testid=admin-pay-summary]'));
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-pay-rows]'), 'scheda pagamenti');
+  assert(/Su Stripe non risulta nessun webhook/.test(card()) && /da sistemare/.test(summary()), 'senza webhook registrato: ' + card());
+  global.__stripeWebhooks = [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', status: 'enabled', enabled_events: ['checkout.session.completed', 'checkout.session.expired'] }];
+  r.doc.querySelector('[data-testid=admin-pay-check]').click();
+  await waitFor(() => /Tutto a posto/.test(summary()), 'tutto a posto');
+  assert(r.doc.querySelector('[data-testid=admin-pay-summary]').classList.contains('adm-ok'));
+  assert(!/sk_test|whsec_|sync-test-secret|sheet-test-secret|info@test/.test(card()), 'nessun segreto in pagina'); assert(/ow\*\*\*@test/.test(card()), 'destinatario mascherato');
+  r.doc.querySelector('[data-testid=admin-pay-mail]').click();
+  await waitFor(() => /Email di prova inviata a ow\*\*\*@test/.test(text(r.doc.querySelector('[data-testid=admin-pay-msg]'))), 'esito email di prova');
+  assert.equal(global.__mails.length, 1); assert.equal(global.__mails[0].to, 'owner@test');
+  // prenotazione pagata ma con l'email non partita → compare tra le prenotazioni a metà
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body; global.__mailFail = true;
+  assert.equal((await H.webhook('checkout.session.completed', H.paidSession(c.code))).status, 500); global.__mailFail = false;
+  r.doc.querySelector('[data-testid=admin-pay-check]').click();
+  await waitFor(() => /Prenotazioni a metà/.test(card()), 'prenotazione a metà');
+  assert(card().includes(c.code) && /email a te/.test(card()) && /email all'ospite/.test(card()) && /da sistemare/.test(summary()), card());
+});
+test('U5c admin · email non configurata: lo dice chiaramente, anche con l\'email di prova', async () => {
+  await setup({ GMAIL_USER: '', GMAIL_APP_PASSWORD: '' });
+  const r = await loadAdmin('#sync'), card = () => text(r.doc.querySelector('[data-testid=admin-pay]'));
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-pay-rows]'), 'scheda pagamenti');
+  assert(/NON configurata/.test(card()) && /GMAIL_USER/.test(card()), card());
+  r.doc.querySelector('[data-testid=admin-pay-mail]').click();
+  await waitFor(() => /Email non configurata/.test(text(r.doc.querySelector('[data-testid=admin-pay-msg]'))), 'esito'); assert.equal(global.__mails.length, 0);
+});
+test('U5d admin · Calendari iCal: un link per Booking e uno per Airbnb (ciascuno senza gli eventi della piattaforma stessa)', async () => {
+  await setup();
+  const r = await loadAdmin('#torre/calendari'); await waitFor(() => r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]'), 'link per Booking');
+  const b = r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]').value, a = r.doc.querySelector('[data-testid=admin-ical-export-airbnb-torre]').value;
+  assert.equal(b, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=booking'); assert.equal(a, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=airbnb');
+  assert(/blocchi fantasma/.test(text(r.doc.querySelector('[data-testid=admin-ical-note]'))));
+  for (const u of [b, a]) { const q = new URL(u).searchParams; const ic = await H.api('ical', {}, { method: 'GET', query: { id: q.get('id'), for: q.get('for') } }); assert.equal(ic.status, 200, u); }
+});
+
 test('U6 admin · un calendario fermo: badge nel menu, appartamento "non verificabile", motivo leggibile', async () => {
   await setup();
   H.breakFeed('airbnbTorre', { status: 503 }); tick(200); await H.sync();
@@ -472,24 +552,25 @@ test('W5 servizi mancanti nella configurazione salvata: valgono quelli di defaul
   pub = (await H.api('cfg', {}, { method: 'GET' })).body; assert.equal(pub.apts.find(a => a.id === 'corte').servizi, '## Solo\n- Questo');
   assert.equal(pub.apts.find(a => a.id === 'torre').servizi.split('\n')[0], '## Essenziali', 'Torre: ancora il default');
 });
-test('W6 CIN e CIPAT: sotto la descrizione e nelle schede della home; senza codici non compare nessun segnaposto', async () => {
+test('W6 CIN e CIPAT: sotto la descrizione e nelle schede della home; il CIN di default c\'è, il CIPAT arriva dalla struttura o dal singolo appartamento', async () => {
+  const CIN = 'IT022205C2QX58MEMK';
   await setup({ ISTAT_CIPAT: '022205-AT-012345' });
-  // 1) il CIPAT della struttura (ISTAT_CIPAT) vale per entrambi, il CIN non c'è ancora: compare solo il CIPAT
-  let r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => r.doc.querySelector('#cal .d'), 'calendario');
-  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIPAT: 022205-AT-012345'); assert(!r.doc.querySelector('[data-testid=apt-codes]').hidden);
-  // 2) il titolare imposta il CIN di Torre e un CIPAT proprio per Corte da Gestione
+  // 1) CIN di default per entrambi, CIPAT della struttura (ISTAT_CIPAT)
+  let r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici');
+  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIN: ' + CIN + ' · CIPAT: 022205-AT-012345');
+  // 2) il titolare imposta un CIN proprio per Torre e un CIPAT proprio per Corte da Gestione
   const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(a => a.id === 'torre').cin = ' IT022205C2TORRE001 '; c.apts.find(a => a.id === 'corte').cipat = '022205-AT-999999'; assert.equal((await H.adminApi('save', c)).status, 200);
   r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici Torre');
   assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIN: IT022205C2TORRE001 · CIPAT: 022205-AT-012345', 'CIN (senza spazi) e CIPAT della struttura');
   r = await load('corte.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici Corte');
-  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIPAT: 022205-AT-999999', 'il CIPAT proprio ha la precedenza');
+  assert.equal(text(r.doc.querySelector('[data-testid=apt-codes]')), 'CIN: ' + CIN + ' · CIPAT: 022205-AT-999999', 'il CIPAT proprio ha la precedenza');
   const home = await load('index.html', { scripts: ['js/site.js'] });
   await waitFor(() => !home.doc.querySelector('[data-testid=card-torre-codici]').hidden && !home.doc.querySelector('[data-testid=card-corte-codici]').hidden, 'codici nella home');
-  assert.equal(text(home.doc.querySelector('[data-testid=card-torre-codici]')), 'CIN: IT022205C2TORRE001 · CIPAT: 022205-AT-012345'); assert.equal(text(home.doc.querySelector('[data-testid=card-corte-codici]')), 'CIPAT: 022205-AT-999999');
-  // 3) nessun codice e nessun CIPAT di struttura: la riga non compare (mai segnaposto)
-  await setup(); const r3 = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => r3.doc.querySelector('#cal .d'), 'calendario');
-  assert(r3.doc.querySelector('[data-testid=apt-codes]').hidden && text(r3.doc.querySelector('[data-testid=apt-codes]')) === '', 'nessuna riga');
-  const h3 = await load('index.html', { scripts: ['js/site.js'] }); await sleep(120); assert(h3.doc.querySelector('[data-testid=card-torre-codici]').hidden, 'home: nessuna riga');
+  assert.equal(text(home.doc.querySelector('[data-testid=card-torre-codici]')), 'CIN: IT022205C2TORRE001 · CIPAT: 022205-AT-012345'); assert.equal(text(home.doc.querySelector('[data-testid=card-corte-codici]')), 'CIN: ' + CIN + ' · CIPAT: 022205-AT-999999');
+  // 3) senza ISTAT_CIPAT compare il solo CIN; un campo vuoto non produce mai segnaposto né punti
+  await setup(); const r3 = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !r3.doc.querySelector('[data-testid=apt-codes]').hidden, 'codici');
+  assert.equal(text(r3.doc.querySelector('[data-testid=apt-codes]')), 'CIN: ' + CIN);
+  const f = r3.w.lcCodici; assert.equal(f({}, ''), ''); assert.equal(f({ cin: '  ', cipat: '' }, undefined), ''); assert.equal(f({ cin: '', cipat: '' }, '022205-AT-012345'), 'CIPAT: <b>022205-AT-012345</b>'); assert.equal(f({ cin: '<b>x</b>' }, ''), 'CIN: <b>&lt;b&gt;x&lt;/b&gt;</b>', 'i codici non diventano HTML');
   // 4) un ISTAT_CIPAT malformato non finisce mai sul sito
   await H.newEnv({ legacyRows: [HDR], env: { ISTAT_CIPAT: '<script>x' } }); assert.equal((await H.api('cfg', {}, { method: 'GET' })).body.cipat, '');
 });
@@ -497,13 +578,18 @@ test('W7 Gestione · Testi: CIN, CIPAT, approfondimento e servizi si modificano 
   await setup();
   const r = await loadAdmin('#torre/testi'), $ = s => r.doc.querySelector(s), set = (el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
   await waitFor(() => $('[data-testid=admin-cin-torre]'), 'campi');
-  assert.equal($('[data-testid=admin-cin-torre]').value, ''); assert(/^## Essenziali/.test($('[data-testid=admin-servizi-torre]').value), 'servizi di default già nel campo'); assert(/^## Gli spazi/.test($('[data-testid=admin-dettagli-torre]').value));
+  assert.equal($('[data-testid=admin-cin-torre]').value, 'IT022205C2QX58MEMK', 'il CIN di default è già nel campo'); assert(/^## Essenziali/.test($('[data-testid=admin-servizi-torre]').value), 'servizi di default già nel campo'); assert(/^## Gli spazi/.test($('[data-testid=admin-dettagli-torre]').value));
   set($('[data-testid=admin-cin-torre]'), '  IT022205C2AAAA1111 '); set($('[data-testid=admin-cipat-torre]'), '022205-AT-012345'); set($('[data-testid=admin-servizi-torre]'), '## Extra\n- Culla\n- Seggiolone'); set($('[data-testid=admin-dettagli-torre]'), '## Novità\nCucina nuova.');
   $('[data-testid=admin-save]').click(); await waitFor(() => /Salvato/.test(text($('[data-testid=admin-save-msg]'))), 'salvataggio');
   const t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre');
   assert.deepEqual([t.cin, t.cipat, t.servizi, t.dettagli], ['IT022205C2AAAA1111', '022205-AT-012345', '## Extra\n- Culla\n- Seggiolone', '## Novità\nCucina nuova.']);
   const pub = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => !pub.doc.querySelector('#srv').hidden, 'pagina aggiornata');
   assert.equal(pub.doc.querySelectorAll('#srv-top li').length, 2); assert(/Cucina nuova/.test(text(pub.doc.querySelector('#more'))) && /IT022205C2AAAA1111/.test(text(pub.doc.querySelector('#codes'))));
+
+  // un CIN lasciato vuoto per sbaglio non fa sparire il codice dal sito: vale quello di default
+  const c2 = (await H.adminApi('cfg_admin', {})).body; c2.apts.find(x => x.id === 'torre').cin = ''; assert.equal((await H.adminApi('save', c2)).status, 200);
+  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(x => x.id === 'torre').cin, '', 'salvato vuoto');
+  assert.equal((await H.api('cfg', {}, { method: 'GET' })).body.apts.find(x => x.id === 'torre').cin, 'IT022205C2QX58MEMK', 'ma il sito mostra il CIN di default');
 });
 test('W8 Gestione · Prezzi: il prezzo parte dal 1° ospite; i prezzi di prima restano identici per 1…5 ospiti e il server calcola lo stesso', async () => {
   await setup();                                                                      // configurazione vecchia: €180 con 2 ospiti inclusi, +€20 dal 3°

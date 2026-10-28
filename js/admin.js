@@ -160,8 +160,12 @@ const sDisp=(p,i)=>`<div class="field"><label class="closed-toggle"><input type=
   ${calTools(i,'avail')}<div id="cal-${i}"></div>
   <h4 class="adm-h4">Notti bloccate</h4><div id="br-${i}" class="adm-ranges"></div>`;
 
+const icalUrl=(p,f)=>`${location.origin}/api/x?a=ical&id=${p.id}${f?'&for='+f:''}`;
+const icalOut=(p,f,lab)=>`<div class="field"><label>${lab}</label><div class="adm-copy"><input readonly onclick="this.select()" value="${icalUrl(p,f)}" data-testid="admin-ical-export-${f}-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${icalUrl(p,f)}">Copia</button></div></div>`;
 const sCal=(p,i)=>`<div class="field"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input data-b="ical:${p.id}" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
-  <div class="field"><label>Calendario iCal di questo appartamento (inseriscilo su Booking e Airbnb per riservare le date prenotate dal sito e le notti bloccate qui)</label><div class="adm-copy"><input readonly onclick="this.select()" value="${location.origin}/api/x?a=ical&id=${p.id}" data-testid="admin-ical-export-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${location.origin}/api/x?a=ical&id=${p.id}">Copia</button></div></div>`;
+  ${icalOut(p,'booking','Calendario da inserire su <b>Booking.com</b> (sincronizza calendari → importa): chiude lì le date prenotate dal sito, su Airbnb e i tuoi blocchi')}
+  ${icalOut(p,'airbnb','Calendario da inserire su <b>Airbnb</b> (sincronizza calendari → importa): chiude lì le date prenotate dal sito, su Booking e i tuoi blocchi')}
+  <p class="book-note" data-testid="admin-ical-note">Ogni link contiene le prenotazioni fatte sul sito, i blocchi che metti qui e quelle dell'altra piattaforma, ma non quelle della piattaforma stessa: così le date si chiudono ovunque senza «blocchi fantasma». Usa il link giusto per ciascuna piattaforma.</p>`;
 
 // --- scaglioni ospiti ---
 function stepsRender(i){const p=S.apts[i],el=$('#steps-'+i);if(!el)return;
@@ -264,6 +268,9 @@ function vSync(){
    <div class="adm-stat"><span>Coda di ripresa</span><b>${ob.pending||0}</b><small>${ob.pending?'scritture verso il foglio in attesa (la più vecchia: '+ago(ob.oldest)+')':'nessuna scrittura in attesa'}</small></div></div>
   <h3>Calendari collegati</h3>
   <div class="table-wrap tw-stack"><table class="data stack"><thead><tr><th>App.</th><th>Fonte</th><th>Stato</th><th>Ultimo ok</th><th>Eventi</th><th>Note</th></tr></thead><tbody>${feedRows||'<tr><td colspan="6" class="td-empty">Nessun calendario configurato.</td></tr>'}</tbody></table></div></div>
+  <div class="admin-card" data-testid="admin-pay"><div class="adm-head"><h2>Pagamenti ed email</h2><div class="adm-top-actions"><button type="button" class="btn btn-wine" data-act="payCheck" data-testid="admin-pay-check">Verifica ora</button><button type="button" class="btn btn-line" data-act="payMail" data-testid="admin-pay-mail">Invia email di prova</button></div></div>
+  <p class="book-note">Controlla che le prenotazioni pagate arrivino davvero: Stripe collegato, webhook registrato, email in partenza e prenotazioni rimaste a metà. <span class="admin-msg" id="pay-msg" data-testid="admin-pay-msg"></span></p>
+  <div id="pay-body" data-testid="admin-pay-body"><p class="book-note">Controllo in corso…</p></div></div>
   <div class="admin-card" data-testid="admin-sync-rec"><h2>Riconciliazione</h2><p class="book-note">Confronta foglio, calendari, prenotazioni del sito e blocchi: segnala sovrapposizioni, appartamenti discordanti, righe non valide e fonti ferme.</p><div id="sync-rec">${recHtml(V.rec||null)}</div></div>
   <div class="admin-card"><details><summary class="adm-sum">Registro eventi del sistema</summary><div id="sync-log"><p class="book-note">Carico…</p></div></details></div>`}
 function recHtml(rc){
@@ -282,8 +289,37 @@ function matrixHtml(rc){
     const two=v.includes('BOOKING_ICAL')&&v.includes('AIRBNB_ICAL');
     return `<td data-label="${esc(short(p))}" class="${two?'mx-multi':'mx-busy'}">${v.map(k=>esc(LBL[k]||k)).join(' · ')}</td>`};
   return `<details style="margin-top:14px"><summary class="adm-sum">Matrice per data (prossimi 45 giorni)</summary><div class="table-wrap tw-stack"><table class="data stack mx" data-testid="admin-matrix"><thead><tr><th>Data</th>${S.apts.map(p=>`<th>${esc(short(p))}</th>`).join('')}</tr></thead><tbody>${ds.map(d=>`<tr><td data-label="Data">${fmtD(d)}</td>${S.apts.map(p=>cell(p,d)).join('')}</tr>`).join('')}</tbody></table></div><p class="book-note">«Booking · Airbnb» sulla stessa notte (rosso) è una possibile doppia prenotazione.</p></details>`}
+// ---------- Pagamenti ed email ----------
+// Semaforo: verde = a posto, giallo = da guardare, rosso = qualcosa non arriva. Il server non manda mai valori segreti, solo «c'è / non c'è».
+const PS={ok:['ok','A posto'],warn:['stale','Attenzione'],err:['expired','Da sistemare'],info:['never','Info']};
+const PASSI={sheet:'foglio',mail_titolare:'email a te',mail_ospite:'email all\'ospite'};
+function payHtml(h){
+  if(!h)return '<p class="book-note">Controllo non disponibile: ricarica la pagina o riprova tra poco.</p>';
+  const a=h.ambiente||{},st=h.stripe||{},wh=st.webhook,rows=[],R=(lv,t,d)=>rows.push([lv,t,d]);
+  R(!a.stripe||st.collegato===false?'err':st.errore&&st.collegato===null?'warn':'ok','Stripe (incassi)',
+    !a.stripe?'Manca STRIPE_SECRET_KEY su Vercel: nessun pagamento può partire.':st.collegato===false?'La chiave Stripe non è valida o è stata revocata.':st.errore&&st.collegato===null?'Chiave presente, ma non riesco a leggere lo stato da Stripe ('+st.errore+'). Se la chiave è «limitata», servono i permessi di lettura su Webhook ed Eventi.':'Collegato.');
+  const url=location.origin+'/api/stripe-webhook';
+  if(!a.webhook)R('err','Webhook di Stripe','Manca STRIPE_WEBHOOK_SECRET su Vercel: Stripe non può confermare i pagamenti al sito. Resta solo il controllo automatico (ogni pochi minuti), da non considerare sufficiente.');
+  else if(wh==null)R('warn','Webhook di Stripe','Segreto presente, ma non riesco a controllare su Stripe se il webhook è registrato.');
+  else if(!wh.length)R('err','Webhook di Stripe','Su Stripe non risulta nessun webhook che punti a questo sito. Registralo in Stripe → Sviluppatori → Webhook: indirizzo '+url+', eventi «checkout.session.completed» e «checkout.session.expired».');
+  else{const w=wh.find(x=>x.stato==='enabled'&&!x.mancanti.length)||wh[0];
+    R(w.stato!=='enabled'?'err':w.mancanti.length?'warn':'ok','Webhook di Stripe',w.stato!=='enabled'?'Il webhook è registrato ma risulta «'+w.stato+'»: riattivalo su Stripe.':w.mancanti.length?'Registrato, ma mancano gli eventi: '+w.mancanti.join(', ')+'.':'Registrato e attivo.')}
+  R(h.ultimoWebhook?'ok':'info','Ultimo avviso da Stripe',h.ultimoWebhook?ago(h.ultimoWebhook.ts)+' ('+h.ultimoWebhook.tipo+').':'Nessuno ricevuto finora: normale se non ci sono ancora state prenotazioni dal sito. Dopo la prima prenotazione di prova deve comparire qui.');
+  if(st.consegneFallite>0)R('warn','Consegne non riuscite',st.consegneFallite+(st.consegneFallite===1?' pagamento non è stato consegnato':' pagamenti non sono stati consegnati')+' a un webhook negli ultimi 7 giorni (di questo sito o dell\'app Check-in). Controlla in Stripe → Sviluppatori → Webhook che il «signing secret» su Vercel sia quello giusto.');
+  R(a.email?'ok':'err','Email',a.email?'Account di invio configurato. Gli avvisi di nuova prenotazione arrivano a '+(a.destinatario||'—')+(a.destinatarioImpostato?'':' (indirizzo predefinito: per cambiarlo imposta OWNER_EMAIL su Vercel)')+'. Premi «Invia email di prova» per esserne certo.':'NON configurata (mancano GMAIL_USER / GMAIL_APP_PASSWORD su Vercel): né tu né gli ospiti ricevete email. Le prenotazioni si registrano comunque.');
+  R(a.foglio?(h.coda&&h.coda.inAttesa?'warn':'ok'):'err','Foglio prenotazioni',!a.foglio?'Non collegato (mancano SHEET_WEBAPP_URL / SHEET_SECRET su Vercel).':h.coda&&h.coda.inAttesa?h.coda.inAttesa+' scritture in attesa di arrivare sul foglio (la più vecchia: '+ago(h.coda.piuVecchia)+'): si svuota da sola quando il foglio risponde.':'Collegato, nessuna scrittura in attesa.');
+  if(!a.sync)R('warn','Sincronizzazione automatica','Manca SYNC_SECRET su Vercel: lo script del foglio non può far aggiornare calendari e controlli.');
+  if(h.incompleti&&h.incompleti.length)R('err','Prenotazioni a metà',h.incompleti.map(x=>x.code+' (manca: '+x.mancano.map(m=>PASSI[m]||m).join(', ')+')').join(' · ')+'. La prenotazione è confermata e le date sono chiuse; manca un passo. Riprova da Stripe → Sviluppatori → Webhook → «Reinvia», oppure scrivi tu all\'ospite.');
+  if(h.daVerificare)R('warn','Da verificare',h.daVerificare+(h.daVerificare===1?' prenotazione pagata attende':' prenotazioni pagate attendono')+' una tua decisione (date in conflitto o non verificabili): aprila in <a href="#prenotazioni">Prenotazioni</a>.');
+  if(h.inAttesaVecchie)R('warn','Pagamenti in sospeso',h.inAttesaVecchie+(h.inAttesaVecchie===1?' prenotazione è':' prenotazioni sono')+' in attesa di pagamento da oltre 40 minuti. Se l\'ospite ha pagato, il controllo automatico la conferma entro pochi minuti.');
+  if(h.recuperate&&h.recuperate.n)R('warn','Pagamenti recuperati',h.recuperate.n+(h.recuperate.n===1?' pagamento è stato confermato':' pagamenti sono stati confermati')+' dal controllo automatico perché il webhook non era arrivato'+(h.recuperate.ultima?' (ultimo: '+h.recuperate.ultima.code+', '+ago(h.recuperate.ultima.ts)+')':'')+'. Verifica che il webhook sia registrato come indicato sopra.');
+  const bad=rows.filter(r=>r[0]==='err').length,wa=rows.filter(r=>r[0]==='warn').length;
+  return `<div class="${bad?'adm-warn':wa?'adm-warn':'adm-ok'}" data-testid="admin-pay-summary">${bad?bad+(bad===1?' punto da sistemare':' punti da sistemare'):wa?wa+(wa===1?' punto da guardare':' punti da guardare'):'Tutto a posto: pagamenti, avvisi e email risultano funzionanti.'}</div>`
+   +`<div class="pay-rows" data-testid="admin-pay-rows">${rows.map(([lv,t,d])=>`<div class="pay-row" data-lv="${lv}"><span class="stato hb-${PS[lv][0]}">${PS[lv][1]}</span><div><b>${esc(t)}</b><small>${/<a /.test(d)?d:esc(d)}</small></div></div>`).join('')}</div>`}
+async function payAfter(){const b=$('#pay-body');if(!b)return;let h=null;try{h=await api('health',{},t)}catch{}const c=$('#pay-body');if(c)c.innerHTML=payHtml(h)}
 // dopo il disegno della vista: ultimo controllo di riconciliazione e registro eventi
 async function syncAfter(){
+  payAfter();      // non si aspetta: la scheda «Pagamenti ed email» si riempie appena Stripe risponde
   let ss=null;try{ss=await api('sync_status',{},t)}catch{}
   const L=$('#sync-log'),R=$('#sync-rec');
   if(R&&!V.rec&&ss&&ss.lastReconcile){V.rec=ss.lastReconcile;R.innerHTML=recHtml(V.rec)}
@@ -367,8 +403,15 @@ const ACT={
   bookDel:a=>{if(confirm('Rimuovere definitivamente questa prenotazione dallo storico?'))api('book_del',{code:a.dataset.code},t).then(async()=>{await refreshAdm();body()}).catch(x=>alert(x.message))},
   evDel:a=>{if(confirm('Eliminare questo evento?'))api('event_del',{id:a.dataset.id},t).then(async()=>{EV=(await get('a=events'))||[];body()}).catch(x=>alert(x.message))},
   syncNow:async a=>{const o=$('#sync-msg');a.disabled=true;o.className='admin-msg';o.textContent='Sincronizzo… (può richiedere qualche secondo)';
-    try{const r=await api('sync',{force:true,drain:true},t);await refreshAdm();body();const m=$('#sync-msg'),er=(r.errors||[]);if(m){m.textContent=er.length?'Completata con errori: '+er.join(' | '):'Sincronizzazione completata.';m.className='admin-msg '+(er.length?'warn':'ok')}}
+    try{const r=await api('sync',{force:true,drain:true},t);await refreshAdm();body();const m=$('#sync-msg'),er=(r.errors||[]);if(m){const pg=r.pagamenti||{},rec=pg.recuperate?' Recuperati '+pg.recuperate+(pg.recuperate===1?' pagamento':' pagamenti')+' non arrivati dal webhook.':'';m.textContent=(er.length?'Completata con errori: '+er.join(' | '):'Sincronizzazione completata.')+rec;m.className='admin-msg '+(er.length?'warn':'ok')}}
     catch(x){o.textContent=x.message;o.className='admin-msg warn';a.disabled=false}},
+  payCheck:async a=>{const o=$('#pay-msg');a.disabled=true;o.className='admin-msg';o.textContent='Controllo in corso…';
+    try{await payAfter();o.textContent=''}catch(x){o.textContent=x.message;o.className='admin-msg warn'}finally{a.disabled=false}},
+  payMail:async a=>{const o=$('#pay-msg');a.disabled=true;o.className='admin-msg';o.textContent='Invio in corso…';
+    try{const r=await api('test_mail',{},t),ok=r.esito==='inviata';
+      o.textContent=ok?'Email di prova inviata a '+r.destinatario+': controlla la posta (anche lo spam).':r.esito==='non_configurata'?'Email non configurata: mancano GMAIL_USER / GMAIL_APP_PASSWORD su Vercel.':'Invio non riuscito: controlla l\'account Gmail e la «password per le app».';
+      o.className='admin-msg '+(ok?'ok':'warn')}
+    catch(x){o.textContent=x.message;o.className='admin-msg warn'}finally{a.disabled=false}},
   reconNow:async a=>{const o=$('#sync-msg');a.disabled=true;o.className='admin-msg';o.textContent='Riconciliazione in corso…';
     try{V.rec=await api('reconcile',{days:60},t);o.textContent='';o.className='admin-msg';const b=$('#sync-rec');if(b)b.innerHTML=recHtml(V.rec)}
     catch(x){o.textContent=x.message;o.className='admin-msg warn'}finally{a.disabled=false}},

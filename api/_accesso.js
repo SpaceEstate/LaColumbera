@@ -20,6 +20,7 @@ const RL = {
   failIp: { max: 10, win: 900 },        // tentativi falliti per IP: 10 ogni 15 minuti
   failCode: { max: 10, win: 86400 },    // tentativi falliti senza token per lo stesso codice: 10 ogni 24 ore
   checkoutIp: { max: 10, win: 1800 },   // avvii di pagamento per IP: 10 ogni 30 minuti
+  statusIp: { max: 60, win: 600 },      // controlli "com'è andato il pagamento" per IP: 60 ogni 10 minuti (la pagina ne fa pochi, a distanza di secondi)
   loginIp: { max: 10, win: 900 }        // login admin falliti per IP: 10 ogni 15 minuti
 };
 const SESSION_TTL_SEC = 4 * 3600;

@@ -223,7 +223,9 @@ test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da serv
   for (const l of ['OFL-Fraunces.txt', 'OFL-Manrope.txt', 'OFL-PinyonScript.txt']) assert(fs.existsSync(path.join(ROOT, 'fonts', l)), 'licenza ' + l);
   const v = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')), all = v.headers.find(h => h.source === '/(.*)').headers.map(h => h.key);
   for (const k of ['X-Content-Type-Options', 'Referrer-Policy', 'X-Frame-Options', 'Permissions-Policy']) assert(all.includes(k), 'header ' + k);
-  assert(!/STRIPE_SECRET|sk_live|sk_test_[A-Za-z0-9]{10}|AIza[0-9A-Za-z_-]{20}/.test(js.map(f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')).join('')), 'nessuna chiave nel frontend');
+  // nessun VALORE segreto nel frontend: formati delle chiavi e assegnazioni di un valore ai nomi delle variabili. Il solo NOME di una variabile
+  // (es. nel messaggio «Manca STRIPE_SECRET_KEY su Vercel» della scheda Pagamenti) non è un segreto.
+  assert(!/sk_live|sk_test_[A-Za-z0-9]{10}|whsec_[A-Za-z0-9]{10}|AIza[0-9A-Za-z_-]{20}|(?:STRIPE_[A-Z_]+|SESSION_SECRET|SYNC_SECRET|SHEET_SECRET|GMAIL_APP_PASSWORD|ADMIN_PASSWORD)\s*[:=]\s*['"`][^'"`\s]{6,}/.test(js.map(f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')).join('')), 'nessuna chiave nel frontend');
 });
 
 /* ===================== esecuzione ===================== */

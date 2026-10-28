@@ -43,6 +43,8 @@ test('S4 contenuti di default: approfondimento e servizi per gruppi, campi CIN e
     const p = d.apts.find(a => a.id === id); assert(p, id);
     assert(typeof p.cin === 'string' && typeof p.cipat === 'string', id + ': campi cin e cipat');
     assert(!/\[|DA COMPLETARE|XXX|INSERIRE/i.test(p.cin + p.cipat), id + ': segnaposto nei codici');
+    assert(/^IT\d{6}C2[A-Z0-9]{8}$/.test(p.cin), id + ': il CIN non ha la forma attesa (IT + 6 cifre + C2 + 8 caratteri): ' + p.cin);
+    assert(p.cipat === '' || /^\d{6}-AT-\d{6}$/.test(p.cipat), id + ': il CIPAT non ha la forma attesa: ' + p.cipat);
     const heads = p.dettagli.split('\n').filter(l => l.startsWith('## ')); assert(heads.length >= 3, id + ': sezioni di approfondimento');
     const groups = p.servizi.split('\n').filter(l => l.startsWith('## ')), items = p.servizi.split('\n').filter(l => l.startsWith('- '));
     assert(groups.length >= 4 && items.length >= 20, id + ': servizi (' + groups.length + ' gruppi, ' + items.length + ' voci)');

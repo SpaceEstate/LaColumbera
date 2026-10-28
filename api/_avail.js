@@ -512,7 +512,6 @@ function makeEngine(deps) {
   }
 
   /* ---------- prenotazioni del sito: un hash Redis (un campo per prenotazione, niente lost-update) ---------- */
-  const BK_STATI = new Set(['richiesta', 'in_attesa', 'confermata', 'annullata', 'da_verificare']);
   async function ensureBkMigrated() {
     if (migrated) return;
     if (!(await kv('GET', K.bkMig))) {
@@ -783,6 +782,9 @@ function makeEngine(deps) {
     let b = await bkGet(code);
     if (!b) return { ok: false, reason: 'NON_TROVATA' };
     if (b.stato === 'confermata') return { ok: true, booking: b, already: true };
+    // "da_verificare" e "annullata" sono decisioni del titolare (o attese di una sua decisione): un pagamento che arriva di nuovo (Stripe riconsegna
+    // l'evento, il controllo dalla pagina di ritorno) non le cambia mai da solo. Si decide da Gestione, che controlla le sovrapposizioni.
+    if (b.stato === 'da_verificare' || b.stato === 'annullata') return { ok: false, booking: b, already: true, conflict: { date: null, by: [b.stato === 'annullata' ? 'ANNULLATA' : 'GIA_DA_VERIFICARE'] } };
     const dates = rangeDays(b.da, b.a);
     let conflict = null;
     if (!(await holdsValid(b.id, dates, code))) {          // hold scaduto/perso (pagamento tardivo): riacquisisco e riverifico
@@ -792,6 +794,7 @@ function makeEngine(deps) {
         const chk = await conflictsFor(config, b);          // esclude la prenotazione stessa: una consegna duplicata che arriva dopo la conferma non deve "scontrarsi" con se stessa
         if (chk.status === 'unverifiable') conflict = { date: null, by: ['NON_VERIFICABILE'] };
         else if (chk.conflicts.length) conflict = chk.conflicts[0];
+        if (conflict) await holdRelease(b.id, dates, code).catch(() => {});   // l'hold preso solo per il controllo non resta: con un conflitto la prenotazione non ottiene quelle notti
       }
     }
     if (conflict) {

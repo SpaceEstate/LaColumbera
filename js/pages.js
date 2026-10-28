@@ -141,7 +141,21 @@ async function apt(c){
   const box=$('#bk'),qp=new URLSearchParams(location.search),pagamento=qp.get('pagamento');
   if(pagamento==='successo'){
     history.replaceState(null,'',location.pathname);
-    box.innerHTML=`<div class="form-ok" data-testid="booking-success"><h3>Pagamento ricevuto 🎉</h3><p>Il tuo codice prenotazione è <b>${esc(qp.get('code')||'')}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card.</p></div>`;
+    // La conferma arriva di norma dal webhook di Stripe pochi secondi dopo il pagamento. Qui si chiede lo stato al server (che, se il webhook ritarda,
+    // controlla direttamente su Stripe) e si dice all'ospite com'è davvero: confermata, in verifica oppure ancora in registrazione.
+    const cc=(qp.get('code')||'').trim().toUpperCase(),s=accGet(),tk=s&&s.c===cc?s.t:'',
+      mail='<a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>',
+      view=(st,em)=>{
+        if(st==='confermata')return`<h3>Prenotazione confermata 🎉</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Ti abbiamo scritto una email di conferma${em?` a <b>${esc(em)}</b>`:''} (controlla anche lo spam), con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card.</p>`;
+        if(st==='da_verificare'||st==='annullata')return`<h3>Pagamento ricevuto</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Stiamo verificando la tua prenotazione e ti scriviamo al più presto. Per qualsiasi dubbio scrivici a ${mail} indicando il codice.</p>`;
+        return`<h3>Grazie, stiamo registrando la prenotazione</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>. Se entro qualche minuto non la vedi (controlla anche lo spam), scrivici a ${mail} indicando il codice.</p>`};
+    const paint=(st,em)=>{box.innerHTML=`<div class="form-ok" data-testid="booking-success" data-stato="${esc(st||'')}">${view(st,em)}</div>`};
+    paint('');
+    if(cc&&tk)for(let i=0;i<6;i++){      // fino a ~15 s: di solito la conferma c'è al primo o al secondo controllo
+      if(i)await new Promise(r=>setTimeout(r,3000));
+      let r;try{r=await api('checkout_status',{code:cc,t:tk})}catch(e){break}
+      if(r.stato&&r.stato!=='in_attesa'){paint(r.stato,r.email);break}
+    }
     return;
   }
   // Risposta v2: {v:2,status:'ok'|'degraded',asOf,dates:[…],notice,limit}. Se la disponibilità non è verificabile il server risponde 503 (get() → null):
@@ -161,7 +175,7 @@ async function apt(c){
   const lim={mesi:+(bz.limit&&bz.limit.mesi)||6,last:bz.limit&&RE_D.test(bz.limit.ultimoGiorno||'')?bz.limit.ultimoGiorno:''};
   if(!lim.last){const d=new Date();d.setMonth(d.getMonth()+lim.mesi);lim.last=iso(d)}
   const last=lim.last,mk=d=>d.getFullYear()*12+d.getMonth(),kLast=+last.slice(0,4)*12+(+last.slice(5,7)-1);
-  let da='',a='',n=Math.min(2,p.max),step=1,stale=false,m=new Date();m.setDate(1);const k0=mk(m);
+  let da='',a='',n=Math.min(2,p.max),stale=false,m=new Date();m.setDate(1);const k0=mk(m);
   box.innerHTML=`
   <ol class="bk-steps" data-testid="booking-steps" aria-label="Fasi della prenotazione"><li class="on" data-s="1"><span>1</span>Date</li><li data-s="2"><span>2</span>Dati</li><li data-s="3"><span>3</span>Pagamento</li></ol>
   <p class="form-err" id="e" data-testid="booking-error" role="alert"></p>
@@ -226,7 +240,7 @@ async function apt(c){
       a=d;msg('')}
     draw()};
   // passo 1 (date e ospiti) → passo 2 (dati e pagamento)
-  const goStep=k=>{step=k;$('#p1').hidden=k!==1;$('#p2').hidden=k!==2;
+  const goStep=k=>{$('#p1').hidden=k!==1;$('#p2').hidden=k!==2;
     box.querySelectorAll('.bk-steps li').forEach(li=>{const s=+li.dataset.s;li.classList.toggle('on',s===k);li.classList.toggle('done',s<k);li.firstElementChild.textContent=s<k?'✓':String(s)});
     $('.book-card').classList.toggle('step2',k===2);      // con il modulo aperto basta il riepilogo: la carta resta corta
     if(window.matchMedia&&matchMedia('(max-width:960px)').matches)$('.book-card').scrollIntoView({behavior:'smooth',block:'start'})};

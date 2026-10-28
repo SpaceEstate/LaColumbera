@@ -64,7 +64,7 @@ window.lcPhotos = function(root){
     im.src = im.dataset.local || og;
   });
 };
-lcPhotos();
+window.lcPhotos();
 
 
 // CIN e CIPAT degli alloggi: per legge compaiono negli annunci. Arrivano dalla configurazione (Gestione → appartamento → Testi),

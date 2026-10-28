@@ -154,7 +154,6 @@ function render() {
   const w2 = root.querySelector('.ist-wrap'); if (w2) w2.scrollLeft = sl;
   if (keep) { const el = root.querySelector('input.ist-in[data-i="' + keep.i + '"][data-f="' + keep.f + '"]'); if (el) { try { el.focus(); el.setSelectionRange(keep.s, keep.e); } catch (e) { /* niente */ } } }
 }
-const hasTable = () => !!root.querySelector('[data-testid=ist-table] tbody');
 // aggiornamento dopo un controllo: NON tocca i campi di testo (la tastiera del telefono non si chiude e il cursore non si sposta)
 function paintView() {
   if (!root || !root.isConnected) return;
