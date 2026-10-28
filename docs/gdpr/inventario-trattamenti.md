@@ -86,7 +86,6 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 | GitHub (GitHub Pages) | Ospita la pagina di check-in `spaceestate.github.io/Checkin` (indicata nel `successUrl` e nel link dell'area clienti) | IP dei visitatori | [DA VERIFICARE] |
 | Google – Gmail (SMTP) | Invio di tutte le email | T5, T11, T13 | [DA VERIFICARE] |
 | Google – Sheets / Apps Script / Drive | Foglio del check-in, foglio prenotazioni (lettura dal check-in), registro (Apps Script), TXT su Drive creati dallo script del gestore | T8, T10 | [DA VERIFICARE] |
-| Google – Fonts | Caratteri della **pagina di check-in** (`index.html`, `successo-pagamento.html` del repo Checkin). Il sito principale li ospita in locale dal Prompt 2 | IP del visitatore | Server di Google → [DA VERIFICARE] |
 | Google – Places API | Recensioni (chiamata dal server, nessun dato dei visitatori) | — | — |
 | Google Maps | Solo link che si aprono su clic; nessuna mappa incorporata | — | — |
 | Stripe | Pagamento delle prenotazioni e dell'imposta di soggiorno | T4, T12 | [DA VERIFICARE] |
@@ -180,7 +179,6 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 - **Conservazione illimitata** di prenotazioni, Guest Card ed email nel KV e nelle caselle.
 - **Fornitori senza DPA verificato** (art. 28) e regioni dei server non verificate.
 - **Richieste a terzi dal browser:**
-  - Google Fonts nella pagina di check-in;
   - immagini dei siti turistici in alcune schede.
 
   Una possibile riduzione: font in self-hosting anche nel check-in, come già fatto per il sito, e immagini salvate in `img/`.

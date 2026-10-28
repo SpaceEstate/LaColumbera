@@ -173,4 +173,4 @@ Test di mutazione: con `verify` che restituisce sempre vero falliscono 2 test; c
 - **Pagina `privacy.html`:** aggiornata nel Prompt 3 (branch `gdpr/informativa`): font del sito locali, `sessionStorage` con codice e chiave di accesso. Vedi `inventario-trattamenti.md`.
 - **Segnalati e non modificati** (fuori ambito o in un altro repository):
   - messaggi diagnostici di `gc_oauth_callback` (raggiungibili solo con uno `state` valido);
-  - repository Checkin: `ADMIN_SECRET` accettato anche via `?key=`, `successUrl` fornita dal client, Google Fonts nella pagina di check-in.
+  - repository Checkin: `ADMIN_SECRET` accettato anche via `?key=`, `successUrl` fornita dal client (ora limitata agli indirizzi del check-in). Google Fonts è stato sostituito da caratteri sul sito.
