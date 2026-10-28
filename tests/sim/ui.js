@@ -301,15 +301,15 @@ test('U5c admin · email non configurata: lo dice chiaramente, anche con l\'emai
   r.doc.querySelector('[data-testid=admin-pay-mail]').click();
   await waitFor(() => /Email non configurata/.test(text(r.doc.querySelector('[data-testid=admin-pay-msg]'))), 'esito'); assert.equal(global.__mails.length, 0);
 });
-test('U5d admin · Calendari iCal: un link per Booking e uno per Airbnb (ciascuno senza gli eventi della piattaforma stessa)', async () => {
+test('U5d admin · Calendari iCal: il link per Booking e Airbnb è quello «solo sito»; il calendario personale è separato e chiede la chiave', async () => {
   await setup();
-  const r = await loadAdmin('#torre/calendari'); await waitFor(() => r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]'), 'link per Booking');
-  const b = r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]').value, a = r.doc.querySelector('[data-testid=admin-ical-export-airbnb-torre]').value;
-  assert.equal(b, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=booking'); assert.equal(a, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=airbnb');
-  assert(/blocchi fantasma/.test(text(r.doc.querySelector('[data-testid=admin-ical-note]'))));
-  for (const u of [b, a]) { const q = new URL(u).searchParams; const ic = await H.api('ical', {}, { method: 'GET', query: { id: q.get('id'), for: q.get('for') } }); assert.equal(ic.status, 200, u); }
+  const r = await loadAdmin('#torre/calendari'); await waitFor(() => r.doc.querySelector('[data-testid=admin-ical-export-site-torre]'), 'link per Booking e Airbnb');
+  assert.equal(r.doc.querySelector('[data-testid=admin-ical-export-site-torre]').value, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=site');
+  assert(!r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]') && !r.doc.querySelector('[data-testid=admin-ical-export-airbnb-torre]'), 'niente link separati per piattaforma');
+  assert.equal(r.doc.querySelector('[data-testid=admin-ical-personal]').value, 'https://www.lacolumbera.test/api/x?a=ical&for=all&id=all&k=LA_TUA_CHIAVE');
+  const n = text(r.doc.querySelector('[data-testid=admin-ical-note]')); assert(/ICAL_PERSONAL_KEY/.test(n) && /non inserirlo su Booking o Airbnb/.test(n), n);
+  const q = new URL(r.doc.querySelector('[data-testid=admin-ical-export-site-torre]').value).searchParams, ic = await H.api('ical', {}, { method: 'GET', query: { id: q.get('id'), for: q.get('for') } }); assert.equal(ic.status, 200);
 });
-
 test('U6 admin · un calendario fermo: badge nel menu, appartamento "non verificabile", motivo leggibile', async () => {
   await setup();
   H.breakFeed('airbnbTorre', { status: 503 }); tick(200); await H.sync();

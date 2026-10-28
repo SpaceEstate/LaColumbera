@@ -161,11 +161,12 @@ const sDisp=(p,i)=>`<div class="field"><label class="closed-toggle"><input type=
   <h4 class="adm-h4">Notti bloccate</h4><div id="br-${i}" class="adm-ranges"></div>`;
 
 const icalUrl=(p,f)=>`${location.origin}/api/x?a=ical&id=${p.id}${f?'&for='+f:''}`;
-const icalOut=(p,f,lab)=>`<div class="field"><label>${lab}</label><div class="adm-copy"><input readonly onclick="this.select()" value="${icalUrl(p,f)}" data-testid="admin-ical-export-${f}-${p.id}"><button type="button" class="btn btn-line" data-act="copy" data-v="${icalUrl(p,f)}">Copia</button></div></div>`;
+const icalOut=(url,lab,tid)=>`<div class="field"><label>${lab}</label><div class="adm-copy"><input readonly onclick="this.select()" value="${url}" data-testid="${tid}"><button type="button" class="btn btn-line" data-act="copy" data-v="${url}">Copia</button></div></div>`;
 const sCal=(p,i)=>`<div class="field"><label>Link iCal Booking / Airbnb (separati da virgola — chiudono automaticamente le date)</label><input data-b="ical:${p.id}" value="${esc(S.ical[p.id]||'')}" placeholder="https://...booking.ics, https://...airbnb.ics" data-testid="admin-ical-${p.id}"></div>
-  ${icalOut(p,'booking','Calendario da inserire su <b>Booking.com</b> (sincronizza calendari → importa): chiude lì le date prenotate dal sito, su Airbnb e i tuoi blocchi')}
-  ${icalOut(p,'airbnb','Calendario da inserire su <b>Airbnb</b> (sincronizza calendari → importa): chiude lì le date prenotate dal sito, su Booking e i tuoi blocchi')}
-  <p class="book-note" data-testid="admin-ical-note">Ogni link contiene le prenotazioni fatte sul sito, i blocchi che metti qui e quelle dell'altra piattaforma, ma non quelle della piattaforma stessa: così le date si chiudono ovunque senza «blocchi fantasma». Usa il link giusto per ciascuna piattaforma.</p>`;
+  ${icalOut(icalUrl(p,'site'),'Calendario da inserire su <b>Booking.com</b> e su <b>Airbnb</b> (lo stesso link per entrambi): contiene solo le prenotazioni fatte dal sito','admin-ical-export-site-'+p.id)}
+  <h3>Calendario personale (per te, non per Booking e Airbnb)</h3>
+  ${icalOut(location.origin+'/api/x?a=ical&for=all&id=all&k=LA_TUA_CHIAVE','Tutte le prenotazioni di Torre e Corte (sito, Booking, Airbnb e blocchi), con i nomi degli ospiti: da usare nello script del telefono o in un calendario tuo','admin-ical-personal')}
+  <p class="book-note" data-testid="admin-ical-note">Al posto di <b>LA_TUA_CHIAVE</b> metti il valore della variabile <b>ICAL_PERSONAL_KEY</b> su Vercel: senza la chiave il link non funziona. Contiene dati degli ospiti: non darlo a nessuno e non inserirlo su Booking o Airbnb.</p>`;
 
 // --- scaglioni ospiti ---
 function stepsRender(i){const p=S.apts[i],el=$('#steps-'+i);if(!el)return;

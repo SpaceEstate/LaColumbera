@@ -50,4 +50,5 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 ## Limiti da conoscere
 
 - I calendari iCal non sono istantanei: Booking e Airbnb rileggono il tuo calendario ogni alcune ore, e il sito rilegge i loro ogni circa 10 minuti. Nella finestra tra due letture una stessa notte può essere prenotata su due canali: è un limite del formato iCal (solo un gestionale con collegamento diretto lo elimina).
-- Su Booking e Airbnb usa i link specifici (Gestione → appartamento → Calendari iCal): uno per Booking e uno per Airbnb, ciascuno senza gli eventi della piattaforma stessa.
+- Su Booking e Airbnb si inserisce il link «solo sito» (Gestione → appartamento → Calendari iCal, `...&for=site`): contiene soltanto le prenotazioni fatte dal sito, quindi non c'è rischio di «blocchi fantasma».
+- Per te c'è un calendario separato con tutto (sito, Booking, Airbnb, Torre e Corte, nomi degli ospiti): `...?a=ical&for=all&id=all&k=<ICAL_PERSONAL_KEY>`. Non va mai dato a Booking o Airbnb.

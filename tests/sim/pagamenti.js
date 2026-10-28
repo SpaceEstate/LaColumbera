@@ -235,6 +235,19 @@ test('P14 configurazione di Vercel: le funzioni hanno 60 secondi (foglio e feed 
   const n = fs.readdirSync(path.join(__dirname, '..', '..', 'api')).filter(f => f.endsWith('.js') && !f.startsWith('_')).length; assert(n <= 12, 'Vercel Hobby: al massimo 12 funzioni (ora ' + n + ')');
 });
 
+test('P15 calendario personale (for=all, per lo script del telefono): tutte le fonti e tutti e due gli appartamenti, solo con la chiave; il link per Booking/Airbnb (for=site) resta solo prenotazioni del sito', async () => {
+  const e = await base({ ICAL_PERSONAL_KEY: 'chiave-personale' });
+  const cfg = JSON.parse(kv.exec(['GET', 'cfg'])); cfg.apts.find(a => a.id === 'corte').blocked = { '2026-12-20': true }; kv.exec(['SET', 'cfg', JSON.stringify(cfg)]);
+  H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-11-10', '2026-11-12')]); H.setFeed('airbnbCorte', [H.airbnbEv('a1', '2026-11-15', '2026-11-18', 'HMTEST1234')]);
+  const code = (await checkout({ da: '2026-12-01', a: '2026-12-03' })).body.code; await wh(code); await H.sync();
+  const all = await H.api('ical', {}, { method: 'GET', query: { for: 'all', id: 'all', k: 'chiave-personale' } });
+  eq(all.status, 200); eq(dts(all.text), ['20261110', '20261115', '20261201', '20261220'], 'Booking (Torre), Airbnb (Corte), sito (Torre), blocco manuale (Corte)');
+  assert(/Torre/.test(all.text) && /Corte/.test(all.text) && /Mario Rossi/.test(all.text), 'nomi degli appartamenti e dell\'ospite del sito');
+  eq((await H.api('ical', {}, { method: 'GET', query: { for: 'all', id: 'all' } })).status, 403, 'senza chiave'); eq((await H.api('ical', {}, { method: 'GET', query: { for: 'all', id: 'all', k: 'altra' } })).status, 403, 'chiave sbagliata');
+  const site = await H.api('ical', {}, { method: 'GET', query: { for: 'site', id: 'torre' } });
+  eq(dts(site.text), ['20261201'], 'for=site: solo la prenotazione del sito, niente Booking, Airbnb né nomi'); assert(!/Mario Rossi/.test(site.text));
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();
