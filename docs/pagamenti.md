@@ -20,7 +20,7 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 
 ## Controllo in un colpo d'occhio
 
-**Gestione → Sincronizzazione → «Pagamenti ed email»**: semaforo per Stripe, webhook, email, foglio e prenotazioni rimaste a metà. «Invia email di prova» manda un messaggio al tuo indirizzo per verificare l'invio.
+**Gestione → Sito → Sistema → «Pagamenti ed email»**: semaforo per Stripe, webhook, email, foglio e prenotazioni rimaste a metà. «Invia email di prova» manda un messaggio al tuo indirizzo per verificare l'invio. Lo stesso controllo, riassunto in un semaforo unico insieme alla sincronizzazione, è in **Gestione → Operatività → Oggi** («Stato del sistema»).
 
 ## Impostazioni su Vercel (Settings → Environment Variables)
 
@@ -42,7 +42,7 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 
 ## Prova completa (una volta, e dopo ogni modifica alle chiavi)
 
-1. Gestione → Sincronizzazione → «Pagamenti ed email»: tutto verde; «Invia email di prova» e controlla la posta (anche lo spam).
+1. Gestione → Sito → Sistema → «Pagamenti ed email»: tutto verde; «Invia email di prova» e controlla la posta (anche lo spam).
 2. Fai una prenotazione di prova per una data lontana pagando con una carta vera (poi rimborsala da Stripe) oppure, con le chiavi di prova, con la carta `4242 4242 4242 4242`.
 3. Controlla: email a te, email all'ospite, riga sul foglio, notti chiuse sul sito, «Ultimo avviso da Stripe» compilato nella scheda.
 4. Annulla la prenotazione di prova da Gestione → Prenotazioni.
@@ -50,5 +50,5 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 ## Limiti da conoscere
 
 - I calendari iCal non sono istantanei: Booking e Airbnb rileggono il tuo calendario ogni alcune ore, e il sito rilegge i loro ogni circa 10 minuti. Nella finestra tra due letture una stessa notte può essere prenotata su due canali: è un limite del formato iCal (solo un gestionale con collegamento diretto lo elimina).
-- Su Booking e Airbnb si inserisce il link «solo sito» (Gestione → appartamento → Calendari iCal, `...&for=site`): contiene soltanto le prenotazioni fatte dal sito, quindi non c'è rischio di «blocchi fantasma». I blocchi manuali di Gestione → Disponibilità valgono solo sul sito: le stesse notti vanno chiuse a mano anche su Booking e Airbnb.
+- Su Booking e Airbnb si inserisce il link «solo sito» (Gestione → Sito → Sistema → Calendari iCal, `...&for=site`): contiene soltanto le prenotazioni fatte dal sito, quindi non c'è rischio di «blocchi fantasma». I blocchi manuali di Gestione → Operatività → Calendario e prezzi valgono solo sul sito: le stesse notti vanno chiuse a mano anche su Booking e Airbnb.
 - Per te c'è un calendario separato con tutto (sito, Booking, Airbnb, Torre e Corte, nomi degli ospiti): `...?a=ical&for=all&id=all&k=<ICAL_PERSONAL_KEY>`. Non va mai dato a Booking o Airbnb.

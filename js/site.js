@@ -67,7 +67,7 @@ window.lcPhotos = function(root){
 window.lcPhotos();
 
 
-// CIN e CIPAT degli alloggi: per legge compaiono negli annunci. Arrivano dalla configurazione (Gestione → appartamento → Testi),
+// CIN e CIPAT degli alloggi: per legge compaiono negli annunci. Arrivano dalla configurazione (Gestione → Sito → Appartamenti → Testi),
 // quindi si cambiano senza toccare il codice. Il CIPAT può essere unico per la struttura: vale per gli appartamenti che non ne hanno uno proprio.
 // Senza nessun codice impostato la riga non compare (mai segnaposto sul sito pubblico).
 window.lcCodici = function(p, cipatStruttura){

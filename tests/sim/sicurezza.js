@@ -322,6 +322,48 @@ test('S17 area ospiti: il soggiorno senza dati personali; istruzioni e Wi-Fi mai
   eq([sg.origine, sg.portale, sg.pagamento], ['airbnb', 'Airbnb', null]);
 });
 
+test('S18 impostazioni: la versione impedisce di sovrascrivere un salvataggio più recente (anche due salvataggi nello stesso istante); senza versione (Gestione vecchia) si salva come prima', async () => {
+  await base();
+  const c = (await H.adminApi('cfg_admin', {})).body; eq(c.rev, 0, 'mai salvato: versione 0');
+  c.chi = 'uno'; let r = await H.adminApi('save', c); eq([r.status, r.body.rev], [200, 1]);
+  c.chi = 'due'; r = await H.adminApi('save', c);                                             // stessa versione aperta di prima: qualcuno (questa stessa pagina) ha già salvato
+  eq([r.status, r.body.code], [409, 'CFG_CAMBIATA']); assert(/altro dispositivo/.test(r.body.err)); eq(JSON.parse(kv.exec(['GET', 'cfg'])).chi, 'uno', 'nulla sovrascritto');
+  r = await H.adminApi('save', Object.assign({}, c, { force: true })); eq([r.status, r.body.rev], [200, 2], '«salva comunque» del titolare');
+  const vecchia = Object.assign({}, c, { chi: 'tre' }); delete vecchia.rev; r = await H.adminApi('save', vecchia); eq(r.status, 200, 'una Gestione non aggiornata (senza versione) salva come prima');
+  eq(kv.exec(['GET', 'cfg:rev']), '3'); assert(!('rev' in JSON.parse(kv.exec(['GET', 'cfg']))), 'la versione non entra nella configurazione');
+  // due dispositivi premono «Salva» nello stesso istante con la stessa versione: uno solo passa (controllo e scrittura in un passo, Lua)
+  const cur = (await H.adminApi('cfg_admin', {})).body; eq(cur.rev, 3);
+  const [x, y] = await Promise.all([H.adminApi('save', Object.assign({}, cur, { chi: 'A' })), H.adminApi('save', Object.assign({}, cur, { chi: 'B' }))]);
+  eq([x.status, y.status].sort(), [200, 409]); eq(JSON.parse(kv.exec(['GET', 'cfg'])).chi, x.status === 200 ? 'A' : 'B'); eq(kv.exec(['GET', 'cfg:rev']), '4');
+  // senza login niente versione né salvataggio
+  eq((await H.api('cfg_admin', {})).status, 401); eq((await H.api('save', cur)).status, 401);
+});
+test('S19 Luoghi e Convenzioni dalla Gestione: si salva solo testo, link solo http(s) o pagine del sito, foto solo del sito o caricate; la pagina pubblica riceve solo quelle schede; le foto tolte si cancellano', async () => {
+  await base();
+  const c = (await H.adminApi('cfg_admin', {})).body;
+  c.luoghi = [{ id: 'lago', t: '<img src=x onerror=alert(1)>Lago', d: 'Bello\n\ncon <b>a capo</b>', link: 'javascript:alert(1)', local: 'data:image/png;base64,AAAA', meta: ['20 min', '<i>x</i>', 'tre', 'quattro'], alt: '' },
+    { t: 'Pagina', link: 'eventi.html#oggi', local: 'img/Trento1.jpg' }, { t: '   ' },
+    { t: 'Blob', local: 'https://abc.public.blob.vercel-storage.com/foto/luoghi/f-1.jpg', link: 'https://www.visittrentino.info/x?y=1' },
+    { t: 'Lago', link: 'http://example.com"><script>', local: 'https://evil.example/x.jpg', quad: ['img/a.jpg', 'img/b.jpg', 'img/c.jpg', 'img/d.jpg'] }, { t: 'Sentiero', local: 'img/../api/x.js' }];
+  c.convenzioni = [{ nome: 'Bar <b>Centrale</b>', sito: 'eventi.html', foto: 'https://evil.example/x.jpg', estate: 'sì', badge: 'Convenzionato e poi un testo davvero troppo lungo' }, { nome: '' }, { nome: 'Bar', sito: 'https://bar.example/menu', maps: 'Bar, Ravina' }];
+  eq((await H.adminApi('save', c)).status, 200);
+  const d = (await H.api('dintorni', {}, { method: 'GET' })).body;
+  eq(Object.keys(d).sort(), ['convenzioni', 'luoghi'], 'solo le schede, nient\'altro della configurazione');
+  eq(d.luoghi.map(x => [x.id, x.t, x.link, x.local]), [['lago', '<img src=x onerror=alert(1)>Lago', '', ''], ['pagina', 'Pagina', 'eventi.html#oggi', 'img/Trento1.jpg'],
+    ['blob', 'Blob', 'https://www.visittrentino.info/x?y=1', 'https://abc.public.blob.vercel-storage.com/foto/luoghi/f-1.jpg'], ['lago-2', 'Lago', '', ''], ['sentiero', 'Sentiero', '', '']]);
+  eq(d.luoghi[0].meta, ['20 min', '<i>x</i>', 'tre'], 'al massimo tre righe'); eq(d.luoghi[0].d, 'Bello con <b>a capo</b>', 'testo su una riga (l\'HTML lo neutralizza la pagina)'); eq(d.luoghi[3].quad, ['img/a.jpg', 'img/b.jpg', 'img/c.jpg', 'img/d.jpg']);
+  eq(d.convenzioni.map(x => [x.id, x.nome, x.sito, x.foto, x.estate, x.badge]), [['bar-b-centrale-b', 'Bar <b>Centrale</b>', '', '', true, 'Convenzionato e poi un testo d'], ['bar', 'Bar', 'https://bar.example/menu', '', false, '']]);
+  eq((await H.api('cfg', {}, { method: 'GET' })).body.luoghi, undefined, 'la configurazione pubblica non cambia');
+  // una Gestione vecchia (non manda le schede) non le cancella; null le toglie e il sito torna a quelle di partenza; la foto non più usata si cancella
+  const c2 = (await H.adminApi('cfg_admin', {})).body; delete c2.luoghi; delete c2.convenzioni; eq((await H.adminApi('save', c2)).status, 200);
+  eq((await H.api('dintorni', {}, { method: 'GET' })).body.luoghi.length, 5);
+  global.__blobDel = []; const c3 = (await H.adminApi('cfg_admin', {})).body; c3.luoghi = null; eq((await H.adminApi('save', c3)).status, 200);
+  eq((await H.api('dintorni', {}, { method: 'GET' })).body, { luoghi: null, convenzioni: [{ id: 'bar-b-centrale-b', nome: 'Bar <b>Centrale</b>', cat: '', zona: '', badge: 'Convenzionato e poi un testo d', estate: true, sito: '', maps: '', d: '', foto: '' }, { id: 'bar', nome: 'Bar', cat: '', zona: '', badge: '', estate: false, sito: 'https://bar.example/menu', maps: 'Bar, Ravina', d: '', foto: '' }] });
+  eq(global.__blobDel, ['https://abc.public.blob.vercel-storage.com/foto/luoghi/f-1.jpg'], 'la foto caricata e non più usata è cancellata dopo il salvataggio');
+  // un salvataggio rifiutato (versione vecchia) non cancella nessuna foto
+  global.__blobDel = []; const c4 = (await H.adminApi('cfg_admin', {})).body; c4.apts[0].foto = []; c4.rev = 0; eq((await H.adminApi('save', c4)).status, 409); eq(global.__blobDel, []);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

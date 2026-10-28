@@ -32,7 +32,7 @@ async function step(code, name, fn) {
 
 // Email: true = inviata, false = errore (si riprova), null = invio non configurato (GMAIL_USER / GMAIL_APP_PASSWORD mancanti).
 // Con null il passo non può riuscire mai: lo si chiude per non ripeterlo all'infinito, MA si lascia traccia nel registro eventi,
-// così Gestione → Sincronizzazione mostra che le email non partono (altrimenti nessuno se ne accorgerebbe).
+// così Gestione → Sito → Sistema mostra che le email non partono (altrimenti nessuno se ne accorgerebbe).
 async function mail(code, cosa, to, subject, html, opts) {
   const r = await x.sendMail(to, subject, html, opts);
   if (r === null) await E.log({ lvl: 'ERR', msg: 'EMAIL NON CONFIGURATA: ' + cosa + ' (' + code + ') non inviata. Mancano GMAIL_USER / GMAIL_APP_PASSWORD su Vercel.' }).catch(() => {});
@@ -124,7 +124,7 @@ async function riconciliaInAttesa(req, { max = 8 } = {}) {
       const r = await riconcilia(b, req);
       if (r.recuperata) {
         out.recuperate++;
-        await E.log({ lvl: 'WARN', msg: 'Prenotazione ' + b.code + ' confermata dal controllo su Stripe: il webhook non era arrivato. Controlla che il webhook sia registrato (Gestione → Sincronizzazione → Pagamenti ed email).' }).catch(() => {});
+        await E.log({ lvl: 'WARN', msg: 'Prenotazione ' + b.code + ' confermata dal controllo su Stripe: il webhook non era arrivato. Controlla che il webhook sia registrato (Gestione → Sito → Sistema → Pagamenti ed email).' }).catch(() => {});
         await kv('SET', 'stripe:recuperata', JSON.stringify({ ts: new Date(t).toISOString(), code: b.code })).catch(() => {});
         await kv('INCR', 'stripe:recuperate').catch(() => {});
       }
@@ -134,7 +134,7 @@ async function riconciliaInAttesa(req, { max = 8 } = {}) {
   return out;
 }
 
-// ---------- salute dei pagamenti (Gestione → Sincronizzazione → Pagamenti ed email) ----------
+// ---------- salute dei pagamenti (Gestione → Sito → Sistema → Pagamenti ed email; anche il semaforo di Oggi) ----------
 // Mai valori segreti: solo "c'è / non c'è", e l'email del titolare mascherata. Ogni controllo è a sé: se uno fallisce gli altri restano.
 const mask = e => { const s = String(e || ''), i = s.indexOf('@'); return i < 1 ? '' : s.slice(0, Math.min(2, i)) + '***' + s.slice(i); };
 const EVENTI_ATTESI = ['checkout.session.completed', 'checkout.session.expired'];

@@ -112,6 +112,8 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
   - cache di 30 giorni su `/fonts/`.
 - **Link esterni dall'area clienti:** `rel="noopener noreferrer"`.
 - **Segreti nel frontend:** nessuno. Lo verifica il test S14, che cerca chiavi Stripe `sk_`, `rk_`, `whsec_` e token in `js/` e nelle pagine.
+- **Gestione, salvataggio delle impostazioni** (`api/x.js`, azione `save`): il salvataggio porta la versione aperta (`cfg:rev`); controllo e scrittura avvengono in un solo script Lua, quindi un salvataggio più vecchio non sovrascrive mai uno più recente (409), anche con due richieste nello stesso istante. Le foto non più usate si cancellano solo dopo un salvataggio riuscito. Test S18.
+- **Luoghi e Convenzioni** (contenuto pubblico modificabile dal titolare): il server salva solo testo; link solo `http(s)://` o pagine del sito (niente `javascript:`); foto solo `img/…` del sito o caricate su Vercel Blob; l'azione pubblica `a=dintorni` restituisce solo quelle schede. Le pagine le scrivono con `esc()` e ricontrollano link e foto. Test S19 e W19.
 
 ## 6. Cookie, storage e risorse esterne (dopo le modifiche)
 
@@ -138,8 +140,10 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 
 | Test | Esito |
 |---|---|
-| `sicurezza.js` S1–S16 (S2, S4, S5 riscritti per l'accesso con il solo codice; S15 e S16 nuovi) | 16 ok |
-| `ui.js` (U4c, U4d riscritti: un solo campo; U4e, U4f: codice a gruppi) | 58 ok |
+| `sicurezza.js` S1–S19 (S2, S4, S5 riscritti per l'accesso con il solo codice; S15–S19 nuovi) | 19 ok |
+| `ui.js` (U4c, U4d riscritti: un solo campo; U4e, U4f: codice a gruppi; U5, U11, W12 adattati alla nuova Gestione; W14–W20 nuovi) | 70 ok |
+| `messaggi.js` | 11 ok |
+| `sito.js`, `informativa.js` | 8 ok, 5 ok |
 | `scenarios.js` | 15 ok; 18 SKIP perché nel repository manca `google-apps-script.gs`, come già prima delle modifiche |
 | `pagamenti.js` | 18 ok |
 | `preavviso.js` | 12 ok |

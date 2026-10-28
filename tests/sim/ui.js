@@ -120,7 +120,7 @@ async function waitFor(fn, what, tries = 150) {
 }
 const text = el => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
 const adminToken = async () => (await H.api('login', { u: 'admin', p: 'pw' })).body.t;
-const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
+const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/dintorni.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin-operativita.js', 'js/admin-calendario.js', 'js/admin-sito.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
 const goto = async (r, hash, sel) => { r.w.location.hash = hash; await waitFor(() => r.doc.querySelector(sel), 'sezione ' + hash); };
 
 const tests = [];
@@ -375,8 +375,10 @@ test('U4j area ospiti · Messaggi: si scrive e si legge (testo, mai HTML), la ri
 /* ===================== pannello admin (admin.js) ===================== */
 test('U5 admin · Sincronizzazione: stato per appartamento, calendari, riconciliazione e matrice per data', async () => {
   await setup();
+  // Oggi ha un semaforo unico (sincronizzazione + pagamenti ed email): è verde solo con il webhook di Stripe registrato
+  global.__stripeWebhooks = [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', status: 'enabled', enabled_events: ['checkout.session.completed', 'checkout.session.expired'] }];
   const r = await loadAdmin();
-  assert(/Tutto ok/.test(text(r.doc.querySelector('[data-testid=admin-sync-card]'))), 'Panoramica: tutto ok');
+  await waitFor(() => /Tutto ok/.test(text(r.doc.querySelector('[data-testid=admin-sync-card]'))), 'Oggi: tutto ok');
   await goto(r, '#sync', '[data-testid=admin-sync]');
   assert(/Verificata/.test(text(r.doc.querySelector('[data-testid=admin-sync-apt-torre]'))) && /Verificata/.test(text(r.doc.querySelector('[data-testid=admin-sync-apt-corte]'))));
   const rows = [...r.doc.querySelectorAll('[data-testid=admin-sync] tbody tr')];
@@ -510,7 +512,7 @@ test('U10 appartamento: se il limite scade mentre si compila il modulo il server
 });
 test('U11 admin · Preavviso minimo: si imposta, si salva e resta dopo il ricaricamento; un valore non valido non parte', async () => {
   await setup();
-  const r = await loadAdmin('#prenotazioni');
+  const r = await loadAdmin('#regole');                                               // Sito → Regole di prenotazione (prima era in Prenotazioni)
   const days = await waitFor(() => r.doc.querySelector('[data-testid=admin-notice-days]'), 'campo preavviso'), hour = r.doc.querySelector('[data-testid=admin-checkin-time]');
   assert.deepEqual([days.value, hour.value], ['0', '16:00'], 'valori iniziali: nessun preavviso, check-in 16:00');
   assert(/0 giorni non c/.test(text(r.doc.querySelector('[data-testid=admin-notice-example]'))), 'spiega che 0 = last minute');
@@ -522,7 +524,7 @@ test('U11 admin · Preavviso minimo: si imposta, si salva e resta dopo il ricari
   r.doc.querySelector('[data-testid=admin-save]').click();
   await waitFor(() => /Salvato/.test(text(r.doc.querySelector('[data-testid=admin-save-msg]'))), 'salvataggio');
   const st = JSON.parse(kv.exec(['GET', 'cfg'])); assert.deepEqual([st.preavvisoGiorni, st.checkinOra], [3, '16:30'], 'salvato in KV');
-  const r2 = await loadAdmin('#prenotazioni');                                       // pagina nuova, come dopo un riavvio
+  const r2 = await loadAdmin('#regole');                                             // pagina nuova, come dopo un riavvio
   const d2 = r2.doc.querySelector('[data-testid=admin-notice-days]');
   assert.deepEqual([d2.value, r2.doc.querySelector('[data-testid=admin-checkin-time]').value], ['3', '16:30'], 'i valori ci sono ancora');
   set(r2.w, d2, '-1');
@@ -770,7 +772,7 @@ test('W12 Gestione · Area ospiti: testi per gli ospiti in ogni appartamento, ch
   await waitFor(() => $('[data-testid=admin-info-ospiti-torre]'), 'campi area ospiti');
   assert(/non compaiono sul sito pubblico/.test(text($('[data-testid=admin-apt-torre]'))) && /cassetta delle chiavi/.test(text($('[data-testid=admin-apt-torre]'))), 'spiega chi vede i testi e cosa non scrivere');
   set($('[data-testid=admin-info-ospiti-torre]'), '## Regole\n- Niente feste'); set($('[data-testid=admin-info-riservate-torre]'), 'Password: prova');
-  await goto(r, '#prenotazioni', '[data-testid=admin-area-ospiti]');
+  await goto(r, '#regole', '[data-testid=admin-area-ospiti]');                      // Sito → Regole di prenotazione (prima era in Prenotazioni)
   assert.deepEqual([$('[data-testid=admin-checkout-time]').value, $('[data-testid=admin-info-giorni]').value, $('[data-testid=admin-whatsapp]').value], ['', '2', '+39 351 704 3594'], 'valori iniziali');
   set($('[data-testid=admin-checkout-time]'), '10:30'); set($('[data-testid=admin-info-giorni]'), '45');
   $('[data-testid=admin-save]').click();
@@ -832,6 +834,207 @@ test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta
   const sk = await waitFor(() => r2.doc.querySelector('[data-testid=msg-skip-' + reg.id + '-' + c.code + ']'), 'prossimo invio');
   sk.click(); await waitFor(() => /saltato/.test(text(r2.doc.querySelector('[data-testid=msg-next-' + reg.id + '-' + c.code + ']'))), 'saltato');
   assert.equal(kv.exec(['GET', 'msg:fatto:' + reg.id + ':' + c.code]), 'saltato');
+});
+
+/* ===================== Gestione in due aree: Operatività | Sito (js/admin.js e sezioni) ===================== */
+const inp = (r, el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
+const chg = (r, el, v) => { if (v !== undefined) el.value = v; el.dispatchEvent(new r.w.Event('change', { bubbles: true })); };
+const saveMsg = r => text(r.doc.querySelector('[data-testid=admin-save-msg]'));
+const salva = async r => { r.doc.querySelector('[data-testid=admin-save]').click(); await waitFor(() => /Salvato/.test(saveMsg(r)), 'salvataggio'); };
+test('W14 Gestione · due aree: selettore Operatività | Sito sempre in alto, menu per area, l\'ultima sezione di ogni area si ricorda; i vecchi indirizzi portano alle sezioni nuove', async () => {
+  await setup();
+  const r = await loadAdmin(), $ = s => r.doc.querySelector(s), menu = () => [...r.doc.querySelectorAll('#adm-nav a')].map(a => a.getAttribute('href'));
+  assert.equal(r.w.location.hash, '#oggi', 'si apre su Oggi');
+  assert($('[data-testid=admin-area-op]').classList.contains('on') && !$('[data-testid=admin-area-sito]').classList.contains('on'), 'area Operatività attiva');
+  assert.deepEqual(menu(), ['#oggi', '#calendario', '#prenotazioni', '#messaggi', '#adempimenti', '#guestcard']);
+  await goto(r, '#regole', '[data-testid=admin-notice]');
+  assert($('[data-testid=admin-area-sito]').classList.contains('on'), 'area Sito attiva');
+  assert.deepEqual(menu(), ['#appartamenti', '#home', '#eventi', '#luoghi', '#regole', '#sistema']);
+  assert.equal($('[data-testid=admin-area-op]').getAttribute('href'), '#oggi', 'Operatività riporta all\'ultima sezione aperta');
+  await goto(r, '#prenotazioni', '[data-testid=admin-bookings]');
+  assert.equal($('[data-testid=admin-area-sito]').getAttribute('href'), '#regole', 'e Sito alla sua');
+  // vecchi indirizzi (segnalibri, link nelle email): stessa pagina, sezione nuova, la cronologia non si riempie
+  for (const [vecchio, nuovo, sel] of [['#panoramica', '#oggi', '[data-testid=admin-oggi]'], ['#sync', '#sistema', '[data-testid=admin-sync]'], ['#torre', '#appartamenti/torre', '[data-testid=admin-cin-torre]'],
+    ['#corte/testi', '#appartamenti/corte', '[data-testid=admin-cin-corte]'], ['#torre/foto', '#appartamenti/torre/foto', '.pm-grid'], ['#torre/prezzi', '#calendario/torre', '[data-testid=admin-base-torre]'],
+    ['#corte/disponibilita', '#calendario/corte', '[data-testid=admin-closed-corte]'], ['#torre/calendari', '#sistema/ical', '[data-testid=admin-ical-export-site-torre]'], ['#guestcard', '#guestcard', '[data-testid=admin-gc]'], ['#boh', '#oggi', '[data-testid=admin-oggi]']]) {
+    r.w.location.hash = vecchio; await waitFor(() => r.w.location.hash === nuovo && $(sel), vecchio + ' → ' + nuovo);
+  }
+  const r2 = await loadAdmin('#corte/disponibilita'); assert.equal(r2.w.location.hash, '#calendario/corte', 'anche aprendo la pagina da un segnalibro vecchio'); assert(r2.doc.querySelector('[data-testid=admin-closed-corte]'));
+});
+test('W15 Gestione · Oggi: arrivi e partenze di oggi e domani da sito, foglio e calendari senza doppioni; da gestire, messaggi da leggere, invii automatici; prossimi 7 giorni; semaforo unico', async () => {
+  await setup();
+  const c1 = (await checkout({ id: 'corte', da: '2026-10-03', a: '2026-10-05', nome: 'Mario Rossi' })).body; await H.webhook('checkout.session.completed', H.paidSession(c1.code));
+  const c2 = (await checkout({ da: '2026-12-27', a: '2026-12-29', email: 'primo@t.it', nome: 'Anna Bianchi' })).body.code; tick(40);
+  const c3 = (await checkout({ da: '2026-12-27', a: '2026-12-29', email: 'altro@t.it' })).body.code;
+  await H.webhook('checkout.session.completed', H.paidSession(c3)); await H.webhook('checkout.session.completed', H.paidSession(c2)); assert.equal(stato(c2), 'da_verificare');
+  await H.sync(); regAirbnb();      // calendari aggiornati (sono passati 40 minuti); il registro dopo: lo stub del foglio non lo riempie
+  await H.api('msg_send', { code: c1.code, t: c1.t, testo: 'Arriviamo verso le 18' });
+  assert.equal((await H.adminApi('msg_auto_save', { regole: [{ nome: 'Promemoria del giorno prima', tpl: 'promemoria', base: 'arrivo', giorni: -1, ora: '18:00', attiva: true }] })).status, 200);
+  const r = await loadAdmin(), $ = s => r.doc.querySelector(s);
+  assert.equal(text($('[data-testid=admin-oggi-gestire] b')), '1'); assert.equal(text($('[data-testid=admin-oggi-msg] b')), '1');
+  const li = [...r.doc.querySelectorAll('[data-testid=admin-oggi-oggi] li')].map(text);
+  assert.equal(li.length, 2, 'un arrivo oggi e uno domani: ' + li.join(' | '));
+  assert(/^Torre.*Booking \(solo calendario\)/.test(li[0]), 'oggi a Torre la prenotazione di Booking (dal calendario iCal): ' + li[0]);
+  assert(/^Corte.*Mario Rossi.*2 ospiti/.test(li[1]) && $('[data-testid=admin-oggi-oggi] a[href="#prenotazioni/' + c1.code + '"]'), 'domani a Corte Mario Rossi, dal sito: ' + li[1]);
+  assert($('[data-testid=admin-oggi-fare] a[href="#prenotazioni/' + c2 + '"]') && /da verificare/.test(text($('[data-testid=admin-oggi-fare]'))), 'la prenotazione da verificare è tra le cose da fare');
+  await waitFor(() => $('[data-testid=admin-oggi-conv-' + c1.code + ']'), 'messaggio da leggere'); assert.equal($('[data-testid=admin-oggi-conv-' + c1.code + ']').getAttribute('href'), '#messaggi/c/' + c1.code, 'dal messaggio alla conversazione con un tocco');
+  await waitFor(() => /Promemoria del giorno prima/.test(text($('[data-testid=admin-oggi-auto]'))), 'invio automatico di oggi'); assert(/Mario Rossi/.test(text($('[data-testid=admin-oggi-auto]'))));
+  // prossimi 7 giorni: chi c'è, una volta sola (Airbnb dal foglio e dal calendario iCal è la stessa prenotazione)
+  const wk = (apt, d) => $('[data-testid=admin-oggi-settimana] .wk-c[data-i="' + (apt === 'corte' ? 0 : 1) + '"][data-d="' + d + '"]');
+  assert.deepEqual([text(wk('torre', '2026-10-02')), text(wk('corte', '2026-10-03')), text(wk('corte', '2026-10-05')), text(wk('torre', '2026-10-05'))], ['Booking', 'Mario', 'Airbnb', '€180']);
+  assert(/Airbnb · HMSEDESZCW/.test(wk('corte', '2026-10-06').getAttribute('title')), 'con il numero del portale: ' + wk('corte', '2026-10-06').getAttribute('title'));
+  // semaforo unico: senza webhook di Stripe è rosso e lo dice; registrato il webhook e premuto «Aggiorna» resta giallo per la prenotazione da verificare
+  await waitFor(() => /Da sistemare/.test(text($('[data-testid=admin-sync-card]'))), 'semaforo rosso'); assert(/Webhook di Stripe/.test(text($('[data-testid=admin-sync-card]'))));
+  assert.equal($('[data-testid=admin-sync-card]').getAttribute('href'), '#sistema');
+  global.__stripeWebhooks = [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', status: 'enabled', enabled_events: ['checkout.session.completed', 'checkout.session.expired'] }];
+  $('[data-testid=admin-oggi-refresh]').click(); await waitFor(() => /Da guardare/.test(text(r.doc.querySelector('[data-testid=admin-sync-card]'))), 'semaforo giallo');
+  assert(/Da verificare/.test(text(r.doc.querySelector('[data-testid=admin-sync-card]'))) && !/Webhook/.test(text(r.doc.querySelector('[data-testid=admin-sync-card]'))));
+});
+test('W16 Gestione · Calendario e prezzi: prezzo, blocco e minimo di notti sulle notti scelte (anche «dal… al…»), salvati negli stessi dati di prima e rispettati dal sito; vista Entrambi', async () => {
+  await setup();
+  const c0 = (await H.adminApi('cfg_admin', {})).body; c0.apts.find(a => a.id === 'torre').minPeriodi = [{ da: '2026-10-01', a: '2026-10-31', min: 3 }]; assert.equal((await H.adminApi('save', c0)).status, 200);
+  const c1 = (await checkout({ da: '2026-10-14', a: '2026-10-17', nome: 'Luca Neri' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
+  const r = await loadAdmin('#calendario/torre'), $ = s => r.doc.querySelector(s), cell = d => $('.pcell[data-day="' + d + '"]');
+  await waitFor(() => cell('2026-10-20'), 'calendario');
+  assert.equal(text(cell('2026-10-14').querySelector('.pstate')), 'Luca', 'notte occupata: si vede chi c\'è');
+  $('[data-testid=admin-cal-mode-range]').click(); cell('2026-10-20').click(); cell('2026-10-22').click();
+  assert.equal(text($('[data-testid=admin-cal-sel-torre]')), '3 notti selezionate', 'primo e ultimo tocco: tutte quelle in mezzo');
+  $('[data-testid=admin-cal-price-torre]').value = '210'; $('[data-testid=admin-cal-apply-torre]').click();
+  assert.deepEqual(['2026-10-20', '2026-10-21', '2026-10-22'].map(d => text(cell(d).querySelector('.pprice'))), ['€210', '€210', '€210']); assert(cell('2026-10-21').classList.contains('ov'));
+  cell('2026-10-25').click(); cell('2026-10-26').click(); $('[data-testid=admin-cal-block-torre]').click();
+  assert(cell('2026-10-25').classList.contains('blk') && cell('2026-10-26').classList.contains('blk') && /25 ott → 26 ott/.test(text($('[id^=br-]'))), 'bloccate, e nell\'elenco');
+  cell('2026-10-10').click(); cell('2026-10-12').click(); $('[data-testid=admin-cal-min-torre]').value = '5'; $('[data-testid=admin-cal-minapply-torre]').click();
+  assert.equal(text(cell('2026-10-11').querySelector('.pmin')), 'min 5');
+  cell('2026-10-12').click(); cell('2026-10-12').click(); r.doc.querySelector('[data-act=resetMin]').click();      // «Togli» su una notte sola: torna il minimo generale
+  assert(!cell('2026-10-12').querySelector('.pmin') && text(cell('2026-10-13').querySelector('.pmin')) === 'min 3', 'il 12 vale il minimo generale, il 13 ancora quello del periodo');
+  // la casella occupata da una prenotazione porta al suo dettaglio
+  assert(/Modifiche non salvate: Calendario e prezzi · Torre/.test(saveMsg(r)));
+  await salva(r);
+  const t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre');
+  assert.deepEqual(t.prices, { '2026-10-20': 210, '2026-10-21': 210, '2026-10-22': 210 }); assert.deepEqual(t.blocked, { '2026-10-25': true, '2026-10-26': true });
+  assert.deepEqual(t.minPeriodi, [{ da: '2026-10-01', a: '2026-10-09', min: 3 }, { da: '2026-10-10', a: '2026-10-11', min: 5 }, { da: '2026-10-13', a: '2026-10-31', min: 3 }], 'il periodo di prima si spezza attorno alle notti scelte');
+  // il server applica le stesse regole: prezzo della notte, notti bloccate, minimo per la data di arrivo
+  const before = global.__stripeSessions.length, ok = await checkout({ da: '2026-10-20', a: '2026-10-23', email: 'p@t.it' }); assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(global.__stripeSessions[before].params.line_items[0].price_data.unit_amount, (210 * 3) * 100, 'tre notti a €210 (2 ospiti: nessun supplemento)');
+  assert.equal((await checkout({ da: '2026-10-25', a: '2026-10-28', email: 'q@t.it' })).status, 409, 'notti bloccate');
+  const corta = await checkout({ da: '2026-10-10', a: '2026-10-13', email: 'm@t.it' }); assert.equal(corta.status, 400, JSON.stringify(corta.body)); assert(/5 notti/.test(corta.body.err), corta.body.err);
+  assert.equal((await checkout({ da: '2026-10-12', a: '2026-10-14', email: 'n@t.it' })).status, 200, 'il 12 basta il minimo generale (2 notti)');
+  r.doc.querySelector('.pcell[data-day="2026-10-14"]').click(); await waitFor(() => r.w.location.hash === '#prenotazioni/' + c1, 'dalla notte occupata alla prenotazione');
+  // vista Entrambi: una riga per notte, una colonna per appartamento
+  await goto(r, '#calendario/tutti', '[data-testid=admin-cal-matrice]');
+  const row = [...r.doc.querySelectorAll('[data-testid=admin-cal-matrice] tbody tr')].find(x => /ven 2/i.test(text(x.firstElementChild)));
+  assert(row && /Booking/.test(text(row.children[2])) && /€120/.test(text(row.children[1])), 'il 2 ottobre: Corte libera a €120, Torre occupata da Booking → ' + (row && text(row)));
+  assert([...r.doc.querySelectorAll('[data-testid=admin-cal-matrice] td.mx-blk')].length === 2, 'le due notti bloccate');
+  // chiusura dell'appartamento nella stessa schermata
+  await goto(r, '#calendario/corte', '[data-testid=admin-closed-corte]');
+  const cl = $('[data-testid=admin-closed-corte]'); cl.checked = true; cl.dispatchEvent(new r.w.Event('input', { bubbles: true }));
+  assert(!$('#closed-note-0').hidden && /Corte è chiuso/.test(text($('#closed-note-0'))));
+  await salva(r); assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).closed.corte, true);
+});
+test('W17 Gestione · Prenotazioni: sito e portali in un solo elenco, ricerca e filtri; dettaglio con pagamento, codice e messaggio pronto da copiare; per Airbnb niente nome né conto', async () => {
+  await setup(); regAirbnb();
+  const c = (await checkout({ da: '2026-10-20', a: '2026-10-23', ospiti: 3, tel: '+39 333 1234567' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c));
+  const c2 = (await checkout({ da: '2026-11-10', a: '2026-11-12', nome: 'Anna Verdi', email: 'anna@test.it' })).body.code;      // in attesa di pagamento
+  const r = await loadAdmin('#prenotazioni'), $ = s => r.doc.querySelector(s), codes = () => [...r.doc.querySelectorAll('#bk-body tr')].filter(x => !x.querySelector('.td-empty')).map(x => text(x.querySelector('td')));
+  assert.deepEqual(codes(), ['HMSEDESZCW', c, c2], 'Airbnb dal foglio e le due del sito, dalla più vicina');
+  assert(/Ospite di Airbnb/.test(text(r.doc.querySelector('#bk-body tr[data-portale]'))) && !r.doc.querySelector('#bk-body tr[data-portale] select'), 'Airbnb: niente nome, niente stato da cambiare');
+  const q = $('[data-testid=admin-book-search]'), cerca = v => { inp(r, q, v); return codes(); };
+  assert.deepEqual(cerca('anna'), [c2]); assert.deepEqual(cerca(c.slice(0, 4) + ' ' + c.slice(4, 8).toLowerCase()), [c], 'il codice anche a gruppi e minuscolo'); assert.deepEqual(cerca('3331234567'), [c], 'il telefono');
+  assert.deepEqual(cerca('hmse'), ['HMSEDESZCW']); assert.deepEqual(cerca('nessuno'), []); cerca('');
+  const filtro = f => { r.doc.querySelector('[data-act=bkf][data-f=' + f + ']').click(); return codes(); };
+  assert.deepEqual(await (async () => { const x = filtro('gestire'); return x; })(), [c2]);
+  await waitFor(() => r.doc.querySelector('[data-act=bkf][data-f=prossime]'), 'filtri'); assert.deepEqual(filtro('prossime'), ['HMSEDESZCW', c]); assert.deepEqual(filtro('passate'), []); filtro('tutte');
+  chg(r, $('[data-testid=admin-book-src]'), 'Airbnb'); assert.deepEqual(codes(), ['HMSEDESZCW']); chg(r, $('[data-testid=admin-book-src]'), '');
+  // dettaglio di una prenotazione del sito
+  await goto(r, '#prenotazioni/' + c, '[data-testid=admin-book-' + c + ']');
+  const pay = text($('[data-testid=admin-book-pay]')); assert(/3 notti × €180/.test(pay) && /Ospiti in più: 3 notti × €20/.test(pay) && /Totale\s*€600/.test(pay) && /Pagata con carta/.test(pay), pay);
+  assert.equal(text($('[data-testid=admin-book-code]')), c.slice(0, 4) + ' ' + c.slice(4, 8) + ' ' + c.slice(8), 'codice a gruppi, come nelle email');
+  await waitFor(() => $('[data-testid=admin-book-tpl]').value === 'benvenuto', 'per il sito il benvenuto');
+  $('[data-testid=admin-book-fill]').click(); await waitFor(() => !$('[data-testid=admin-book-text]').hidden, 'messaggio pronto');
+  assert(/^Ciao Mario, grazie per aver scelto La Columbera!/.test($('[data-testid=admin-book-text]').value), $('[data-testid=admin-book-text]').value);
+  await waitFor(() => $('[data-testid=admin-book-chat]'), 'messaggi'); assert.equal($('[data-testid=admin-book-chat]').getAttribute('href'), '#messaggi/c/' + c);
+  // dettaglio di Airbnb: il messaggio da incollare nella chat del portale porta all'area ospiti
+  await goto(r, '#prenotazioni/HMSEDESZCW', '[data-testid=admin-book-HMSEDESZCW]');
+  assert(/Pagamento gestito da Airbnb/.test(text($('[data-testid=admin-book-pay]'))) && /ti scrivono sul portale/.test(text($('[data-testid=admin-book-msg]'))));
+  await waitFor(() => $('[data-testid=admin-book-tpl]').value === 'portale', 'per i portali il template con il link');
+  $('[data-testid=admin-book-fill]').click(); await waitFor(() => /area-clienti\.html#k=HMSEDESZCW/.test($('[data-testid=admin-book-text]').value), 'link all\'area ospiti');
+  // Guest Card precompilata dalla prenotazione
+  $('[data-testid=admin-book-gc]').click(); await waitFor(() => r.w.location.hash === '#guestcard' && r.doc.querySelector('#gcf'), 'Guest Card');
+  const E = r.doc.querySelector('#gcf').elements; assert.deepEqual([E.apt.value, E.da.value, E.a.value, E.ospiti.value], ['corte', '2026-10-05', '2026-10-11', '2']);
+});
+test('W18 Gestione · salvataggio: le modifiche non salvate restano segnalate in ogni sezione; se un altro dispositivo ha salvato nel frattempo non si sovrascrive nulla e si sceglie; Annulla; uscita con conferma', async () => {
+  await setup();
+  const A1 = await loadAdmin('#home'), B1 = await loadAdmin('#home');      // lo stesso titolare su due dispositivi
+  const chi = r => r.doc.querySelector('[data-testid=admin-chi]'), bar = r => r.doc.querySelector('[data-testid=admin-save-bar]');
+  assert(!bar(A1).classList.contains('show'), 'niente da salvare: la barra non c\'è');
+  inp(A1, chi(A1), 'Testo dal telefono');
+  assert(bar(A1).classList.contains('show') && /Modifiche non salvate: Home · Chi siamo/.test(saveMsg(A1)));
+  await goto(A1, '#calendario/torre', '[data-testid=admin-base-torre]');
+  assert(bar(A1).classList.contains('show') && A1.doc.body.classList.contains('adm-dirty'), 'cambiando sezione la barra resta');
+  inp(A1, A1.doc.querySelector('[data-testid=admin-base-torre]'), '190');
+  assert(/Home · Chi siamo, Calendario e prezzi · Torre/.test(saveMsg(A1)), 'dice dove sono le modifiche: ' + saveMsg(A1));
+  await goto(A1, '#messaggi', '[data-testid=msg-root]');
+  assert(A1.doc.body.classList.contains('adp-active') && A1.doc.body.classList.contains('adm-dirty'), 'anche nei Messaggi (che salvano da soli) la barra resta');
+  // l'altro dispositivo salva per primo
+  inp(B1, chi(B1), 'Testo dal computer'); await salva(B1);
+  A1.doc.querySelector('[data-testid=admin-save]').click();
+  await waitFor(() => /altro dispositivo/.test(saveMsg(A1)), 'conflitto');
+  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).chi, 'Testo dal computer', 'quello del computer resta');
+  assert(A1.doc.querySelector('[data-testid=admin-cfg-reload]') && A1.doc.querySelector('[data-testid=admin-cfg-force]'), 'si sceglie: ricarica o salva comunque');
+  A1.log.confirmAnswer = true; A1.doc.querySelector('[data-testid=admin-cfg-force]').click();
+  await waitFor(() => /Salvato/.test(saveMsg(A1)), 'salvato comunque');
+  const st = JSON.parse(kv.exec(['GET', 'cfg'])); assert.deepEqual([st.chi, st.apts.find(a => a.id === 'torre').base], ['Testo dal telefono', 190]);
+  // adesso è il computer a essere indietro: «Ricarica» porta le impostazioni salvate e lascia perdere le sue
+  inp(B1, chi(B1), 'Ancora dal computer'); B1.doc.querySelector('[data-testid=admin-save]').click();
+  await waitFor(() => B1.doc.querySelector('[data-testid=admin-cfg-reload]'), 'conflitto sul computer');
+  B1.log.confirmAnswer = true; B1.doc.querySelector('[data-testid=admin-cfg-reload]').click();
+  await waitFor(() => chi(B1).value === 'Testo dal telefono' && !B1.doc.body.classList.contains('adm-dirty'), 'ricaricato');
+  inp(B1, chi(B1), 'Prova da annullare'); B1.doc.querySelector('[data-testid=admin-undo]').click();
+  await waitFor(() => chi(B1).value === 'Testo dal telefono' && !bar(B1).classList.contains('dirty'), 'Annulla: tornano le impostazioni salvate');
+  inp(B1, chi(B1), 'Non salvato'); B1.log.confirmAnswer = false; const n = B1.log.confirms.length;
+  B1.doc.querySelector('[data-testid=admin-logout]').click();
+  assert(B1.log.confirms.length === n + 1 && /modifiche non salvate/.test(B1.log.confirms[n]) && chi(B1), 'uscire chiede conferma; «no» = si resta');
+  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).chi, 'Testo dal telefono');
+});
+test('W19 Gestione · Luoghi e convenzioni: si parte dalle schede del sito; si modificano, aggiungono, spostano, tolgono; la pagina pubblica le mostra (solo testo, link sicuri); «Ripristina» torna a quelle di partenza', async () => {
+  await setup();
+  assert.deepEqual((await H.api('dintorni', {}, { method: 'GET' })).body, { luoghi: null, convenzioni: null }, 'finché non si salva nulla valgono le schede di js/dintorni.js');
+  const r = await loadAdmin('#luoghi'), $ = s => r.doc.querySelector(s), n = k => r.doc.querySelectorAll('.dl-item[data-testid^=admin-dl-' + k + '-]').length;
+  assert.equal(n('luoghi'), 8, 'le 8 schede del sito'); assert(/quelle di partenza del sito/.test(text($('[data-testid=admin-luoghi]'))));
+  inp(r, $('[data-dl="luoghi:1:t"]'), 'Lago di Toblino <b>e castello</b>');
+  assert(/2\. Lago di Toblino <b>e castello<\/b>/.test(text($('[data-testid=admin-dl-luoghi-1] .dl-top'))), 'il titolo della scheda segue il nome');
+  $('[data-act=dlMove][data-k=luoghi][data-j="1"][data-d="-1"]').click();
+  r.log.confirmAnswer = true; $('[data-testid=admin-dl-del-luoghi-7]').click(); assert.equal(n('luoghi'), 7, 'tolta la scheda delle convenzioni');
+  $('[data-testid=admin-dl-add-luoghi]').click(); assert.equal(n('luoghi'), 8);
+  inp(r, $('[data-dl="luoghi:7:t"]'), 'Rifugio nuovo'); inp(r, $('[data-dl="luoghi:7:meta0"]'), '40 min'); inp(r, $('[data-dl="luoghi:7:link"]'), 'javascript:alert(1)');
+  $('[data-testid=admin-save]').click(); await waitFor(() => /Controlla il link di «Rifugio nuovo»/.test(saveMsg(r)), 'link non valido fermato nella pagina');
+  inp(r, $('[data-dl="luoghi:7:link"]'), 'https://www.visittrentino.info'); await salva(r);
+  const L = JSON.parse(kv.exec(['GET', 'cfg'])).luoghi;
+  assert.deepEqual(L.map(x => x.id), ['toblino', 'centro', 'bondone', 'cantine', 'garda', 'ciclabile', 'val-di-non', 'rifugio-nuovo']); assert.deepEqual([L[0].t, L[7].meta, L[7].link], ['Lago di Toblino <b>e castello</b>', ['40 min'], 'https://www.visittrentino.info']);
+  const pub = await load('dintorni.html', { scripts: ['js/site.js', 'js/dintorni.js'] });
+  await waitFor(() => pub.doc.querySelector('[data-testid=d-rifugio-nuovo]'), 'pagina pubblica aggiornata');
+  assert.deepEqual([...pub.doc.querySelectorAll('#luoghi-grid [data-testid^=d-]')].map(x => x.dataset.testid).slice(0, 2), ['d-toblino', 'd-centro'], 'nell\'ordine scelto');
+  assert(!pub.doc.querySelector('[data-testid=d-convenzioni]') && !pub.doc.querySelector('#luoghi-grid b') && /<b>e castello<\/b>/.test(text(pub.doc.querySelector('[data-testid=d-toblino]'))), 'scheda tolta; il titolo resta testo');
+  assert.equal(pub.doc.querySelector('[data-testid=d-rifugio-nuovo]').getAttribute('href'), 'https://www.visittrentino.info');
+  // convenzioni: una in più, poi si torna a quelle di partenza
+  await goto(r, '#luoghi/convenzioni', '[data-testid=admin-convenzioni]'); assert.equal(n('convenzioni'), 5);
+  $('[data-testid=admin-dl-add-convenzioni]').click(); inp(r, $('[data-dl="convenzioni:5:nome"]'), 'Gelateria Nuova'); inp(r, $('[data-dl="convenzioni:5:maps"]'), 'Gelateria Nuova, Ravina');
+  const est = $('[data-dl="convenzioni:5:estate"]'); est.checked = true; chg(r, est);
+  await salva(r);
+  const pc = await load('convenzioni.html', { scripts: ['js/dintorni.js', 'js/site.js'] }); await waitFor(() => pc.doc.querySelector('[data-testid=partner-card-gelateria-nuova]'), 'convenzione nuova');
+  assert.equal(pc.doc.querySelectorAll('[data-testid^=partner-card-]').length, 6); assert(/maps\/search\/\?api=1&query=Gelateria%20Nuova%2C%20Ravina/.test(pc.doc.querySelector('[data-testid=partner-card-gelateria-nuova]').getAttribute('href')));
+  $('[data-testid=admin-dl-reset-convenzioni]').click(); await salva(r);
+  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).convenzioni, undefined, 'ripristinate: nella configurazione non c\'è più nulla');
+  const pc2 = await load('convenzioni.html', { scripts: ['js/dintorni.js', 'js/site.js'] }); await waitFor(() => pc2.doc.querySelector('[data-testid=partner-card-bisto]'), 'schede di partenza');
+  assert.equal(pc2.doc.querySelectorAll('[data-testid^=partner-card-]').length, 5);
+});
+test('W20 Gestione · Regole di prenotazione: preavviso, orari e area ospiti insieme; fin dove si prenota (6 mesi, regola fissa) e notti minime con il rimando al calendario', async () => {
+  await setup();
+  const r = await loadAdmin('#regole'), $ = s => r.doc.querySelector(s);
+  assert($('[data-testid=admin-notice-days]') && $('[data-testid=admin-checkout-time]') && $('[data-testid=admin-whatsapp]'));
+  const o = text($('[data-testid=admin-orizzonte]'));
+  assert(/fino a 6 mesi in anticipo/.test(o) && /fino al 2 apr 2027/.test(o) && /non si cambia da qui/.test(o) && /Corte 2 · Torre 2/.test(o), o);
+  assert.equal($('[data-testid=admin-orizzonte] a').getAttribute('href'), '#calendario');
 });
 
 /* ===================== Adempimenti → Alloggiati Web (js/adempimenti.js) ===================== */

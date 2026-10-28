@@ -80,7 +80,7 @@ async function apt(c){
   // CIN e CIPAT: obbligatori negli annunci. Si impostano da Gestione (il CIPAT può arrivare dalla struttura); senza valore la riga non compare.
   const cd=window.lcCodici?window.lcCodici(p,c.cipat):'';
   if(cd){$('#codes').innerHTML=cd;$('#codes').hidden=false}
-  // testo di approfondimento (Gestione → appartamento → Testi)
+  // testo di approfondimento (Gestione → Sito → Appartamenti → Testi)
   const more=mdLite(p.dettagli);
   if(more.length){$('#more').innerHTML=more.map(b=>b.h?`<h2>${esc(b.h)}</h2>`:b.p!==undefined?`<p>${esc(b.p)}</p>`:`<ul>${b.li.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`).join('');$('#more').hidden=false}
   // servizi: i primi in evidenza, tutti in una finestra

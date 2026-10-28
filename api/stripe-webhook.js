@@ -24,7 +24,7 @@ const handler = async (req, res) => {
   try {
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await P.confermaPagamento(event.data.object, req);
     else if (event.type === 'checkout.session.expired') await P.sessioneScaduta(event.data.object);
-    // ultimo evento ricevuto e valido: lo mostra Gestione → Sincronizzazione → Pagamenti ed email (se non cambia mai, il webhook non sta arrivando)
+    // ultimo evento ricevuto e valido: lo mostra Gestione → Sito → Sistema → Pagamenti ed email (se non cambia mai, il webhook non sta arrivando)
     await x.kv('SET', 'stripe:ultimo', JSON.stringify({ ts: new Date().toISOString(), tipo: event.type })).catch(() => {});
   } catch (e) {
     console.error('stripe-webhook:', event.type, e.message);

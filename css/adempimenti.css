@@ -1,6 +1,6 @@
 /* La Columbera · Gestione → Adempimenti (Alloggiati Web). Caricato solo da admin.html: non tocca le altre pagine. */
-body.adp-active .save-bar{display:none}                 /* la barra "Salva modifiche" riguarda la configurazione del sito, non questa sezione */
-body.adp-active .admin-main{padding-bottom:90px}
+body.adp-active:not(.adm-dirty) .save-bar{display:none}                 /* la barra "Salva modifiche" riguarda la configurazione del sito: qui compare solo se restano modifiche da salvare in altre sezioni */
+body.adp-active:not(.adm-dirty) .admin-main{padding-bottom:90px}
 body.adp-noscroll{overflow:hidden}
 
 /* avanzamento */

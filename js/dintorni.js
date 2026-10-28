@@ -1,5 +1,6 @@
 // La Columbera · Luoghi di interesse, cosa fare per stagione e Convenzioni (gli eventi in programma sono nella pagina eventi.html).
-// Dati statici: per cambiare testi, link o foto basta modificare questo file.
+// Luoghi e Convenzioni si modificano da Gestione → Sito → Luoghi e convenzioni: finché non li salvi lì valgono quelli di questo file
+// (che restano anche il punto di partenza della Gestione). Le proposte per stagione si cambiano solo qui.
 //
 // FOTO — ogni scheda mostra una foto vera del luogo, mai casuale, in quest'ordine:
 //   1) local — file nel repo (es. 'img/Trento1.jpg'): se c'è, vince sempre.
@@ -153,25 +154,37 @@
   }
   var photos=function(){if(window.lcPhotos)window.lcPhotos()};
 
-  // --- Luoghi di interesse ---
-  var lg=document.getElementById('luoghi-grid');
-  if(lg){
-    lg.innerHTML=LUOGHI.map(function(p,i){
-      return card({tid:'d-'+p.id,h:2,eager:i===0,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:p.link,lt:p.lt,local:p.local,noPhoto:p.noPhoto,quad:p.quad});
+  // --- Luoghi di interesse e Convenzioni ---
+  // Si possono modificare da Gestione → Sito → Luoghi e convenzioni: la pagina chiede al server quelli salvati e, se non ce ne sono (o il server
+  // non risponde entro 1,5 secondi), mostra quelli di questo file. La Gestione parte da questi stessi dati (window.LCDintorni).
+  window.LCDintorni={luoghi:LUOGHI,convenzioni:CONVENZIONI};
+  var okLink=function(l){l=String(l||'');return /^https?:\/\//i.test(l)||/^[a-z0-9][\w-]*\.html(#[\w-]+)?$/i.test(l)?l:''};      // difesa in più: il server salva solo link così
+  var okImg=function(u){u=String(u||'');return /^(img\/|https:\/\/)/.test(u)?u:''};
+  var lg=document.getElementById('luoghi-grid'),cg=document.getElementById('conv-grid');
+  function paintLuoghi(list){
+    lg.innerHTML=list.map(function(p,i){
+      return card({tid:'d-'+p.id,h:2,eager:i===0,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:okLink(p.link),lt:p.lt,local:okImg(p.local),noPhoto:p.noPhoto,quad:p.quad&&p.quad.map(okImg)});
     }).join('');
   }
-
-  // --- Convenzioni ---
-  var cg=document.getElementById('conv-grid');
-  if(cg){
-    cg.innerHTML=CONVENZIONI.map(function(p,i){
-      var maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.maps);
-      var site=p.sito?p.sito:'';
-      return card({tid:'partner-card-'+p.id,h:2,eager:i===0,t:p.nome,meta:[p.cat,p.zona],d:p.d,alt:p.nome,tag:p.badge,estate:p.estate,
-        local:'img/convenzioni/'+p.id+'.jpg',
+  function paintConv(list){
+    cg.innerHTML=list.map(function(p,i){
+      var maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.maps||p.nome);
+      var site=okLink(p.sito);
+      return card({tid:'partner-card-'+p.id,h:2,eager:i===0,t:p.nome,meta:[p.cat,p.zona].filter(Boolean),d:p.d,alt:p.nome,tag:p.badge,estate:p.estate,
+        local:okImg(p.foto)||'img/convenzioni/'+p.id+'.jpg',      // foto caricata dalla Gestione, altrimenti quella del sito (se c'è)
         link:site||maps,lt:site?'Sito ufficiale':'Apri su Google Maps',og:site||'',
         secondaryLink:site?maps:'',secondaryLt:'Mappa'});
     }).join('');
+  }
+  if(lg||cg){
+    var fatto=false,mostra=function(d){
+      if(fatto)return;fatto=true;
+      if(lg)paintLuoghi(d&&Array.isArray(d.luoghi)?d.luoghi:LUOGHI);
+      if(cg)paintConv(d&&Array.isArray(d.convenzioni)?d.convenzioni:CONVENZIONI);
+      photos();
+    };
+    setTimeout(function(){mostra(null)},1500);
+    try{fetch('api/x?a=dintorni').then(function(r){return r.ok?r.json():null}).then(mostra,function(){mostra(null)})}catch(e){mostra(null)}
   }
 
   // --- Cosa fare in Trentino: tab stagionali ---

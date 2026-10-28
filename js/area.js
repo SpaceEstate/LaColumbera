@@ -125,7 +125,7 @@ const copia=async v=>{
  try{await navigator.clipboard.writeText(v);return true}
  catch{try{const ta=document.createElement('textarea');ta.value=v;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}};
 
-/* ---------------- testi della struttura (Gestione → appartamento → Area ospiti) ---------------- */
+/* ---------------- testi della struttura (Gestione → Sito → Appartamenti → Testi → Area ospiti) ---------------- */
 // "## Titolo" apre una scheda, le righe vuote separano i paragrafi, "- voce" fa un elenco (come i testi dell'appartamento)
 const cards=(txt,title0)=>{const out=[];let cur=null;
  for(const b of mdLite(txt)){if(b.h){cur={h:b.h,body:''};out.push(cur);continue}

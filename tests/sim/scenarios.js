@@ -406,7 +406,7 @@ test('X17 avvisi al titolare: una mail per episodio, promemoria ogni 6 ore, mail
   global.__mailFail = false; await H.sync();
   eq(al().length, 1, 'al giro successivo l\'avviso parte: il fallimento non l\'aveva segnato come inviato');
   assert(/Disponibilità non verificabile/.test(al()[0].subject) && /Torre/.test(al()[0].subject), al()[0].subject);
-  assert(/FEED_SCADUTO/.test(al()[0].text) && /NON ACCETTA PRENOTAZIONI/.test(al()[0].text) && /admin\.html#sync/.test(al()[0].text), 'motivo, conseguenza e dove intervenire');
+  assert(/FEED_SCADUTO/.test(al()[0].text) && /NON ACCETTA PRENOTAZIONI/.test(al()[0].text) && /admin\.html#sistema/.test(al()[0].text) && /Gestione → Sito → Sistema/.test(al()[0].text), 'motivo, conseguenza e dove intervenire (Gestione → Sito → Sistema; il vecchio #sync porta comunque lì)');
   await H.sync(); tick(10); await H.sync(); eq(al().length, 1, 'nessun doppione nello stesso episodio');
   tick(6 * 60); await H.sync(); eq(al().length, 2, 'promemoria dopo 6 ore'); assert(/Ancora non verificabile/.test(al()[1].subject), al()[1].subject);
   H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04'), H.bookingEv('b2', '2026-11-19', '2026-11-22')]); tick(11); await H.sync();

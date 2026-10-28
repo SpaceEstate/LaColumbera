@@ -815,9 +815,6 @@ input,select,textarea{font-family:inherit}
 .pcell.busy{background:#EFEAE0;cursor:not-allowed;border-style:dashed}
 .pcell.busy .pday{color:#B9AE9C;text-decoration:line-through}
 .pcell.past{opacity:.45;cursor:not-allowed}
-.pcal-tools{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:16px 0 8px}
-.pcal-tools .field{min-width:150px}
-.pcal-tools .btn{padding:11px 20px;font-size:.9rem}
 
 /* ===== Gestione foto: drag & drop ===== */
 .pm-grid{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0 14px}
@@ -869,8 +866,6 @@ table.data th{white-space:nowrap}
   .pcell .pday{font-size:.72rem}
   .pcell .pprice{font-size:.66rem}
   .pcell .pstate{font-size:.56rem}
-  .pcal-tools{gap:8px}
-  .pcal-tools .field{min-width:120px}
   .admin-main{padding:110px 0 170px}
   .book-card{padding:20px}
   .gallery-main .g-arrow{width:44px;height:44px;font-size:1.4rem}
@@ -929,10 +924,6 @@ table.data th{white-space:nowrap}
   .pcell .pprice{font-size:.64rem;letter-spacing:-.02em}
   .pcell .pstate{font-size:0;letter-spacing:0}
   .pcell .pstate::after{content:"occ.";font-size:.58rem;letter-spacing:0}
-  .pcal-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:stretch}
-  .pcal-tools .field{grid-column:1/-1;min-width:0;margin:0}
-  .pcal-tools .btn{width:100%;justify-content:center;padding:12px 10px;font-size:.85rem;white-space:normal;line-height:1.2;text-align:center}
-  .pcal-tools [data-apply]{grid-column:1/-1}
 
   /* foto: comandi in una barra in basso, senza coprire il badge "Copertina" */
   .pm-grid{gap:10px}
@@ -1072,7 +1063,6 @@ table.data th{white-space:nowrap}
 .adm-top-actions{display:flex;gap:10px;flex-wrap:wrap}
 .adm-shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:28px;align-items:start}
 .adm-nav{position:sticky;top:112px;display:flex;flex-direction:column;gap:3px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;box-shadow:var(--shadow-soft)}
-.adm-nav .grp{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:14px 12px 4px}
 .adm-nav a{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:11px;color:var(--ink);text-decoration:none;font-weight:600;font-size:.95rem;transition:background .2s}
 .adm-nav a:hover{background:rgba(122,46,57,.07)}
 .adm-nav a.on{background:var(--wine);color:#fff}
@@ -1140,8 +1130,178 @@ table.data th{white-space:nowrap}
 @media (max-width:900px){
   .adm-shell{grid-template-columns:1fr}
   .adm-nav{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding:8px;-webkit-overflow-scrolling:touch}
-  .adm-nav .grp{display:none}
   .adm-nav a{white-space:nowrap;flex:0 0 auto}
+}
+
+/* ===== Gestione in due aree: barra con il selettore Operatività | Sito, menu delle sezioni, barra «Salva modifiche» ===== */
+/* --gut = margine laterale della pagina: la barra e il menu su telefono arrivano fino al bordo dello schermo */
+.admin-main .wrap{--gut:clamp(20px,4vw,48px)}
+.admin-main{padding-top:100px}
+body[data-p=admin-app] .site-header{position:absolute}      /* in Gestione l'intestazione del sito scorre via: in alto resta la barra della Gestione */
+.admin-main>.wrap{z-index:5}      /* la barra «Salva modifiche» (fissa in basso) resta sopra il piè di pagina anche in fondo alla pagina: prima lo copriva e non si cliccava */
+.adm-bar{position:sticky;top:0;z-index:45;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 calc(-1*var(--gut)) 24px;padding:10px var(--gut);background:rgba(250,245,236,.94);backdrop-filter:saturate(140%) blur(12px);-webkit-backdrop-filter:saturate(140%) blur(12px);border-bottom:1px solid var(--line)}
+.adm-areas{display:inline-flex;gap:4px;padding:4px;background:#fff;border:1px solid var(--line);border-radius:999px;box-shadow:var(--shadow-soft)}
+.adm-areas a{position:relative;display:flex;align-items:center;justify-content:center;padding:10px 24px;border-radius:999px;font-weight:800;font-size:.84rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);text-decoration:none;white-space:nowrap;transition:background .2s}
+.adm-areas a:hover{background:rgba(122,46,57,.07)}
+.adm-areas a.on{background:var(--wine);color:#fff}
+.adm-dot{position:absolute;top:6px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+.adm-bar .adm-top-actions .btn{padding:10px 18px;font-size:.88rem}
+.adm-nav{top:92px}
+.adm-nl{display:flex;flex-direction:column;gap:1px;min-width:0}
+.adm-nl small{font-weight:500;font-size:.74rem;color:var(--muted);line-height:1.3}
+.adm-nav a.on .adm-nl small{color:rgba(255,255,255,.78)}
+.admin-main{padding-bottom:90px}
+body.adm-dirty .admin-main{padding-bottom:200px}
+.save-bar{justify-content:space-between;transform:translateY(calc(100% + 40px));opacity:0;visibility:hidden;transition:transform .3s ease,opacity .3s ease,visibility 0s linear .3s}
+.save-bar.show{transform:none;opacity:1;visibility:visible;transition:transform .3s ease,opacity .3s ease}
+.save-bar .admin-msg{margin-left:0;flex:1 1 240px}
+.save-btns,.save-x{display:flex;gap:10px;flex-wrap:wrap}
+.save-x:empty{display:none}
+.save-bar:not(.dirty) .save-btns{display:none}      /* dopo il salvataggio resta solo l'esito, per qualche secondo */
+.save-bar.pulse{animation:adm-pulse .8s ease 2}
+@keyframes adm-pulse{50%{box-shadow:0 0 0 6px rgba(176,141,60,.5),var(--shadow-soft)}}
+@media (max-width:900px){
+  .adm-bar{height:62px;padding-top:8px;padding-bottom:8px;margin-bottom:0;border-bottom:0}
+  .adm-areas{flex:1 1 auto}
+  .adm-areas a{flex:1;padding:10px 8px;font-size:.78rem;letter-spacing:.1em}
+  .adm-site{display:none}
+  .adm-bar .adm-top-actions .btn{padding:10px 14px}
+  .adm-nav{position:sticky;top:62px;z-index:44;margin:0 calc(-1*var(--gut)) 18px;padding:8px var(--gut) 10px;border-radius:0;border:0;border-bottom:1px solid var(--line);box-shadow:none;background:rgba(250,245,236,.96);scrollbar-width:none}
+  .adm-nav::-webkit-scrollbar{display:none}
+  .adm-nav a{padding:8px 14px;border:1px solid var(--line);background:#fff;border-radius:999px;font-size:.88rem}
+  .adm-nav a.on{border-color:var(--wine)}
+  .adm-nl small{display:none}
+  .adm-nav .adm-badge{margin-left:2px}
+}
+@media (max-width:760px){
+  .admin-main .wrap{--gut:14px}
+  .admin-main{padding:84px 0 90px}
+  body.adm-dirty .admin-main{padding-bottom:210px}
+  .save-bar .admin-msg{flex-basis:100%;text-align:center}
+  .save-btns{width:100%}
+  .save-btns .btn{flex:1 1 auto}
+}
+
+/* ===== Gestione · Oggi ===== */
+.adm-sub{font-family:var(--sans);font-style:normal;font-size:.85rem;font-weight:600;color:var(--muted);letter-spacing:0}
+a.adm-stat{color:inherit;text-decoration:none;transition:border-color .2s,box-shadow .2s}
+a.adm-stat:hover{border-color:var(--wine);box-shadow:var(--shadow-soft)}
+.adm-stat.sem{border-left:5px solid var(--line)}
+.adm-stat.sem-ok{border-left-color:#5f9a57}.adm-stat.sem-ok b{color:#2d7a3a}
+.adm-stat.sem-warn{border-left-color:var(--gold)}.adm-stat.sem-warn b{color:#9a5b00}
+.adm-stat.sem-err{border-left-color:var(--wine)}
+.adm-stat.sem-wait b{color:var(--muted)}
+.adm-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:0 28px;align-items:start}
+.adm-list{list-style:none;margin:6px 0 10px;padding:0}
+.adm-list li{display:grid;grid-template-columns:minmax(62px,auto) minmax(0,1fr) auto;gap:4px 12px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+.adm-list li:last-child{border-bottom:0}
+.adm-apt{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--wine)}
+.adm-who{min-width:0;overflow-wrap:anywhere}
+.adm-who a{color:var(--ink);font-weight:700}
+.adm-when{color:var(--muted);white-space:nowrap}
+.adm-prev1{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-h4 small{color:var(--muted);font-weight:600}
+.oggi-stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.adm-cols .admin-card>h3:first-child{margin-top:0}
+@media (max-width:760px){
+  .oggi-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .oggi-stats .adm-stat{padding:12px 14px}
+  .oggi-stats .adm-stat b{font-size:1.55rem}
+  .oggi-stats .adm-stat small{font-size:.78rem;line-height:1.35}
+  .oggi-stats .adm-stat span{font-size:.64rem}
+}
+.wk{display:grid;grid-template-columns:minmax(52px,auto) repeat(var(--n),minmax(0,1fr));gap:4px;margin:6px 0 4px;align-items:stretch}
+.wk>b{font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;font-weight:700;line-height:1.2}
+.wk>b small{display:block;font-size:.9rem;color:var(--ink);letter-spacing:0}
+.wk-a{font-weight:700;font-size:.85rem;align-self:center;overflow:hidden;text-overflow:ellipsis}
+.wk-c{display:flex;align-items:center;justify-content:center;min-height:42px;padding:4px 2px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:.72rem;font-weight:700;color:var(--wine);text-decoration:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.wk-c.busy{background:var(--wine);border-color:var(--wine);color:#fff}
+.wk-c.blk{background:repeating-linear-gradient(45deg,#f3e9ea,#f3e9ea 5px,#fff 5px,#fff 10px);border-color:#c9a2a8}
+@media (max-width:480px){.wk{gap:3px}.wk-c{font-size:.6rem;min-height:38px;border-radius:7px}.wk-a{font-size:.72rem}}
+
+/* ===== Gestione · Prenotazioni: ricerca, dettaglio ===== */
+.bk-tools{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.bk-tools input{flex:1 1 240px;min-width:0}
+.bk-tools select{flex:0 1 220px;min-width:0}
+.bk-tools input,.bk-tools select,.admin-card .adm-inp input{font:inherit;font-size:.95rem;padding:10px 13px;border:1px solid var(--line);border-radius:11px;background:var(--paper);color:var(--ink)}
+.adm-back{display:inline-block;margin-bottom:10px;font-weight:700;color:var(--wine);text-decoration:none}
+.bc-grid.bc-4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.stato.da_verificare{background:rgba(176,141,60,.22);color:#7a5a12}
+.stato.calendario{background:rgba(108,95,85,.12);color:var(--muted)}
+.adm-copy .code-g{font-family:var(--serif);font-size:1.45rem;color:var(--wine);align-self:center}
+#bk-fill{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:.95rem;background:var(--paper);color:var(--ink)}
+.adm-link-card{padding:16px 22px}
+@media (max-width:760px){.bk-tools input,.bk-tools select,.admin-card .adm-inp input{font-size:16px}}
+
+/* ===== Gestione · Calendario e prezzi ===== */
+.closed-toggle{display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:600;cursor:pointer;color:var(--ink)}
+.closed-toggle input{width:20px;height:20px;flex:0 0 20px;margin:0;accent-color:var(--wine)}
+.cal-card.is-closed .pcal-grid{opacity:.55}
+.cal-closed-note{margin:6px 0 10px}
+.pcal-mode{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 2px;font-size:.85rem;color:var(--muted)}
+.pcal-mode button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font:600 .85rem var(--sans);color:var(--ink);cursor:pointer}
+.pcal-mode button.on{background:rgba(122,46,57,.1);border-color:var(--wine);color:var(--wine)}
+.pcell .pmin{font-size:.58rem;color:#8a6c22;font-weight:700;line-height:1.1}
+.pcell.sel .pmin,.pcell.sel .pstate{color:#fff}
+.pcell.anchor{outline:3px solid var(--gold);outline-offset:-3px}
+.pcell.busy[data-code]{cursor:pointer}
+.pcell .pstate{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcal-leg .lg{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--line);vertical-align:-1px;margin:0 4px 0 2px}
+.lg-free{background:#fff}.lg-ov{background:rgba(176,141,60,.3);border-color:var(--gold)!important}.lg-blk{background:repeating-linear-gradient(45deg,#f3e9ea,#f3e9ea 3px,#fff 3px,#fff 6px);border-color:#c9a2a8!important}.lg-busy{background:#EFEAE0;border-style:dashed!important}
+.pcal-act{margin:14px 0 4px;padding:14px 16px;border-radius:16px;background:var(--paper-2);border:1px solid var(--line)}
+.pcal-act>.btn{margin-top:10px}
+.pcal-act-h{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin-bottom:10px}
+.pcal-act-h small{color:var(--muted);flex:1 1 auto}
+.pcal-act-h .btn{padding:8px 14px;font-size:.84rem}
+.pcal-act-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.pcal-act-b{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.pcal-act-b>label{display:block;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--wine);margin-bottom:8px}
+.pcal-act-r{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pcal-act-r .btn{padding:10px 16px;font-size:.86rem}
+.pcal-act .adm-inp input{max-width:110px}
+.pcal-dates{margin-top:12px}
+.pcal-dates summary{cursor:pointer;font-weight:600;color:var(--wine);font-size:.9rem}
+table.mx td a{display:block;color:inherit;text-decoration:none}
+table.mx td.mx-blk{background:repeating-linear-gradient(45deg,#f3e9ea,#f3e9ea 6px,#fff 6px,#fff 12px);color:var(--wine);font-weight:600}
+table.mx-cal{min-width:0;width:100%}
+table.mx-cal td{padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0}
+table.mx-cal td:first-child{width:28%;color:var(--muted);text-transform:capitalize}
+table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(--wine);font-family:var(--serif);font-style:italic;font-size:1rem;text-transform:capitalize;letter-spacing:0}
+@media (max-width:760px){
+  .pcell .pstate{font-size:.56rem;letter-spacing:0}
+  .pcell .pstate::after{content:none}
+  .pcal-act{padding:12px}
+  .pcal-act-r .btn{flex:1 1 auto;justify-content:center}
+}
+
+/* ===== Gestione · Luoghi e convenzioni ===== */
+.dl-list{display:flex;flex-direction:column;gap:14px;margin:12px 0 16px}
+.dl-item{border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:14px 16px}
+.dl-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.dl-top b{font-family:var(--serif);font-size:1.08rem;min-width:0;overflow-wrap:anywhere}
+.dl-tools{display:flex;gap:6px;flex:0 0 auto}
+.dl-tools .stato-select{min-width:38px;padding:6px 10px}
+.dl-tools .stato-select:disabled{opacity:.35;cursor:not-allowed}
+.dl-body{display:grid;grid-template-columns:180px minmax(0,1fr);gap:16px}
+.dl-foto{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.dl-foto img,.dl-ph{width:100%;aspect-ratio:5/4;border-radius:12px}
+.dl-foto img{object-fit:cover;display:block;background:var(--stone)}
+.dl-foto img+.dl-ph{display:none}
+.dl-ph{background:rgba(122,46,57,.06);display:flex;align-items:center;justify-content:center;text-align:center;font-size:.8rem;color:var(--muted);padding:8px}
+.dl-foto small{color:var(--muted);font-size:.78rem;line-height:1.4}
+.dl-foto input[type=file]{display:none}
+.dl-body>*{min-width:0}
+.dl-foto.is-loading{opacity:.6;pointer-events:none}
+.dl-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.dl-fields .field{margin-bottom:10px}
+.dl-wide{grid-column:1/-1}
+.dl-fields .closed-toggle{margin:2px 0 8px}
+@media (max-width:640px){
+  .dl-body{grid-template-columns:1fr}
+  .dl-fields{grid-template-columns:1fr}
+  .dl-foto{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .dl-foto img,.dl-ph{width:120px}
+  .dl-foto small{flex-basis:100%}
 }
 
 /* ===== Linee bus: con due schede si dividono la riga ===== */

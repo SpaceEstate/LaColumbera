@@ -174,11 +174,11 @@ async function syncAlerts(config,req){
   for(const p of config.apts||[]){
    const k='alert:nv:'+p.id,st=(await jg(k))||{open:false},nome=APT_LABEL[p.id]||p.nome||p.id,t=Date.now();
    let g;try{g=await E.guestBusy(config,p.id)}catch(e){g={status:'unverifiable',problems:[{code:'ERRORE_CONTROLLO',msg:String(e&&e.message||e).slice(0,120)}]}}
-   const bad=g.status==='unverifiable',link=site+'/admin.html#sync';
+   const bad=g.status==='unverifiable',link=site+'/admin.html#sistema';
    if(bad&&(!st.open||t-(st.last||0)>=ALERT_REMIND_MS)){
     const motivi=(g.problems||[]).slice(0,6).map(x=>x.code+(x.feed?' · '+x.feed:'')+(x.msg?' · '+x.msg:''));
     const since=st.open?st.since:new Date().toISOString(),subj=(st.open?'⏰ Ancora non verificabile':'⚠️ Disponibilità non verificabile')+' · '+nome;
-    const text='La disponibilità di "'+nome+'" non è verificabile'+(st.open?' dal '+since.slice(0,16).replace('T',' ')+' (UTC)':'')+'.\n\nFINCHÉ DURA, IL SITO NON ACCETTA PRENOTAZIONI per questo appartamento (le altre piattaforme non sono toccate).\n\nMotivi:\n'+(motivi.length?motivi.map(m=>'- '+m).join('\n'):'- non indicato')+'\n\nCosa fare: apri Gestione → Sincronizzazione ('+link+'), controlla quale calendario o il foglio non si aggiorna e premi «Sincronizza ora».\nRiceverai un promemoria ogni 6 ore e una mail quando tutto torna a posto.';
+    const text='La disponibilità di "'+nome+'" non è verificabile'+(st.open?' dal '+since.slice(0,16).replace('T',' ')+' (UTC)':'')+'.\n\nFINCHÉ DURA, IL SITO NON ACCETTA PRENOTAZIONI per questo appartamento (le altre piattaforme non sono toccate).\n\nMotivi:\n'+(motivi.length?motivi.map(m=>'- '+m).join('\n'):'- non indicato')+'\n\nCosa fare: apri Gestione → Sito → Sistema ('+link+'), controlla quale calendario o il foglio non si aggiorna e premi «Sincronizza ora».\nRiceverai un promemoria ogni 6 ore e una mail quando tutto torna a posto.';
     const html='<p>'+hx(text).replace(/\n/g,'<br>')+'</p>';
     if((await sendMail(OWNER_EMAIL,subj,html,{text}))!==false)await kv('SET',k,JSON.stringify({open:true,since,last:t}));
    }else if(!bad&&st.open){
@@ -246,6 +246,22 @@ const feed=async()=>{
  return curated();
 };
 
+// ---- Luoghi di interesse e Convenzioni (dintorni.html, convenzioni.html): si modificano da Gestione → Sito → Luoghi e convenzioni ----
+// Finché il titolare non li salva (campo assente nella configurazione) valgono quelli di js/dintorni.js. Si salva solo testo; i link solo http(s)
+// o una pagina del sito, le foto solo dal sito (img/…) o caricate dalla Gestione (Vercel Blob): niente javascript:, niente immagini da siti terzi.
+const RE_DLINK=/^(https?:\/\/[^\s"'<>]{3,400}|[a-z0-9][\w-]*\.html(#[\w-]+)?)$/i,RE_DIMG=/^(img\/[\w\-./]+\.(jpe?g|png|webp)|https:\/\/[\w-]+\.public\.blob\.vercel-storage\.com\/[\w\-./]+)$/i;
+const dtx=(v,n)=>String(v==null?'':v).replace(/\s+/g,' ').trim().slice(0,n),dlink=v=>{v=String(v||'').trim();return RE_DLINK.test(v)?v:''},dimg=v=>{v=String(v||'').trim();return RE_DIMG.test(v)&&!v.includes('..')?v:''};
+const dids=()=>{const seen=new Set();return(v,i)=>{const s=slug(v||'')||'voce-'+(i+1);let k=s,n=2;while(seen.has(k))k=s+'-'+n++;seen.add(k);return k}};      // id unici: servono alle prove e alle foto img/convenzioni/<id>.jpg
+const luoghiOk=l=>{const id=dids();return l.slice(0,40).filter(x=>x&&dtx(x.t,90)).map((x,i)=>{const o={id:id(x.id||x.t,i),t:dtx(x.t,90),meta:(Array.isArray(x.meta)?x.meta:[]).map(m=>dtx(m,70)).filter(Boolean).slice(0,3),d:dtx(x.d,600),alt:dtx(x.alt||x.t,140),link:dlink(x.link),lt:dtx(x.lt,60),local:dimg(x.local)};
+ const q=Array.isArray(x.quad)?x.quad.map(dimg).filter(Boolean).slice(0,4):[];if(q.length===4&&!o.local)o.quad=q;return o})};      // quad: le 4 foto dei locali convenzionati (una foto caricata le sostituisce)
+const convOk=l=>{const id=dids();return l.slice(0,40).filter(x=>x&&dtx(x.nome,80)).map((x,i)=>({id:id(x.id||x.nome,i),nome:dtx(x.nome,80),cat:dtx(x.cat,70),zona:dtx(x.zona,60),badge:dtx(x.badge,30),estate:!!x.estate,sito:/^https?:/i.test(String(x.sito||'').trim())?dlink(x.sito):'',maps:dtx(x.maps,160),d:dtx(x.d,600),foto:dimg(x.foto)}))};
+// foto caricate dalla Gestione e usate dalla configurazione (appartamenti, luoghi, convenzioni): quelle non più usate si cancellano dopo il salvataggio
+const blobUrls=c=>[...(c.apts||[]).flatMap(p=>p.foto||[]),...(c.luoghi||[]).map(x=>x.local),...(c.convenzioni||[]).map(x=>x.foto)].filter(u=>/blob\.vercel-storage\.com/.test(u||''));
+// Versione della configurazione (chiave cfg:rev): la Gestione la riceve con cfg_admin e la rimanda al salvataggio. Si salva solo se è ancora quella
+// (nessun altro dispositivo ha salvato nel frattempo) e la si incrementa, in un solo passo (Lua). ARGV[2] vuoto = salvataggio senza controllo.
+const LUA_CFG_SET="local c=tonumber(redis.call('GET',KEYS[2]) or '0') or 0 if ARGV[2]~='' and tonumber(ARGV[2])~=c then return {0,c} end redis.call('SET',KEYS[1],ARGV[1]) return {1,redis.call('INCR',KEYS[2])}";
+const CFG_CAMBIATA={err:'Nel frattempo le impostazioni sono state salvate da un altro dispositivo (o da un\'altra scheda): per non cancellare quelle modifiche non ho salvato le tue.',code:'CFG_CAMBIATA'};
+
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body&&typeof req.body==='object'?req.body:{};res.setHeader('Cache-Control','no-store');
 try{
 if(!BIG_BODY.has(a)){let n=0;try{n=JSON.stringify(b).length}catch{n=Infinity}if(n>20000)return res.status(413).json({err:'Richiesta troppo grande'})}
@@ -276,6 +292,8 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
 // niente informazioni per gli ospiti (istruzioni, Wi-Fi: arrivano solo nell'area clienti, a chi ha il codice).
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
 if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,...p})=>p)})}
+// Luoghi di interesse e Convenzioni modificati dalla Gestione (già puliti al salvataggio); null = valgono quelli di js/dintorni.js
+if(a==='dintorni'){const c0=(await jg('cfg'))||{};return res.json({luoghi:Array.isArray(c0.luoghi)?c0.luoghi:null,convenzioni:Array.isArray(c0.convenzioni)?c0.convenzioni:null})}
 if(a==='busy'){const id=String(req.query.id||'');
  // Fail-closed: se la disponibilità non è verificabile NON si mostrano date libere (503 → il sito mostra "non verificabile")
  try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
@@ -316,7 +334,7 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  // Orizzonte: dal sito si prenota al massimo 6 mesi in avanti. Il calendario non permette di scegliere date più lontane; qui lo si fa rispettare anche a chi chiama l'API a mano.
  const lastDay=AV.maxBookingDate(Date.now());
  if(b.a>lastDay)return res.status(409).json({err:'Dal sito si può prenotare fino al '+fmtLong(lastDay)+' (al massimo '+AV.GUEST_MONTHS+' mesi in anticipo). Per date più lontane scrivici a lacolumbera@gmail.com o chiamaci al +39 351 704 3594.',code:'OLTRE_ORIZZONTE',ultimoGiorno:lastDay});
- // Preavviso minimo (impostazione del titolare, Gestione → Prenotazioni): il controllo è QUI, sul server, prima di hold e pagamento. Cambiare il browser non lo aggira.
+ // Preavviso minimo (impostazione del titolare, Gestione → Sito → Regole di prenotazione): il controllo è QUI, sul server, prima di hold e pagamento. Cambiare il browser non lo aggira.
  const nt=AV.noticeSettings(config),noticeErr=()=>{const t=Date.now();return AV.noticeOk(b.da,t,nt)?null:noticeBody(nt,t)};
  const ne=noticeErr();if(ne)return res.status(409).json(ne);
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
@@ -460,9 +478,9 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
  const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
  return res.json(Object.assign(await E.syncState(config,{}),{lastReconcile:last,log:(logs||[]).map(x=>{try{return JSON.parse(x)}catch{return {msg:String(x)}}})}))}
 if(!auth(req))return res.status(401).json({err:'Non autorizzato'});
-if(a==='cfg_admin')return res.json(await cfg(req));
+if(a==='cfg_admin')return res.json(Object.assign(await cfg(req),{rev:+(await kv('GET','cfg:rev'))||0}));      // rev: versione, da rimandare con il salvataggio
 if(a==='health')return res.json(await require('./_pagato.js').salute(req,await cfg(req)));
-if(a==='test_mail'){const P=require('./_pagato.js'),r=await sendMail(P.OWNER_EMAIL,'Prova email · La Columbera','<p>Se leggi questo messaggio le email di <b>La Columbera</b> partono correttamente: riceverai così anche le conferme di prenotazione.</p><p>Inviata da Gestione → Sincronizzazione → Pagamenti ed email.</p>',{text:'Se leggi questo messaggio le email di La Columbera partono correttamente: riceverai così anche le conferme di prenotazione.'});
+if(a==='test_mail'){const P=require('./_pagato.js'),r=await sendMail(P.OWNER_EMAIL,'Prova email · La Columbera','<p>Se leggi questo messaggio le email di <b>La Columbera</b> partono correttamente: riceverai così anche le conferme di prenotazione.</p><p>Inviata da Gestione → Sito → Sistema → Pagamenti ed email.</p>',{text:'Se leggi questo messaggio le email di La Columbera partono correttamente: riceverai così anche le conferme di prenotazione.'});
  return res.json({esito:r===true?'inviata':r===null?'non_configurata':'errore',destinatario:P.mask(P.OWNER_EMAIL)})}
 if(a==='gc_oauth_start'){ // solo admin: genera l'url di login Trentino Guest Card (il frontend fa location.href=url)
  if(!process.env.TGC_OAUTH_CLIENT_ID||!process.env.TGC_REDIRECT_URI)return res.status(500).json({err:'Mancano TGC_OAUTH_CLIENT_ID o TGC_REDIRECT_URI su Vercel'});
@@ -498,7 +516,8 @@ if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
  for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
  // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu)
  const reg=rows.map(r=>({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti}));
- return res.json({bk,ext,occupancy,sync,reg,msgNonLetti:await MSG.nonLettiHost().catch(()=>0)})}
+ // orizzonte: fin dove si prenota dal sito (regola fissa del motore di disponibilità), mostrato in Gestione → Regole di prenotazione
+ return res.json({bk,ext,occupancy,sync,reg,msgNonLetti:await MSG.nonLettiHost().catch(()=>0),orizzonte:{mesi:AV.GUEST_MONTHS,ultimoGiorno:AV.maxBookingDate(Date.now())}})}
 // ---- Messaggi (Gestione): conversazioni, risposte, template, regole automatiche, messaggi programmati ----
 if(a==='msg_inbox')return res.json(await MSG.inbox(await E.bkAll()));
 if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet(String(b.code||'').trim().toUpperCase());
@@ -559,6 +578,9 @@ if(a==='event_del'){let list=(await jg('events'))||[];list=list.filter(x=>x.id!=
 if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img||'');if(!m)return res.status(400).json({err:'Immagine non valida'});
  const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
 if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.err)return res.status(400).json({err:pre.err});
+ // versione aperta da chi salva (rev); senza rev (pagina di gestione non aggiornata) o con force (il titolare ha scelto «salva comunque») non si controlla
+ const rev=b.force||b.rev==null||b.rev===''?'':String(Math.max(0,parseInt(b.rev,10)||0));
+ if(rev!==''&&rev!==String(+(await kv('GET','cfg:rev'))||0))return res.status(409).json(CFG_CAMBIATA);
  // campi di contenuto nuovi: una pagina di gestione non aggiornata (non li invia) non deve cancellare quelli già salvati
  const oa=new Map((old.apts||[]).map(x=>[String(x.id),x])),saved=(p,k)=>p[k]!==undefined?p[k]:(oa.get(String(p.id))||{})[k],ostr=(v,n)=>v===undefined?undefined:String(v).trim().slice(0,n);
  const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),infoOspiti:ostr(saved(p,'infoOspiti'),8000),infoRiservate:ostr(saved(p,'infoRiservate'),2000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
@@ -570,11 +592,14 @@ if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.er
  if(b.infoGiorni!==undefined&&infoGiorni({infoGiorni:b.infoGiorni})!==Number(b.infoGiorni))return res.status(400).json({err:'Giorni per le informazioni riservate non validi: un numero intero da 0 a 30'});
  const keepG=(k,f)=>{const v=b[k]!==undefined?b[k]:old[k];if(v!==undefined)n[k]=f(v)};
  keepG('checkoutOra',v=>RE_HHMM.test(v)?v:'');keepG('infoGiorni',v=>infoGiorni({infoGiorni:v}));keepG('whatsapp',v=>String(v||'').replace(/[^\d+ ]/g,'').trim().slice(0,20));
- const keep=new Set(n.apts.flatMap(p=>p.foto));
- for(const p of old.apts)for(const u of p.foto)if(!keep.has(u)&&/blob\.vercel-storage\.com/.test(u))await del(u).catch(()=>{});
- await kv('SET','cfg',JSON.stringify(n));
+ // Luoghi e Convenzioni: null = si torna a quelli di js/dintorni.js; non inviati (pagina di gestione non aggiornata) = restano quelli salvati
+ for(const[k,f]of[['luoghi',luoghiOk],['convenzioni',convOk]]){const v=b[k]!==undefined?b[k]:old[k];if(Array.isArray(v))n[k]=f(v)}
+ const w=await kv('EVAL',LUA_CFG_SET,'2','cfg','cfg:rev',JSON.stringify(n),rev);
+ if(!Array.isArray(w)||+w[0]!==1)return res.status(409).json(CFG_CAMBIATA);      // un altro salvataggio è arrivato proprio adesso
+ const keep=new Set(blobUrls(n));      // le foto tolte si cancellano solo a salvataggio riuscito
+ for(const u of blobUrls(old))if(!keep.has(u))await del(u).catch(()=>{});
  await E.refreshFeeds(n,{force:true}).catch(()=>{});   // nuovi URL iCal: scarico subito, così il sito non resta "non verificabile" fino al prossimo giro
- return res.json({ok:1})}
+ return res.json({ok:1,rev:+w[1]||0})}
 res.status(404).json({err:'?'})}catch(e){console.error('x:',a,String(e&&e.message||e).slice(0,160));res.status(500).json({err:'Errore interno: riprova tra qualche minuto.'})}};
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
