@@ -6,6 +6,9 @@
 //  S3 Luoghi di interesse non ha più gli eventi
 //  S4 contenuti di default di Torre e Corte (approfondimento, servizi, campi CIN e CIPAT)
 //  S5 orizzonte di 6 mesi: calcolo delle date
+//  S6 immagini leggere per il telefono: nessuna foto pesante, ogni foto degli appartamenti ha la sua miniatura
+//  S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli del piè di pagina, numero di telefono
+//  S8 cache delle immagini (vercel.json)
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -61,6 +64,43 @@ test('S5 orizzonte: oggi + 6 mesi, stesso giorno o ultimo giorno del mese; il "o
   assert.strictEqual(A.GUEST_MONTHS, 6);
   assert.strictEqual(A.maxBookingDate(Date.parse('2026-10-15T09:00:00Z')), '2027-04-15');
   assert.strictEqual(A.maxBookingDate(Date.parse('2026-10-15T22:30:00Z')), '2027-04-16', 'a mezzanotte italiana (in UTC è ancora ieri) il giorno è già il 16');
+});
+
+test('S6 immagini leggere per il telefono: nessuna foto pesante, ogni foto degli appartamenti ha la sua miniatura', () => {
+  const walk = d => fs.readdirSync(path.join(ROOT, d), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(d + '/' + e.name) : [d + '/' + e.name]);
+  const tutte = walk('img').filter(f => /\.(jpe?g|png|webp)$/i.test(f)), kb = f => fs.statSync(path.join(ROOT, f)).size / 1024;
+  for (const f of tutte) {
+    if (/\/t\//.test(f)) assert(kb(f) <= 40, f + ': miniatura troppo pesante (' + Math.round(kb(f)) + ' KB)');
+    else if (/\.jpe?g$/i.test(f)) assert(kb(f) <= 400, f + ': foto troppo pesante per il telefono (' + Math.round(kb(f)) + ' KB, massimo 400)');
+  }
+  assert(tutte.reduce((a, f) => a + kb(f), 0) < 16 * 1024, 'le immagini del sito superano i 16 MB');
+  const d = JSON.parse(read('data/default.json'));
+  for (const p of d.apts) for (const u of p.foto) {
+    assert(/^img\//.test(u), p.id + ': foto non locale ' + u);
+    const t = decodeURIComponent(u).replace(/\/([^/]+)$/, '/t/$1');
+    assert(fs.existsSync(path.join(ROOT, decodeURIComponent(u))), p.id + ': foto mancante ' + u);
+    assert(fs.existsSync(path.join(ROOT, t)), p.id + ': miniatura mancante per ' + u);
+  }
+});
+
+test('S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli del piè di pagina, numero di telefono', () => {
+  for (const f of HTML) {
+    const s = read(f);
+    assert(/<html lang="it">/.test(s), f + ': lingua della pagina');
+    const toggle = /<button [^>]*class="menu-toggle"[^>]*>/.exec(s); assert(toggle && /type="button"/.test(toggle[0]) && /aria-label="[^"]+"/.test(toggle[0]), f + ': il pulsante del menu non ha tipo o nome accessibile');
+    const brand = /<a [^>]*class="brand"[^>]*>/.exec(s); assert(brand && /aria-label="[^"]+"/.test(brand[0]), f + ': il logo non ha un nome accessibile');
+    if (f !== 'admin.html') assert(/<meta name="description" content="[^"]{40,}">/.test(s), f + ': descrizione della pagina mancante o troppo breve');
+    const foot = s.slice(s.indexOf('<footer')); assert(/<h2>La dimora<\/h2>/.test(foot) && /<h2>Contatti<\/h2>/.test(foot) && !/<h[34]>/.test(foot), f + ': i titoli del piè di pagina devono essere h2');
+    assert(!/>\+39 351 704 3594</.test(s), f + ': il numero di telefono mostrato deve avere spazi non separabili');
+    for (const img of s.match(/<img [^>]*>/g) || []) assert(/ alt="/.test(img), f + ': immagine senza attributo alt: ' + img.slice(0, 80));
+  }
+  assert(/aria-label="Scegli la stagione"/.test(read('dintorni.html')) && !/role="tablist"/.test(read('dintorni.html')), 'i pulsanti delle stagioni non sono "tab" senza pannelli');
+  assert(!/aria-label="'\+esc\(o\.t\)/.test(read('js/dintorni.js')), 'le schede non devono avere un aria-label diverso dal testo visibile');
+});
+
+test('S8 cache delle immagini: un giorno, con rinnovo in background (vercel.json)', () => {
+  const v = JSON.parse(read('vercel.json')), h = v.headers.find(x => x.source === '/img/(.*)');
+  assert(h && /max-age=86400/.test(h.headers.find(k => k.key === 'Cache-Control').value), 'intestazione Cache-Control per /img');
 });
 
 (async () => {

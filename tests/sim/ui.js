@@ -517,7 +517,7 @@ test('W4 servizi e approfondimento: testo sotto la descrizione, otto servizi in 
   const def = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')).apts.find(a => a.id === 'torre'), tot = def.servizi.split('\n').filter(l => l.startsWith('- ')).length, grp = def.servizi.split('\n').filter(l => l.startsWith('## ')).length;
   const { doc, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
   await waitFor(() => !$('#srv').hidden, 'servizi');
-  assert(!$('#more').hidden && [...doc.querySelectorAll('#more h3')].map(x => text(x)).includes('Gli spazi') && /travi in legno/.test(text($('#more'))), 'testo di approfondimento');
+  assert(!$('#more').hidden && [...doc.querySelectorAll('#more h2')].map(x => text(x)).includes('Gli spazi') && /travi in legno/.test(text($('#more'))), 'testo di approfondimento');
   assert.equal(doc.querySelectorAll('#srv-top li').length, 8, 'otto servizi in evidenza');
   const open = $('[data-testid=services-open]'); assert.equal(text(open), 'Mostra tutti i servizi (' + tot + ')');
   assert(!$('[data-testid=modal]'), 'finestra chiusa');

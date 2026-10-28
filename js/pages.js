@@ -77,7 +77,7 @@ async function apt(c){
   if(cd){$('#codes').innerHTML=cd;$('#codes').hidden=false}
   // testo di approfondimento (Gestione → appartamento → Testi)
   const more=mdLite(p.dettagli);
-  if(more.length){$('#more').innerHTML=more.map(b=>b.h?`<h3>${esc(b.h)}</h3>`:b.p!==undefined?`<p>${esc(b.p)}</p>`:`<ul>${b.li.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`).join('');$('#more').hidden=false}
+  if(more.length){$('#more').innerHTML=more.map(b=>b.h?`<h2>${esc(b.h)}</h2>`:b.p!==undefined?`<p>${esc(b.p)}</p>`:`<ul>${b.li.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`).join('');$('#more').hidden=false}
   // servizi: i primi in evidenza, tutti in una finestra
   const sg=srvGroups(p.servizi),sAll=sg.flatMap(g=>g.v);
   if(sAll.length){
@@ -99,7 +99,11 @@ async function apt(c){
     `<button type="button" class="g-arrow prev" id="g-prev" aria-label="Foto precedente" data-testid="gallery-prev">‹</button>
      <button type="button" class="g-arrow next" id="g-next" aria-label="Foto successiva" data-testid="gallery-next">›</button>
      <span class="g-counter" id="g-count" data-testid="gallery-counter"></span>`);
-  th.innerHTML=p.foto.map((u,i)=>`<button type="button" data-i="${i}" data-testid="gallery-thumb-${i}"><img src="${u}" alt="" loading="lazy"></button>`).join('');
+  // miniature (360 px) in img/<appartamento>/t/ con lo stesso nome del file: l'anteprima pesa ~15 KB invece di ~250 KB. Per le foto caricate
+  // da Gestione (indirizzi esterni) o se la miniatura manca si usa la foto intera.
+  const thumb=u=>/^img\//.test(u)?u.replace(/\/([^\/]+)$/,'/t/$1'):u;
+  th.innerHTML=p.foto.map((u,i)=>`<button type="button" data-i="${i}" aria-label="Foto ${i+1} di ${N}" data-testid="gallery-thumb-${i}"><img src="${esc(thumb(u))}" data-full="${esc(u)}" alt="" width="100" height="75" loading="lazy" decoding="async"></button>`).join('');
+  th.querySelectorAll('img').forEach(im=>im.addEventListener('error',()=>{im.src=im.dataset.full},{once:true}));
   const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];[cur+1,cur-1].forEach(k=>{if(N>1)new Image().src=p.foto[(k+N)%N]});$('#g-count').textContent=`${cur+1} / ${N}`;
     th.querySelectorAll('button').forEach((b,j)=>b.classList.toggle('on',j===cur));
     const act=th.querySelector(`[data-i="${cur}"]`);act&&act.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})};

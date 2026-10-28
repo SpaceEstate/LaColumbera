@@ -127,15 +127,16 @@
     var fig=o.quad
       ? '<figure class="quad">'+o.quad.map(function(src){return '<img src="'+esc(src)+'" alt="'+esc(o.alt)+'" loading="lazy" decoding="async">'}).join('')+'</figure>'
       : '<figure'+(hasImg?'':' class="no-photo"')+'>'
-        +(hasImg?'<img alt="'+esc(o.alt)+'" width="640" height="512" loading="lazy" decoding="async"'
+        +(hasImg?'<img alt="'+esc(o.alt)+'" width="640" height="512" '+(o.eager?'fetchpriority="high"'+(o.local?' src="'+esc(o.local)+'"':''):'loading="lazy"')+' decoding="async"'      // la prima scheda è la più in alto: si carica subito, senza aspettare lo script delle foto
           +(o.local?' data-local="'+esc(o.local)+'"':'')+(og?' data-og="'+esc(og)+'"':'')+'>':'')
         +(o.tag?'<span class="apt-tag'+(o.estate?' estate':'')+'">'+esc(o.tag)+'</span>':'')+'</figure>';
-    var ctaTxt=esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span>';
+    var newTab=isExt?'<span class="sr-only"> (si apre in una nuova scheda)</span>':'',h=o.h||3;
+    var ctaTxt=esc(o.lt||'Scopri di più')+' <span aria-hidden="true">'+(isExt?'↗':'→')+'</span>'+(o.secondaryLink?newTab:'');
     var ctaMain=!link?'':(o.secondaryLink
       ? '<a class="cta-link stretched" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')+'>'+ctaTxt+'</a>'
       : '<span class="cta-link">'+ctaTxt+'</span>');
-    var ctaSub=o.secondaryLink?'<a class="cta-sub" href="'+esc(o.secondaryLink)+'" target="_blank" rel="noopener noreferrer">'+esc(o.secondaryLt||'Apri su Google Maps')+' ↗</a>':'';
-    var body='<div class="body"><h3>'+esc(o.t)+'</h3>'
+    var ctaSub=o.secondaryLink?'<a class="cta-sub" href="'+esc(o.secondaryLink)+'" target="_blank" rel="noopener noreferrer">'+esc(o.secondaryLt||'Apri su Google Maps')+' ↗<span class="sr-only"> (si apre in una nuova scheda)</span></a>':'';
+    var body='<div class="body"><h'+h+'>'+esc(o.t)+(!o.secondaryLink?newTab:'')+'</h'+h+'>'
       +(o.meta&&o.meta.length?'<div class="meta">'+o.meta.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div>':'')
       +'<p>'+esc(o.d)+'</p>'
       +(link||ctaSub?'<div class="cta">'+ctaMain+ctaSub+'</div>':'')
@@ -148,25 +149,25 @@
     }
     if(!link)return '<article class="'+cls+'" data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</article>';
     return '<a class="'+cls+'" href="'+esc(link)+'"'+(isExt?' target="_blank" rel="noopener noreferrer"':'')
-      +' aria-label="'+esc(o.t)+(isExt?' (si apre in una nuova scheda)':'')+'" data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</a>';
+      +' data-testid="'+esc(o.tid)+'"'+(o.style||'')+'>'+fig+body+'</a>';      // nome accessibile = testo visibile della scheda (nessun aria-label che lo contraddica)
   }
   var photos=function(){if(window.lcPhotos)window.lcPhotos()};
 
   // --- Luoghi di interesse ---
   var lg=document.getElementById('luoghi-grid');
   if(lg){
-    lg.innerHTML=LUOGHI.map(function(p){
-      return card({tid:'d-'+p.id,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:p.link,lt:p.lt,local:p.local,noPhoto:p.noPhoto,quad:p.quad});
+    lg.innerHTML=LUOGHI.map(function(p,i){
+      return card({tid:'d-'+p.id,h:2,eager:i===0,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:p.link,lt:p.lt,local:p.local,noPhoto:p.noPhoto,quad:p.quad});
     }).join('');
   }
 
   // --- Convenzioni ---
   var cg=document.getElementById('conv-grid');
   if(cg){
-    cg.innerHTML=CONVENZIONI.map(function(p){
+    cg.innerHTML=CONVENZIONI.map(function(p,i){
       var maps='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.maps);
       var site=p.sito?p.sito:'';
-      return card({tid:'partner-card-'+p.id,t:p.nome,meta:[p.cat,p.zona],d:p.d,alt:p.nome,tag:p.badge,estate:p.estate,
+      return card({tid:'partner-card-'+p.id,h:2,eager:i===0,t:p.nome,meta:[p.cat,p.zona],d:p.d,alt:p.nome,tag:p.badge,estate:p.estate,
         local:'img/convenzioni/'+p.id+'.jpg',
         link:site||maps,lt:site?'Sito ufficiale':'Apri su Google Maps',og:site||'',
         secondaryLink:site?maps:'',secondaryLt:'Mappa'});
