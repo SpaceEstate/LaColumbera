@@ -18,7 +18,7 @@
 //   msg:prog            messaggi programmati a mano, campo id → {id, code, testo, quando}
 //   msg:imp             impostazioni {conservazione, avvisaTitolare, avvisaOspite}
 //   msg:fatto:<regola>:<codice> · msg:fatto:p:<id>   invio fatto, saltato o in corso: mai due volte la stessa cosa (SET NX)
-//   msg:avv:h:<codice> · msg:avv:o:<codice>           ultimo avviso email al titolare (uno ogni 15 minuti) / all'ospite (uno ogni 6 ore)
+//   msg:avv:h:<codice> · msg:avv:o:<codice>           ultimo avviso email al titolare / all'ospite (15 minuti: dopo il primo non letto, al massimo uno ogni 15 minuti)
 //   tr:tpl:<impronta>:<lingua>                        traduzione di un template (senza i dati della prenotazione)
 // Traduzione (api/_traduci.js, DeepL): i messaggi automatici si traducono dal template, con le variabili protette: a DeepL non arrivano
 // mai nomi, codici o Wi-Fi della prenotazione. I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono.
@@ -73,7 +73,7 @@ function riempi(testo, b, config, site, lg) {
   return String(testo || '').replace(/[ \t]*\{([a-z_]+)\}/g, (m, k) => !(k in v) ? m : v[k] ? m.slice(0, m.indexOf('{')) + v[k] : '');
 }
 
-function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, issueToken, mail, log, now }) {
+function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueToken, mail, log, now }) {
   now = now || (() => Date.now());
   const T = traduci || { attiva: () => false, traduci: async () => ({ ok: false }), supportata: () => false };
   const jget = async k => parse(await kv('GET', k));
@@ -84,12 +84,12 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, issueToken, mail
   /* ---------- impostazioni ---------- */
   async function impostazioni() {
     const o = (await jget('msg:imp')) || {}, c = Number(o.conservazione);
-    return { conservazione: Number.isInteger(c) && c >= 7 && c <= 730 ? c : 90, avvisaTitolare: o.avvisaTitolare !== false, avvisaOspite: o.avvisaOspite === true };
+    return { conservazione: Number.isInteger(c) && c >= 7 && c <= 730 ? c : 90, avvisaTitolare: o.avvisaTitolare !== false, avvisaOspite: o.avvisaOspite !== false };      // entrambi gli avvisi attivi di partenza
   }
   async function salvaImpostazioni(b) {
     const c = Number(b && b.conservazione);
     if (!Number.isInteger(c) || c < 7 || c > 730) throw err(400, 'Conservazione non valida: da 7 a 730 giorni dopo la partenza');
-    const o = { conservazione: c, avvisaTitolare: b.avvisaTitolare !== false, avvisaOspite: b.avvisaOspite === true };
+    const o = { conservazione: c, avvisaTitolare: b.avvisaTitolare !== false, avvisaOspite: b.avvisaOspite !== false };
     await kv('SET', 'msg:imp', JSON.stringify(o));
     return o;
   }
@@ -142,7 +142,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, issueToken, mail
     if (T.attiva()) { const r = await T.traduci([testo], 'it'); if (r.ok) { if (r.lingue[0]) m.lingua = r.lingue[0]; if (m.lingua !== 'it') it = r.testi[0]; } }
     await append(code, m);
     if (it) await kv('HSET', 'msg:tr:' + code, m.id + ':it', it).catch(() => {});
-    await avvisaTitolare(code, booking, site).catch(() => {});
+    await avvisaTitolare(code, booking, site, m, it).catch(() => {});
     return { id: m.id, da: 'ospite', testo: m.testo, ts: m.ts };
   }
   // Il titolare scrive (o parte un messaggio automatico). traduzioni = testi già pronti per lingua (template); verso = lingua dell'ospite
@@ -151,11 +151,11 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, issueToken, mail
     if (!testo) throw err(400, 'Scrivi un messaggio');
     const m = Object.assign({ id: newId(), da: auto ? 'auto' : 'host', testo, lingua: 'it', ts: now() }, regola ? { regola } : {});
     await append(code, m);
-    const cmds = [];
-    for (const [lg, t] of Object.entries(traduzioni || {})) if (lg !== 'it' && t) cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + lg, pulisci(t)]);
-    if (verso && verso !== 'it' && !(traduzioni && traduzioni[verso]) && T.attiva()) { const r = await T.traduci([testo], verso, { da: 'it' }); if (r.ok) cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + verso, r.testi[0]]); }
+    const cmds = [], tr = {};      // tr: il messaggio tradotto, per lingua (serve anche all'email per l'ospite)
+    for (const [lg, t] of Object.entries(traduzioni || {})) if (lg !== 'it' && t) { tr[lg] = pulisci(t); cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + lg, tr[lg]]); }
+    if (verso && verso !== 'it' && !tr[verso] && T.attiva()) { const r = await T.traduci([testo], verso, { da: 'it' }); if (r.ok) { tr[verso] = r.testi[0]; cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + verso, r.testi[0]]); } }
     if (cmds.length) await kvp(cmds).catch(() => {});
-    await avvisaOspite(code, booking, site).catch(() => {});
+    await avvisaOspite(code, booking, site, m, tr).catch(() => {});
     return m;
   }
   // Vista del titolare: i messaggi dell'ospite con la traduzione in italiano, i propri con «letto» (l'ospite ha aperto i messaggi dopo)
@@ -190,20 +190,31 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, issueToken, mail
   const nonLettiOspite = async code => +(await kv('HGET', 'msg:no', code)) || 0;
 
   /* ---------- avvisi email ---------- */
-  // al titolare, quando scrive un ospite: uno ogni 15 minuti per conversazione, senza il testo del messaggio
-  async function avvisaTitolare(code, b, site) {
-    if (!sendMail || !ownerEmail || !mail || !(await impostazioni()).avvisaTitolare) return;
-    if ((await kv('SET', 'msg:avv:h:' + code, '1', 'NX', 'EX', '900')) !== 'OK') return;
-    const mm = mail().avvisoTitolare(b || { code }, site);
-    if ((await sendMail(ownerEmail, mm.subject, mm.html, { text: mm.text })) === false) await kv('DEL', 'msg:avv:h:' + code).catch(() => {});
+  // Un avviso per il primo messaggio non letto; se ne arrivano altri prima che il destinatario legga, al massimo uno ogni 15 minuti.
+  // nonLetti = contatore dei non letti del destinatario (già aggiornato con questo messaggio), chiave = ultimo avviso mandato.
+  async function libero(nonLetti, chiave) {
+    if ((+(await kv('HGET', nonLetti[0], nonLetti[1])) || 0) <= 1) { await kv('SET', chiave, '1', 'EX', '900'); return true; }
+    return (await kv('SET', chiave, '1', 'NX', 'EX', '900')) === 'OK';
   }
-  // all'ospite (solo se il titolare l'ha attivato): uno ogni 6 ore per conversazione, con il link che apre l'area ospiti
-  async function avvisaOspite(code, b, site) {
+  // Al titolare, quando scrive un ospite: il testo (con la traduzione in italiano se ha scritto in un'altra lingua) e «Rispondi»,
+  // che apre la conversazione in Gestione. Se l'invio non riesce, al messaggio successivo si riprova.
+  async function avvisaTitolare(code, b, site, m, it) {
+    if (!sendMail || !ownerEmail || !mail || !(await impostazioni()).avvisaTitolare) return;
+    const k = 'msg:avv:h:' + code;
+    if (!(await libero(['msg:nh', code], k))) return;
+    const mm = mail().avvisoTitolare(b || { code }, site, { testo: m && m.testo, it });
+    if ((await sendMail(ownerEmail, mm.subject, mm.html, { text: mm.text })) === false) await kv('DEL', k).catch(() => {});
+  }
+  // All'ospite, quando scrivi tu (anche i messaggi automatici): il testo nella sua lingua, se c'è la traduzione, con l'originale sotto,
+  // e «Rispondi», che apre i messaggi della sua area ospiti senza il codice (token nel frammento "#"). Si spegne in Messaggi → Automatici.
+  async function avvisaOspite(code, b, site, m, tr) {
     if (!sendMail || !mail || !b || !/.+@.+\..+/.test(b.email || '') || !(await impostazioni()).avvisaOspite) return;
-    if ((await kv('SET', 'msg:avv:o:' + code, '1', 'NX', 'EX', '21600')) !== 'OK') return;
+    const k = 'msg:avv:o:' + code;
+    if (!(await libero(['msg:no', code], k))) return;
+    const lg = await linguaDi(code);      // la lingua scelta dall'ospite nell'area (null = non ha ancora aperto i messaggi)
     let tk = null; try { tk = issueToken ? await issueToken(b) : null; } catch (e) { tk = null; }
-    const mm = mail().avvisoOspite(b, site, tk);
-    if ((await sendMail(b.email, mm.subject, mm.html, { text: mm.text })) === false) await kv('DEL', 'msg:avv:o:' + code).catch(() => {});
+    const mm = mail().avvisoOspite(b, site, tk, { testo: m && m.testo, lingua: lg, tradotto: lg && lg !== 'it' ? (tr || {})[lg] || '' : '' });
+    if ((await sendMail(b.email, mm.subject, mm.html, Object.assign({ text: mm.text }, replyTo ? { replyTo } : {}))) === false) await kv('DEL', k).catch(() => {});
   }
 
   /* ---------- template ---------- */

@@ -32,8 +32,8 @@ ${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Not
 
 const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine}" style="border-radius:999px"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></td></tr></table>`;
 
-const shell=({site,preheader,eyebrow,title,body})=>`<!doctype html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(title)}</title></head>
+const shell=({site,preheader,eyebrow,title,body,lang})=>`<!doctype html>
+<html lang="${lang||'it'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:${C.paper2};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${esc(preheader)}&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper2}"><tr><td align="center" style="padding:24px 12px">
@@ -124,23 +124,43 @@ Telefono: ${tel||'—'}${b.pagamento?'\nRif. Stripe: '+b.pagamento:''}`;
 
 // ---------------- AVVISI DEI MESSAGGI (api/_messaggi.js) ----------------
 // Al titolare: un ospite ha scritto. Senza il testo del messaggio (resta nell'area riservata): solo chi, quale soggiorno e il link per rispondere.
-const avvisoTitolare=(b,site)=>{
-  const link=site+'/admin.html#messaggi',chi=String(b.nome||'').trim()||'un ospite',quando=b.da?dLong(b.da):'';
-  const html=shell({site,eyebrow:'Nuovo messaggio',preheader:`${chi} ti ha scritto nell'area ospiti`,title:`Nuovo messaggio da<br><span style="color:${C.wine}">${esc(chi)}</span>`,
-    body:sec(`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center">Ti ha scritto nell'area ospiti${b.id?' l\'ospite di <b>'+esc(aptName(b.id))+'</b>':''}${quando?', arrivo '+esc(quando):''}. Per leggere il messaggio e rispondere apri la Gestione.</p>`,'16px 32px 0')+
-      sec(button(link,'Leggi e rispondi'),'24px 32px 0')+
-      sec(`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">Per non disturbarti ricevi al massimo un avviso ogni 15 minuti per conversazione. Si disattiva in Gestione → Messaggi → Automatici.</p>`,'22px 32px 32px')});
-  const text=`Nuovo messaggio da ${chi}${b.id?' ('+aptName(b.id)+(quando?', arrivo '+quando:'')+')':''} nell'area ospiti.\n\nPer leggerlo e rispondere: ${link}`;
+// Il testo di un messaggio in un riquadro: a capo dove l'ha messo chi scrive, mai HTML (esc).
+const msgBox=(testo,nota)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-left:3px solid ${C.gold};border-radius:6px"><tr><td style="padding:14px 18px">${nota?`<div style="font-family:${SANS};font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:6px">${esc(nota)}</div>`:''}<div style="font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};word-wrap:break-word">${esc(testo).replace(/\r?\n/g,'<br>')}</div></td></tr></table>`;
+const pc=(t,extra)=>`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center${extra||''}">${t}</p>`;
+const piede=t=>`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">${t}</p>`;
+// Al titolare, quando scrive un ospite: il testo (con la traduzione in italiano, se ha scritto in un'altra lingua) e «Rispondi»,
+// che apre la conversazione in Gestione (se il telefono o il computer non hanno già l'accesso, prima chiede la password).
+const avvisoTitolare=(b,site,m)=>{m=m||{};
+  const link=site+'/admin.html#messaggi/c/'+encodeURIComponent(b.code||''),chi=String(b.nome||'').trim()||'un ospite',quando=b.da?dLong(b.da).replace(/^./,c=>c.toLowerCase()):'';
+  const testo=String(m.testo||''),it=m.it&&m.it!==testo?String(m.it):'',dove=b.id?aptName(b.id)+(quando?', arrivo '+quando:''):'';
+  const html=shell({site,eyebrow:'Nuovo messaggio',preheader:testo.slice(0,110)||`${chi} ti ha scritto nell'area ospiti`,title:`Nuovo messaggio da<br><span style="color:${C.wine}">${esc(chi)}</span>`,
+    body:sec(pc(`Ti ha scritto nell'area ospiti${dove?' ('+esc(dove)+')':''}:`),'16px 32px 0')+
+      (testo?sec(msgBox(testo),'14px 32px 0'):'')+(it?sec(msgBox(it,'Traduzione automatica in italiano'),'10px 32px 0'):'')+
+      sec(button(link,'Rispondi'),'24px 32px 0')+
+      sec(piede('La risposta la scrivi in Gestione: l\'ospite la legge nella sua area e riceve un\'email. Ti arriva un avviso per il primo messaggio non letto; se l\'ospite scrive ancora prima che tu legga, al massimo uno ogni 15 minuti. Si disattiva in Gestione → Messaggi → Automatici.'),'22px 32px 32px')});
+  const text=`${chi}${dove?' ('+dove+')':''} ti ha scritto nell'area ospiti:\n\n${testo}\n${it?'\nTraduzione automatica in italiano:\n'+it+'\n':''}\nRispondi: ${link}`;
   return{subject:`💬 Nuovo messaggio da ${chi}${b.id?' · '+aptName(b.id):''}`,html,text}};
-// All'ospite (solo se il titolare l'ha attivato): c'è un messaggio per te. Con il link che apre l'area ospiti (token nel frammento "#").
-const avvisoOspite=(b,site,token)=>{
-  const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token):'');
-  const nome=String(b.nome||'').trim().split(/\s+/)[0];
-  const html=shell({site,eyebrow:'Nuovo messaggio · New message',preheader:'Hai un nuovo messaggio da La Columbera · You have a new message',title:`Ciao${nome?' '+esc(nome):''}!`,
-    body:sec(`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center">Ti abbiamo scritto un messaggio sul tuo soggiorno: lo trovi nella tua area ospiti.</p><p style="margin:10px 0 0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">We have sent you a message about your stay: you will find it in your guest area.</p>`,'16px 32px 0')+
-      sec(button(link,'Leggi il messaggio · Read it'),'24px 32px 0')+
-      sec(`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">Il link ti fa entrare direttamente: non inoltrarlo a chi non soggiorna con te.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'22px 32px 32px')});
-  const text=`Ciao${nome?' '+nome:''}! Ti abbiamo scritto un messaggio sul tuo soggiorno a La Columbera: lo trovi nella tua area ospiti.\nWe have sent you a message about your stay: you will find it in your guest area.\n\n${link}\n\nInformativa privacy: ${site}/privacy.html`;
-  return{subject:'Nuovo messaggio da La Columbera · New message',html,text}};
+// All'ospite, quando gli scrivi (anche i messaggi automatici): il testo nella lingua scelta nell'area ospiti (con l'originale sotto, se tradotto)
+// e «Rispondi», che apre la scheda Messaggi della sua area ospiti senza chiedere il codice (token nel frammento "#").
+// Lingua non nota (l'ospite non ha ancora aperto i messaggi): italiano e inglese insieme.
+const OSP={
+  it:{sub:'Nuovo messaggio da La Columbera',eye:'Nuovo messaggio',ciao:n=>'Ciao'+(n?' '+n:'')+'!',intro:'Ti abbiamo scritto sul tuo soggiorno:',orig:'Testo originale (italiano)',btn:'Rispondi',
+    piede:'Il pulsante apre i messaggi nella tua area ospiti, senza bisogno del codice: non inoltrare questa email a chi non soggiorna con te.',codice:'Per entrare nella tua area ospiti ti serve il codice di prenotazione: lo trovi nella email di conferma.',priv:'Informativa privacy'},
+  en:{sub:'New message from La Columbera',eye:'New message',ciao:n=>'Hi'+(n?' '+n:'')+'!',intro:'We have written to you about your stay:',orig:'Original text (Italian)',btn:'Reply',
+    piede:'The button opens the messages in your guest area, no code needed: please do not forward this email to anyone who is not staying with you.',codice:'To open your guest area you need your booking code: you will find it in the confirmation email.',priv:'Privacy notice'},
+  de:{sub:'Neue Nachricht von La Columbera',eye:'Neue Nachricht',ciao:n=>'Hallo'+(n?' '+n:'')+'!',intro:'Wir haben Ihnen zu Ihrem Aufenthalt geschrieben:',orig:'Originaltext (Italienisch)',btn:'Antworten',
+    piede:'Die Schaltfläche öffnet die Nachrichten in Ihrem Gästebereich, ohne Code: Bitte leiten Sie diese E-Mail nicht an Personen weiter, die nicht mit Ihnen übernachten.',codice:'Um Ihren Gästebereich zu öffnen, benötigen Sie Ihren Buchungscode: Sie finden ihn in der Bestätigungs-E-Mail.',priv:'Datenschutzhinweis'}};
+const avvisoOspite=(b,site,token,m)=>{m=m||{};
+  const lg=OSP[m.lingua]?m.lingua:'',L=OSP[lg||'it'],E=OSP.en,due=!lg;
+  const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token)+'&s=messaggi':'');
+  const nome=String(b.nome||'').trim().split(/\s+/)[0],testo=String(m.testo||''),tr=lg&&lg!=='it'&&m.tradotto&&m.tradotto!==testo?String(m.tradotto):'';
+  const nota=x=>token?x.piede:x.codice;      // senza il token (non è stato possibile crearlo) il pulsante apre l'area e serve il codice
+  const html=shell({site,lang:lg||'it',eyebrow:due?L.eye+' · '+E.eye:L.eye,preheader:(tr||testo).slice(0,110)||L.sub,title:esc(L.ciao(nome)),
+    body:sec(pc(esc(L.intro))+(due?pc(esc(E.intro),';margin-top:4px;font-size:14px;color:'+C.muted):''),'16px 32px 0')+
+      sec(tr?msgBox(tr)+'<div style="height:10px;line-height:10px">&nbsp;</div>'+msgBox(testo,L.orig):msgBox(testo),'14px 32px 0')+
+      sec(button(link,due?L.btn+' · '+E.btn:L.btn),'24px 32px 0')+
+      sec(piede(esc(nota(L))+(due?'<br>'+esc(nota(E)):'')+`<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'22px 32px 32px')});
+  const text=`${L.ciao(nome)} ${L.intro}${due?'\n'+E.intro:''}\n\n${tr||testo}\n${tr?'\n'+L.orig+':\n'+testo+'\n':''}\n${due?L.btn+' · '+E.btn:L.btn}: ${link}\n\n${nota(L)}${due?'\n'+nota(E):''}\n${L.priv}: ${site}/privacy.html`;
+  return{subject:due?'Nuovo messaggio da La Columbera · New message':L.sub,html,text}};
 
 module.exports={guestMail,ownerMail,avvisoTitolare,avvisoOspite};

@@ -13,7 +13,7 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 
 - **Per entrare basta il codice** della prenotazione: niente email né data. I codici nuovi del sito sono di 13 caratteri casuali, mostrati a gruppi (`558R TE56 487A9`); per Booking.com e Airbnb vale il numero del portale, letto dal foglio. Si possono scrivere in minuscolo, con spazi o trattini. Il link della mail di conferma apre l'area con un tocco.
 - **Area clienti tipo app** (si può aggiungere alla schermata Home del telefono): soggiorno con orari e indirizzo, aggiungi al calendario, riepilogo del pagamento riga per riga, informazioni della casa e Wi-Fi (solo nei giorni giusti), dintorni ed eventi, check-in online e Trentino Guest Card, in italiano, inglese e tedesco.
-- **Messaggi con te** (solo prenotazioni confermate del sito; Booking e Airbnb scrivono sulla loro piattaforma), tradotti automaticamente nella loro lingua se attivi DeepL.
+- **Messaggi con te** (solo prenotazioni confermate del sito; Booking e Airbnb scrivono sulla loro piattaforma), tradotti automaticamente nella loro lingua se attivi DeepL. Quando scrivi, all'ospite arriva un'email con il testo e il pulsante «Rispondi», che apre i messaggi senza chiedere il codice.
 
 ## Cosa cambia per te
 
@@ -21,7 +21,8 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 - **Oggi**: cosa c'è da fare, chi arriva e chi parte oggi e domani, gli invii automatici, i prossimi 7 giorni e un semaforo unico per sincronizzazione, pagamenti ed email.
 - **Calendario e prezzi**: tocchi le notti (anche «dal… al…») e in un colpo cambi prezzo, blocchi o fissi un minimo di notti.
 - **Prenotazioni**: sito, Booking e Airbnb in un solo elenco con ricerca; nel dettaglio il codice e un messaggio pronto da copiare nella chat del portale.
-- **Messaggi**: conversazioni, template, messaggi automatici (es. il giorno prima dell'arrivo) e programmati.
+- **Messaggi**: conversazioni, template, messaggi automatici (es. il giorno prima dell'arrivo) e programmati. Quando un ospite scrive ti arriva un'email con il testo e «Rispondi», che apre la conversazione.
+- **Pulizie**: per il periodo che scegli, un testo per Corte e uno per Torre con entrate, uscite, ospiti, notti e letti (matrimoniale o singoli), da copiare e mandare a chi fa le pulizie. Senza nomi degli ospiti.
 - **Luoghi e Convenzioni** ora si modificano dalla Gestione.
 - **Salvataggio più sicuro**: la barra «Salva modifiche» compare solo quando serve e dice dove hai modificato; se hai salvato da un altro dispositivo nel frattempo, nulla viene sovrascritto senza chiedertelo.
 - Tutti i vecchi indirizzi della Gestione e i link delle email continuano a funzionare.
@@ -47,17 +48,17 @@ Nessun altro servizio esterno è stato aggiunto (DeepL solo se imposti la chiave
 2. **Foglio**: controlla che lo script del foglio accetti e cerchi i codici nuovi di 13 caratteri (lo script non è nel repository, quindi non l'ho potuto provare).
 3. **iPhone**: apri il link della mail dall'app Mail e il link `#k=…` da WhatsApp; prova «Aggiungi a Home».
 4. **Messaggi**: segui i passi di `docs/messaggi.md` §9.
-5. **Gestione**: segui i passi di `docs/gestione.md` §9 (calendario, vecchi indirizzi, due dispositivi, prenotazioni, Luoghi).
+5. **Gestione**: segui i passi di `docs/gestione.md` §10 (calendario, vecchi indirizzi, due dispositivi, prenotazioni, pulizie, Luoghi).
 6. **Sistema**: Sito → Sistema → «Pagamenti ed email» tutto verde; «Invia email di prova».
 
 ## Limiti noti
 
 - Il codice di prenotazione vale come una chiave e non si può revocare: chi lo conosce vede date, appartamento e numero di ospiti (mai nome, email o importo per Booking e Airbnb). I numeri dei portali, più corti, sono protetti da limiti di tentativi e da una finestra di 7 giorni dopo il check-out.
-- L'ospite vede i tuoi messaggi quando apre l'area clienti; l'avviso via email all'ospite è spento di partenza (si accende in Messaggi → Automatici). Niente allegati.
+- Le email dei messaggi contengono il testo (scelta tua): si spengono in Messaggi → Automatici. Niente allegati.
 - **Notifiche push sul telefono: non attivate**, come chiesto. Richiedono chiavi apposite e il consenso dell'ospite nel browser: se le vuoi, decidiamolo prima.
 - La Gestione non si aggiorna da sola (tranne i Messaggi): «Aggiorna» in Oggi o ricarica la pagina.
 - Le 18 prove dello script del foglio restano saltate perché `google-apps-script.gs` non è nel repository (come prima di queste modifiche).
 
 ## Prove automatiche
 
-`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 18, preavviso 12, sicurezza 19, messaggi 11, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 70. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.
+`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 18, preavviso 12, sicurezza 20, messaggi 12, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 72. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.

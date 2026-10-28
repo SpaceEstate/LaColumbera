@@ -120,7 +120,7 @@ async function waitFor(fn, what, tries = 150) {
 }
 const text = el => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
 const adminToken = async () => (await H.api('login', { u: 'admin', p: 'pw' })).body.t;
-const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/dintorni.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin-operativita.js', 'js/admin-calendario.js', 'js/admin-sito.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
+const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/dintorni.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin-operativita.js', 'js/admin-calendario.js', 'js/admin-pulizie.js', 'js/admin-sito.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
 const goto = async (r, hash, sel) => { r.w.location.hash = hash; await waitFor(() => r.doc.querySelector(sel), 'sezione ' + hash); };
 
 const tests = [];
@@ -846,7 +846,7 @@ test('W14 Gestione · due aree: selettore Operatività | Sito sempre in alto, me
   const r = await loadAdmin(), $ = s => r.doc.querySelector(s), menu = () => [...r.doc.querySelectorAll('#adm-nav a')].map(a => a.getAttribute('href'));
   assert.equal(r.w.location.hash, '#oggi', 'si apre su Oggi');
   assert($('[data-testid=admin-area-op]').classList.contains('on') && !$('[data-testid=admin-area-sito]').classList.contains('on'), 'area Operatività attiva');
-  assert.deepEqual(menu(), ['#oggi', '#calendario', '#prenotazioni', '#messaggi', '#adempimenti', '#guestcard']);
+  assert.deepEqual(menu(), ['#oggi', '#calendario', '#prenotazioni', '#pulizie', '#messaggi', '#adempimenti', '#guestcard']);
   await goto(r, '#regole', '[data-testid=admin-notice]');
   assert($('[data-testid=admin-area-sito]').classList.contains('on'), 'area Sito attiva');
   assert.deepEqual(menu(), ['#appartamenti', '#home', '#eventi', '#luoghi', '#regole', '#sistema']);
@@ -1035,6 +1035,69 @@ test('W20 Gestione · Regole di prenotazione: preavviso, orari e area ospiti ins
   const o = text($('[data-testid=admin-orizzonte]'));
   assert(/fino a 6 mesi in anticipo/.test(o) && /fino al 2 apr 2027/.test(o) && /non si cambia da qui/.test(o) && /Corte 2 · Torre 2/.test(o), o);
   assert.equal($('[data-testid=admin-orizzonte] a').getAttribute('href'), '#calendario');
+});
+
+test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrate, uscite, ospiti, notti e letti (scelta e nota salvate subito), senza nomi; si copia con un tocco', async () => {
+  await setup();
+  const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
+  const c2 = (await checkout({ id: 'corte', da: '2026-10-11', a: '2026-10-13', nome: 'Anna Verdi', email: 'anna@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c2));
+  await H.sync(); regAirbnb();
+  const r = await loadAdmin('#pulizie'), $ = s => r.doc.querySelector(s), txt = id => $('[data-testid=admin-pul-txt-' + id + ']').textContent;
+  await waitFor(() => $('[data-testid=admin-pul-torre]') && $('[data-testid=admin-pul-corte]'), 'due schede');
+  assert.deepEqual([$('[data-testid=admin-pul-da]').value, $('[data-testid=admin-pul-al]').value], ['2026-10-02', '2026-10-15'], 'di partenza: le prossime due settimane');
+  assert.equal(txt('torre'), ['PULIZIE TORRE', 'dal 2 ottobre al 15 ottobre', '', 'Venerdì 2 ottobre', '• entra: ospiti da confermare, 2 notti, letti da confermare, dalle 16:00', '',
+    'Domenica 4 ottobre — cambio', '• esce: ospiti da confermare', '• entra: 3 ospiti, 3 notti, letti da confermare, dalle 16:00', '', 'Mercoledì 7 ottobre', '• esce: 3 ospiti'].join('\n'));
+  assert(/Domenica 11 ottobre — cambio\n• esce: 2 ospiti\n• entra: 2 ospiti, 2 notti/.test(txt('corte')) && /Lunedì 5 ottobre\n• entra: 2 ospiti, 6 notti/.test(txt('corte')), txt('corte'));
+  assert(!/Mario|Rossi|Anna|Verdi|@|HMSEDESZCW|6877180932/.test(txt('torre') + txt('corte')), 'nel testo niente nomi, email o codici');
+  assert(/Mario Rossi/.test(text($('[data-testid=admin-pul-torre]'))), 'i nomi li vede solo il titolare, nella pagina');
+  // letti e nota: si salvano subito e finiscono nel testo
+  $('[data-testid=admin-pul-letto-' + c1 + '-m]').click();
+  await waitFor(() => kv.exec(['HGET', 'pul:info', c1]), 'scelta salvata');
+  assert.deepEqual(JSON.parse(kv.exec(['HGET', 'pul:info', c1])), { letto: 'm', nota: '', a: '2026-10-07' });
+  assert(/3 ospiti, 3 notti, letto matrimoniale, dalle 16:00/.test(txt('torre')));
+  const nota = $('[data-testid=admin-pul-nota-' + c1 + ']'); nota.value = '  serve la culla '; chg(r, nota);
+  await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c1])).nota === 'serve la culla', 'nota salvata');
+  assert(/letto matrimoniale, dalle 16:00 — serve la culla/.test(txt('torre')), txt('torre'));
+  $('[data-testid="admin-pul-letto-cal:torre:2026-10-02-s"]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'cal:torre:2026-10-02']), 'anche per una prenotazione vista solo nel calendario');
+  $('[data-testid=admin-pul-letto-HMSEDESZCW-s]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'Airbnb dal foglio');
+  assert(/6 notti, letti singoli/.test(txt('corte')));
+  $('[data-testid=admin-pul-letto-HMSEDESZCW-s]').click(); await waitFor(() => !kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'toccata di nuovo, la scelta si toglie');
+  // copia: esattamente il testo mostrato
+  let copiato = ''; Object.defineProperty(r.w.navigator, 'clipboard', { value: { writeText: async t => { copiato = t; } }, configurable: true });
+  $('[data-testid=admin-pul-copy-torre]').click(); await waitFor(() => copiato, 'copiato'); assert.equal(copiato, txt('torre'));
+  // periodo: dal 10 al 12 ottobre a Torre non succede nulla, a Corte c'è il cambio dell'11
+  const da = $('[data-testid=admin-pul-da]'), al = $('[data-testid=admin-pul-al]'); da.value = '2026-10-10'; al.value = '2026-10-12'; chg(r, al);
+  assert(/Nessuna entrata e nessuna uscita/.test(txt('torre')) && /dal 10 ottobre al 12 ottobre/.test(txt('corte')) && /— cambio/.test(txt('corte')));
+  $('[data-testid=admin-pul-per-7]').click(); assert.deepEqual([da.value, al.value], ['2026-10-02', '2026-10-08']);
+  // riaprendo la pagina le scelte ci sono ancora
+  const r2 = await loadAdmin('#pulizie');
+  await waitFor(() => r2.doc.querySelector('[data-testid=admin-pul-letto-' + c1 + '-m]').classList.contains('on'), 'scelta ricaricata');
+  assert.equal(r2.doc.querySelector('[data-testid=admin-pul-nota-' + c1 + ']').value, 'serve la culla');
+  assert(r2.doc.querySelector('#adm-nav a.on[href="#pulizie"]'), 'voce di menu in Operatività');
+});
+
+test('W22 email dei messaggi: «Rispondi» dell\'ospite apre l\'area già sui Messaggi, senza codice; «Rispondi» del titolare apre la conversazione (anche passando dal login)', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  await H.api('msg_send', { code: c.code, t: c.t, testo: 'Si può arrivare alle 22?' });
+  const h = global.__mails.filter(m => m.to === 'owner@test' && /Nuovo messaggio/.test(m.subject)).pop(); assert(h && /Si può arrivare alle 22\?/.test(h.text), 'al titolare il testo');
+  const adminLink = /admin\.html(#messaggi\/c\/[0-9A-Z]+)/.exec(h.text)[1];
+  // il titolare apre il link da un telefono senza accesso: prima il login, poi direttamente la conversazione
+  const r = await load('admin.html', { hash: adminLink, scripts: ['js/site.js', 'js/dintorni.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin-operativita.js', 'js/admin-calendario.js', 'js/admin-pulizie.js', 'js/admin-sito.js', 'js/admin.js'] });
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-login-form]'), 'login');
+  r.doc.querySelector('[data-testid=admin-user]').value = 'admin'; r.doc.querySelector('[data-testid=admin-pass]').value = 'pw'; r.doc.querySelector('[data-testid=admin-login-form]').requestSubmit();
+  await waitFor(() => r.doc.querySelector('[data-testid=msg-thread]') && /Si può arrivare alle 22/.test(text(r.doc.querySelector('[data-testid=msg-messages]'))), 'conversazione aperta');
+  const ta = r.doc.querySelector('[data-testid=msg-testo]'); ta.value = 'Sì, nessun problema'; r.doc.querySelector('#msg-reply').requestSubmit();
+  const g = await waitFor(() => global.__mails.filter(m => m.to === 'mario@test.it' && /Nuovo messaggio/.test(m.subject)).pop(), 'email all\'ospite');
+  assert(/Sì, nessun problema/.test(g.text), g.text);
+  // l'ospite preme «Rispondi»: area clienti aperta sulla scheda Messaggi, senza chiedere il codice
+  const hash = /area-clienti\.html(#c=[^\s]+)/.exec(g.text)[1];
+  const a = await load('area-clienti.html', { hash, scripts: AREA });
+  await waitFor(() => a.doc.querySelector('[data-testid=guest-app]') && a.doc.querySelector('[data-testid=ga-tab-messaggi]'), 'area ospiti');
+  assert.equal(a.doc.querySelector('[data-testid=ga-tab-messaggi]').getAttribute('aria-selected'), 'true', 'si apre sui Messaggi');
+  await waitFor(() => /Sì, nessun problema/.test(text(a.doc.querySelector('[data-testid=ga-chat]'))), 'la risposta è lì');
+  assert(/la risposta ti arriva anche via email/.test(text(a.doc.querySelector('[data-testid=ga-chat]'))), 'l\'area dice che le risposte arrivano anche per email');
+  assert(!a.doc.querySelector('#login:not([hidden])') && !/#/.test(a.w.location.href.split('area-clienti.html')[1] || ''), 'niente codice da scrivere; il token sparisce dall\'indirizzo');
 });
 
 /* ===================== Adempimenti → Alloggiati Web (js/adempimenti.js) ===================== */

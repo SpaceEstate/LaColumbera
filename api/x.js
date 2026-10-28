@@ -191,7 +191,7 @@ async function syncAlerts(config,req){
 
 // ---- Messaggi (area clienti ↔ Gestione), template, invii automatici e traduzione: api/_messaggi.js e api/_traduci.js ----
 const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a)});
-const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e)});
+const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e)});
 const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
 // si scrive solo alle prenotazioni del sito confermate: gli ospiti di Booking e Airbnb usano la chat della loro piattaforma
 const chatOk=x=>!!x&&x.origine==='sito'&&x.stato==='confermata';
@@ -394,7 +394,7 @@ let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},asy
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
  const bk=x.fonte==='sito'?await E.bkGet(x.code):null,sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk);
- sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code)}:{attivi:false};
+ sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code),email:(await MSG.impostazioni()).avvisaOspite}:{attivi:false};      // email: le risposte arrivano anche via email
  return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:sg})}
 // Controllo leggero dei messaggi nuovi (ogni 20 secondi dall'area ospiti con la scheda Messaggi aperta): solo con il token, una chiave letta.
 // Ha un limite suo (non consuma le 60 consultazioni per IP): una famiglia con due telefoni sulla stessa rete non resta bloccata.
@@ -534,6 +534,17 @@ if(a==='msg_auto_save')try{return res.json({regole:await MSG.salvaRegole(b.regol
 if(a==='msg_salta')try{await MSG.salta(b.regola,b.code,b.salta!==false);return res.json({ok:1})}catch(e){return msgErr(res,e)}
 if(a==='msg_prog_del'){await MSG.annullaProgrammato(b.id);return res.json({ok:1})}
 if(a==='msg_imp_save')try{return res.json(await MSG.salvaImpostazioni(b))}catch(e){return msgErr(res,e)}
+// ---- Pulizie (Gestione → Operatività → Pulizie): per ogni arrivo come preparare i letti (m = matrimoniale, s = singoli) e una nota per chi pulisce ----
+// KV pul:info, un campo per prenotazione: il codice (sito, Booking, Airbnb) oppure cal:<appartamento>:<arrivo> per quelle viste solo nei calendari iCal.
+// Valore {letto, nota, a}: a = giorno di partenza; le voci dei soggiorni finiti da oltre 60 giorni si tolgono da sole alla lettura.
+if(a==='pul_info'){const h=(await kv('HGETALL','pul:info'))||[],e=Array.isArray(h)?h:Object.entries(h).flat(),o={},vecchie=[],lim=addDays(todayRome(),-60);
+ for(let i=0;i+1<e.length;i+=2){let v=null;try{v=JSON.parse(e[i+1])}catch{}if(!v||(v.a&&v.a<lim))vecchie.push(e[i]);else o[e[i]]=v}
+ if(vecchie.length)await kv('HDEL','pul:info',...vecchie).catch(()=>{});
+ return res.json(o)}
+if(a==='pul_set'){const k=String(b.k||'').trim();if(!/^[A-Za-z0-9:._-]{3,80}$/.test(k))return res.status(400).json({err:'Prenotazione non valida'});
+ const letto=b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'';
+ if(!letto&&!nota){await kv('HDEL','pul:info',k);return res.json({ok:1})}
+ await kv('HSET','pul:info',k,JSON.stringify({letto,nota,a:partenza}));return res.json({ok:1,letto,nota})}
 if(a==='msg_fill'){ // un template compilato per una prenotazione del sito o del foglio (anteprima, testo da copiare nella chat di Booking o Airbnb)
  const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase(),{live:false});
  if(!x)return res.status(404).json({err:'Prenotazione non trovata'});

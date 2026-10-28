@@ -35,7 +35,7 @@ const L={
   luoghi:'Luoghi di interesse',luoghiD:'Trento, laghi, castelli e montagna',conv:'Convenzioni',convD:'Vantaggi per gli ospiti',trovarciD:'Auto, autobus e parcheggio',tutti:'Eventi a Trento',tuttiD:'Il calendario completo',
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area ospiti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
   calTitolo:a=>'Soggiorno a La Columbera · '+a,calArea:'Area ospiti',
-  chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
+  chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatNotaEmail:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile e la risposta ti arriva anche via email. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
   scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti'},
  en:{eyebrow:'Guest area',titolo:'Your booking',sub:'Enter your booking code: you will find it in the confirmation email if you booked on our website, otherwise it is your Booking.com or Airbnb reservation number.',
   etCodice:'Booking code',entra:'Open',cerco:'Searching…',privacy:'Your booking code works like a key: do not share it with anyone who is not staying with you. We only use it to show you your booking and the related services.',informativa:'Privacy notice',lingua:'Language',
@@ -52,7 +52,7 @@ const L={
   luoghi:'Places to visit',luoghiD:'Trento, lakes, castles and mountains',conv:'Partner offers',convD:'Perks for our guests',trovarciD:'Car, bus and parking',tutti:'Events in Trento',tuttiD:'The full calendar',
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
   calTitolo:a=>'Stay at La Columbera · '+a,calArea:'Guest area',
-  chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
+  chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatNotaEmail:'Write to us here with any question about your stay: we will reply as soon as possible and you will also get our answer by email. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
   scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left'},
  de:{eyebrow:'Gästebereich',titolo:'Ihre Buchung',sub:'Geben Sie Ihren Buchungscode ein: Sie finden ihn in der Bestätigungs-E-Mail, wenn Sie auf unserer Website gebucht haben, ansonsten ist es Ihre Buchungsnummer von Booking.com oder Airbnb.',
   etCodice:'Buchungscode',entra:'Öffnen',cerco:'Suche…',privacy:'Der Buchungscode funktioniert wie ein Schlüssel: Geben Sie ihn nicht an Personen weiter, die nicht mit Ihnen übernachten. Wir verwenden ihn nur, um Ihnen Ihre Buchung und die zugehörigen Dienste anzuzeigen.',informativa:'Datenschutzhinweis',lingua:'Sprache',
@@ -69,7 +69,7 @@ const L={
   luoghi:'Sehenswürdigkeiten',luoghiD:'Trient, Seen, Burgen und Berge',conv:'Partnerangebote',convD:'Vorteile für unsere Gäste',trovarciD:'Auto, Bus und Parkplatz',tutti:'Veranstaltungen in Trient',tuttiD:'Der ganze Kalender',
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
   calTitolo:a=>'Aufenthalt in La Columbera · '+a,calArea:'Gästebereich',
-  chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
+  chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatNotaEmail:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich, und unsere Antwort erhalten Sie auch per E-Mail. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
   scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen'}
 };
 const pickL=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
@@ -151,13 +151,14 @@ const langSel=id=>`<div class="ga-lang" id="${id}" role="group" aria-label="${es
 function paintLang(sel){const el=$(sel);if(el)el.outerHTML=langSel(sel.slice(1))}
 const errText=x=>x&&x.status===404?t('err404'):x&&x.status===429?t('err429'):lang==='it'&&x&&x.status?x.message:t('errRete');
 function showErr(x){$('#r').innerHTML=`<p class="form-err" role="alert" data-testid="ga-error">${esc(errText(x))}</p>`}
-async function load(body,btn){
+// apri: scheda da mostrare subito (dal pulsante Rispondi dell'email arriva «messaggi»), se c'è per questa prenotazione
+async function load(body,btn,apri){
  let orig;if(btn){if(btn.dataset.loading)return;btn.dataset.loading='1';orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent=t('cerco')}
  try{let r;
   try{r=await api('mie',body)}
   catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
   if(r.t)accSet(r.code||body.code,r.t);
-  R=r;tab='soggiorno';evCache=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
+  R=r;tab=apri==='messaggi'&&chatOn()?'messaggi':'soggiorno';evCache=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
  catch(x){showErr(x)}
  finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig||t('entra');delete btn.dataset.loading}}}
 function logout(){accDel();R=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});$('#r').innerHTML='';const lg=$('#login');if(lg)lg.hidden=false;document.querySelector('.auth-wrap').classList.remove('ga-on');const cd=$('#cd');if(cd){cd.value='';cd.focus()}}
@@ -232,7 +233,7 @@ const linkify=s=>esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g,u=>`<a hr
 const ora=ts=>{try{return new Date(ts).toLocaleString(LOC[lang],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch{return ''}};
 const chatOn=()=>{const s=sog();return !!(s.messaggi&&s.messaggi.attivi)};
 function pMessaggi(){
- return `<section class="ga-card ga-chat" data-testid="ga-chat"><p class="book-note">${esc(t('chatNota'))}</p>
+ return `<section class="ga-card ga-chat" data-testid="ga-chat"><p class="book-note">${esc(t(sog().messaggi.email?'chatNotaEmail':'chatNota'))}</p>
   <div class="ga-thread" id="ga-thread" data-testid="ga-thread">${threadHtml()}</div>
   <form id="ga-send" class="ga-compose" data-testid="ga-compose" novalidate>
    <label for="ga-testo">${esc(t('scrivi'))}</label>
@@ -337,8 +338,8 @@ function wire(){
 // link della mail (#c=…&t=…) o del messaggio di benvenuto (#k=…): all'apertura della pagina e anche se si apre mentre la pagina è già aperta
 function fromHash(){
  const h=accFromHash();
- if(h&&h.t){$('#cd').value=fmtCode(h.c);load({code:h.c,t:h.t});return true}
- if(h&&h.k){const k=codeIn(h.k);$('#cd').value=k;load({code:k});return true}
+ if(h&&h.t){$('#cd').value=fmtCode(h.c);load({code:h.c,t:h.t},null,h.s);return true}
+ if(h&&h.k){const k=codeIn(h.k);$('#cd').value=k;load({code:k},null,h.s);return true}
  return false}
 function start(){
  i18nLogin();wire();

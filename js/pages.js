@@ -53,9 +53,10 @@ const accSet=(c,t)=>{try{if(c&&t)sessionStorage.setItem(ACC_KEY,JSON.stringify({
 const accDel=()=>{try{sessionStorage.removeItem(ACC_KEY)}catch{}};
 try{sessionStorage.removeItem('lc_code')}catch{}      // chiave della versione precedente: non serve più
 // dal frammento: {c,t} (link della mail) oppure {k} (solo il codice, dal messaggio di benvenuto)
-const accFromHash=()=>{const h=new URLSearchParams(location.hash.slice(1)),c=(h.get('c')||'').trim().toUpperCase(),t=(h.get('t')||'').trim(),k=(h.get('k')||'').trim();
+// s = scheda da aprire (es. «messaggi» dal pulsante Rispondi dell'email di un messaggio)
+const accFromHash=()=>{const h=new URLSearchParams(location.hash.slice(1)),c=(h.get('c')||'').trim().toUpperCase(),t=(h.get('t')||'').trim(),k=(h.get('k')||'').trim(),s=(h.get('s')||'').trim();
   if(location.hash)history.replaceState(null,'',location.pathname+location.search);
-  if(c&&t){accSet(c,t);return{c,t}}return k?{k}:null};
+  if(c&&t){accSet(c,t);return{c,t,s}}return k?{k,s}:null};
 // credenziali da mandare al server: il token se c'è per QUEL codice, altrimenti il codice da solo
 const accBody=code=>{const s=accGet();return s&&s.c===code?{code,t:s.t}:{code}};
 // codice del sito (13 caratteri) a gruppi per leggerlo: "558R TE56 487A9"; gli altri restano come sono

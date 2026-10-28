@@ -364,6 +364,18 @@ test('S19 Luoghi e Convenzioni dalla Gestione: si salva solo testo, link solo ht
   global.__blobDel = []; const c4 = (await H.adminApi('cfg_admin', {})).body; c4.apts[0].foto = []; c4.rev = 0; eq((await H.adminApi('save', c4)).status, 409); eq(global.__blobDel, []);
 });
 
+test('S20 Pulizie: scelta dei letti e nota solo con il login, chiave e testi controllati; le voci dei soggiorni finiti da oltre 60 giorni si tolgono da sole', async () => {
+  await base();
+  eq((await H.api('pul_info', {})).status, 401); eq((await H.api('pul_set', { k: 'HMSEDESZCW', letto: 'm' })).status, 401);
+  eq((await H.adminApi('pul_set', { k: '<script>', letto: 'm' })).status, 400); eq((await H.adminApi('pul_set', { k: 'x'.repeat(81), letto: 'm' })).status, 400);
+  let r = await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: 'matrimoniale?', nota: 'a'.repeat(300) + '  ', a: '2026-10-11' }); eq(r.status, 200);
+  eq(JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])), { letto: '', nota: 'a'.repeat(200), a: '2026-10-11' }, 'letto non valido = da scegliere; nota al massimo 200 caratteri');
+  eq((await H.adminApi('pul_set', { k: 'cal:torre:2026-10-02', letto: 's', a: 'domani' })).status, 200); eq(JSON.parse(kv.exec(['HGET', 'pul:info', 'cal:torre:2026-10-02'])).a, '');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: '', nota: '   ' })).status, 200); eq(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), null, 'senza letto né nota la voce si toglie');
+  kv.exec(['HSET', 'pul:info', 'VECCHIA1', JSON.stringify({ letto: 'm', nota: '', a: '2026-07-01' }), 'GUASTA', 'non json']);
+  const o = (await H.adminApi('pul_info', {})).body; eq(Object.keys(o).sort(), ['cal:torre:2026-10-02']); eq(kv.exec(['HGET', 'pul:info', 'VECCHIA1']), null, 'soggiorno finito da oltre 60 giorni: tolto');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

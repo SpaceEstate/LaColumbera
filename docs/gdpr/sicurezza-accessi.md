@@ -113,6 +113,8 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 - **Link esterni dall'area clienti:** `rel="noopener noreferrer"`.
 - **Segreti nel frontend:** nessuno. Lo verifica il test S14, che cerca chiavi Stripe `sk_`, `rk_`, `whsec_` e token in `js/` e nelle pagine.
 - **Gestione, salvataggio delle impostazioni** (`api/x.js`, azione `save`): il salvataggio porta la versione aperta (`cfg:rev`); controllo e scrittura avvengono in un solo script Lua, quindi un salvataggio più vecchio non sovrascrive mai uno più recente (409), anche con due richieste nello stesso istante. Le foto non più usate si cancellano solo dopo un salvataggio riuscito. Test S18.
+- **Email dei messaggi**: contengono il testo del messaggio (scelta del titolare). Il pulsante «Rispondi» dell'ospite porta un token nuovo nel frammento `#` (`…#c=…&t=…&s=messaggi`, mai nell'indirizzo che arriva al server) e apre solo i messaggi di quella prenotazione; quello del titolare apre la Gestione, che chiede il login se il dispositivo non ce l'ha. Un avviso per il primo messaggio non letto, poi al massimo uno ogni 15 minuti per conversazione. Test M3, M12, W22.
+- **Pulizie**: il testo da mandare a chi pulisce non contiene nomi, email, telefoni né codici (test W21); letti e note solo con il login (test S20).
 - **Luoghi e Convenzioni** (contenuto pubblico modificabile dal titolare): il server salva solo testo; link solo `http(s)://` o pagine del sito (niente `javascript:`); foto solo `img/…` del sito o caricate su Vercel Blob; l'azione pubblica `a=dintorni` restituisce solo quelle schede. Le pagine le scrivono con `esc()` e ricontrollano link e foto. Test S19 e W19.
 
 ## 6. Cookie, storage e risorse esterne (dopo le modifiche)
@@ -140,9 +142,9 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 
 | Test | Esito |
 |---|---|
-| `sicurezza.js` S1–S19 (S2, S4, S5 riscritti per l'accesso con il solo codice; S15–S19 nuovi) | 19 ok |
-| `ui.js` (U4c, U4d riscritti: un solo campo; U4e, U4f: codice a gruppi; U5, U11, W12 adattati alla nuova Gestione; W14–W20 nuovi) | 70 ok |
-| `messaggi.js` | 11 ok |
+| `sicurezza.js` S1–S20 (S2, S4, S5 riscritti per l'accesso con il solo codice; S15–S20 nuovi) | 20 ok |
+| `ui.js` (U4c, U4d riscritti: un solo campo; U4e, U4f: codice a gruppi; U5, U11, W12, W14 adattati alla nuova Gestione; W14–W22 nuovi) | 72 ok |
+| `messaggi.js` (M3 riscritto: le email ora hanno il testo e «Rispondi»; M12 nuovo) | 12 ok |
 | `sito.js`, `informativa.js` | 8 ok, 5 ok |
 | `scenarios.js` | 15 ok; 18 SKIP perché nel repository manca `google-apps-script.gs`, come già prima delle modifiche |
 | `pagamenti.js` | 18 ok |

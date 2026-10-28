@@ -86,8 +86,13 @@ Regole del motore (`esegui` in `api/_messaggi.js`), pensate per non sbagliare ma
 
 | Avviso | A chi | Quando | Cosa contiene |
 |---|---|---|---|
-| Nuovo messaggio da un ospite | Titolare (`OWNER_EMAIL`) | Al massimo uno ogni 15 minuti per conversazione. Attivo di partenza | Chi ha scritto e il link a Gestione → Messaggi. **Non** il testo del messaggio |
-| Nuovo messaggio dalla struttura | Ospite (solo prenotazioni del sito, con email) | Solo se attivato in Automatici → Impostazioni. Al massimo uno ogni 6 ore | Il link che apre l'area ospiti (token nel frammento `#`). Non il testo |
+| Nuovo messaggio da un ospite | Titolare (`OWNER_EMAIL`) | Attivo di partenza | Chi ha scritto, appartamento e arrivo, **il testo del messaggio** (con la traduzione automatica in italiano se l'ospite ha scritto in un'altra lingua) e il pulsante **Rispondi**, che apre la conversazione in Gestione (`admin.html#messaggi/c/<codice>`; senza accesso su quel dispositivo prima chiede la password) |
+| Nuovo messaggio dalla struttura (anche automatico o programmato) | Ospite (solo prenotazioni del sito, con email) | Attivo di partenza | **Il testo**, nella lingua scelta dall'ospite nell'area (it, en, de) se c'è la traduzione, con l'originale italiano sotto; lingua non nota = italiano e inglese. Il pulsante **Rispondi** apre la scheda Messaggi dell'area ospiti senza chiedere il codice (`area-clienti.html#c=…&t=…&s=messaggi`, token nel frammento `#`). Reply-To: `REPLY_TO` |
+
+- **Niente raffiche:** un avviso per il primo messaggio non letto; se ne arrivano altri prima che il destinatario li legga, al massimo uno ogni 15 minuti per conversazione. Appena il destinatario legge, il messaggio successivo avvisa di nuovo subito (test M3).
+- Si spengono, separatamente, in Messaggi → Automatici → Impostazioni. Un'email che non parte non blocca il messaggio: l'avviso si riprova al messaggio successivo.
+- Se un'impostazione era già stata salvata con l'avviso all'ospite spento, resta spenta: va riaccesa a mano.
+- Il testo dei messaggi passa da Gmail (come le email di conferma): l'informativa lo dice (`privacy.html`, «Messaggi con la struttura»).
 
 ## 6. Dati e conservazione
 
@@ -103,6 +108,7 @@ L'elenco completo è in testa ad `api/_messaggi.js`.
 
 - **Conservazione:** le conversazioni si cancellano da sole **90 giorni dopo la partenza** (si cambia in Automatici → Impostazioni, da 7 a 730 giorni). Il controllo gira al massimo una volta ogni 20 ore, dentro la sincronizzazione (test M10). Se l'elenco delle prenotazioni non arriva (KV non risponde) non si cancella nulla; una conversazione senza prenotazione si cancella solo se è ferma da quel numero di giorni (test M11).
 - **Log:** nessun testo, nome o codice.
+- **Email:** il testo dei messaggi è nelle email di avviso (titolare e ospite), vedi il paragrafo 5.
 - **Informativa:** `privacy.html` (trattamento «Messaggi con la struttura», fornitore DeepL se attivo, conservazione).
 
 ## 7. Costo su KV e sul browser
@@ -122,15 +128,17 @@ Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi ema
 ## 9. Verifica manuale (dopo il deploy di anteprima)
 
 1. Prenotazione di prova con Stripe in modalità test; apri l'area ospiti dal link della mail → scheda **Messaggi** → scrivi un messaggio.
-2. Deve arrivarti l'email «Nuovo messaggio da …» (senza il testo). In Gestione → Messaggi la conversazione è in cima, con il numero dei non letti.
-3. Rispondi; nell'area ospiti (cambia scheda o ricarica) compare la risposta, e in Gestione «✓✓ letto».
+2. Deve arrivarti l'email «Nuovo messaggio da …» con il testo. Premi **Rispondi**: si apre la conversazione in Gestione (se il dispositivo non ha l'accesso, prima la password).
+3. Rispondi; all'ospite arriva l'email con la tua risposta: il suo **Rispondi** apre l'area ospiti già sulla scheda Messaggi, senza codice. In Gestione compare «✓✓ letto».
 4. Con `DEEPL_API_KEY`: area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
 5. Automatici: regola «Alla conferma» con il template «Benvenuto», attiva → nuova prenotazione di prova → dopo la sincronizzazione successiva il messaggio è nella conversazione.
 6. Template → «Per Booking.com e Airbnb» → compila per una prenotazione del foglio → incolla il testo nella chat della piattaforma (il link apre l'area ospiti).
 
 ## 10. Limiti noti
 
-- L'ospite vede i messaggi quando apre l'area ospiti; senza l'avviso via email (spento di partenza) non sa che gli hai scritto.
+- Se spegni l'avviso via email all'ospite, l'ospite vede i tuoi messaggi solo quando apre l'area ospiti.
+- In una conversazione «dal vivo» (l'altro legge subito) ogni messaggio porta un'email: è la regola del primo messaggio non letto.
+- Le email contengono il testo dei messaggi: chi ha accesso alla casella le legge (vale anche per le conferme di prenotazione).
 - Niente allegati (foto, PDF): le foto del sito stanno su un archivio pubblico, non adatto ai documenti degli ospiti.
 - Niente notifiche push sul telefono: richiederebbero chiavi VAPID e un consenso del browser (fase facoltativa, da decidere).
 - Gli ospiti di Booking e Airbnb non hanno chat nel sito, per scelta: scrivono sulla piattaforma.

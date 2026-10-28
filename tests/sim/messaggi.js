@@ -41,7 +41,7 @@ test('M1  ospite e titolare si scrivono: lettura, non letti, «letto», versione
   await base();
   const c = await confermata();
   let r = await ospite('mie', { code: c.code, t: c.t });
-  eq(r.body.soggiorno.messaggi, { attivi: true, nonLetti: 0 });
+  eq(r.body.soggiorno.messaggi, { attivi: true, nonLetti: 0, email: true });      // email: le risposte arrivano anche via email (l'area lo dice)
   r = await ospite('msg_send', { code: c.code, t: c.t, testo: '  Ciao, a che ora possiamo arrivare?\r\n\r\n\r\n\r\n\r\nGrazie\u0007 ', lingua: 'it' });
   eq(r.status, 200, JSON.stringify(r.body)); eq(r.body.testo, 'Ciao, a che ora possiamo arrivare?\n\n\nGrazie', 'testo ripulito (a capo, caratteri di controllo)');
   let inb = (await H.adminApi('msg_inbox', {})).body;
@@ -88,23 +88,56 @@ test('M2  chi può scrivere: solo prenotazioni del sito confermate; Booking/Airb
   eq((await H.api('msg_inbox', {})).status, 401, 'Gestione: serve il login');
 });
 
-test('M3  avvisi email: al titolare uno ogni 15 minuti, senza il testo; all\'ospite solo se attivato, con il link che apre l\'area', async () => {
+test('M3  avvisi email con il testo e «Rispondi»: uno per il primo messaggio non letto, poi al massimo uno ogni 15 minuti; all\'ospite attivo di partenza, il link apre i messaggi senza codice', async () => {
   await base();
   const c = await confermata();
-  await ospite('msg_send', { code: c.code, t: c.t, testo: 'Testo riservato che non va per email' });
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'Arriviamo alle 18: va bene?\nGrazie <b>mille</b>' });
   await ospite('msg_send', { code: c.code, t: c.t, testo: 'secondo' });
-  let m = mailsTo('owner@test'); eq(m.length, 1, 'un solo avviso');
-  assert(/Nuovo messaggio da Mario Prova/.test(m[0].subject) && /admin\.html#messaggi/.test(m[0].text) && !/riservato/.test(m[0].text + m[0].html), m[0].text);
-  clock.advance(16 * MIN); await ospite('msg_send', { code: c.code, t: c.t, testo: 'terzo' }); eq(mailsTo('owner@test').length, 2, 'dopo 15 minuti un altro');
-  await H.adminApi('msg_reply', { code: c.code, testo: 'risposta' }); eq(mailsTo('mario.prova@esempio.it').length, 0, 'all\'ospite nessuna email (predefinito)');
-  eq((await H.adminApi('msg_imp_save', { conservazione: 90, avvisaTitolare: false, avvisaOspite: true })).status, 200);
-  await H.adminApi('msg_reply', { code: c.code, testo: 'seconda risposta' }); await H.adminApi('msg_reply', { code: c.code, testo: 'terza' });
-  m = mailsTo('mario.prova@esempio.it'); eq(m.length, 1, 'avviso all\'ospite: uno ogni 6 ore');
-  const link = /area-clienti\.html#c=([0-9A-Z]+)&t=([A-Za-z0-9_-]+)/.exec(m[0].text); assert(link && link[1] === c.code, m[0].text);
-  eq((await ospite('msg_list', { code: c.code, t: link[2] })).status, 200, 'il link apre i messaggi');
-  assert(!/seconda risposta|terza/.test(m[0].text + m[0].html), 'senza il testo');
-  clock.advance(20 * MIN); await ospite('msg_send', { code: c.code, t: c.t, testo: 'quarto' }); eq(mailsTo('owner@test').length, 2, 'avvisi al titolare disattivati');
+  let m = mailsTo('owner@test'); eq(m.length, 1, 'due messaggi di fila non ancora letti: un solo avviso');
+  assert(/Nuovo messaggio da Mario Prova/.test(m[0].subject) && /Arriviamo alle 18: va bene\?\nGrazie <b>mille<\/b>/.test(m[0].text), m[0].text);
+  assert(m[0].html.includes('Arriviamo alle 18: va bene?<br>Grazie &lt;b&gt;mille&lt;/b&gt;'), 'nell\'email il testo come l\'ha scritto, mai HTML');
+  assert(m[0].text.includes('admin.html#messaggi/c/' + c.code) && m[0].html.includes('admin.html#messaggi/c/' + c.code) && />Rispondi</.test(m[0].html), '«Rispondi» apre la conversazione in Gestione');
+  clock.advance(16 * MIN); await ospite('msg_send', { code: c.code, t: c.t, testo: 'terzo' }); eq(mailsTo('owner@test').length, 2, 'ancora non letti, ma dopo 15 minuti un altro avviso');
+  await thread(c.code);                                                                   // il titolare legge
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'quarto, subito dopo' }); eq(mailsTo('owner@test').length, 3, 'dopo la lettura il primo messaggio nuovo avvisa subito');
+  assert(/quarto, subito dopo/.test(mailsTo('owner@test')[2].text));
+  // all'ospite: attivo di partenza, con il testo e «Rispondi» (apre la scheda Messaggi dell'area ospiti senza il codice)
+  await H.adminApi('msg_reply', { code: c.code, testo: 'Certo, a stasera!\nPatrick' });
+  m = mailsTo('mario.prova@esempio.it'); eq(m.length, 1, 'avviso all\'ospite');
+  assert(/Certo, a stasera!\nPatrick/.test(m[0].text) && m[0].subject === 'Nuovo messaggio da La Columbera · New message' && m[0].replyTo === 'lacolumbera@gmail.com', m[0].subject);
+  const link = /area-clienti\.html#c=([0-9A-Z]+)&t=([A-Za-z0-9_-]+)&s=messaggi/.exec(m[0].text); assert(link && link[1] === c.code, m[0].text);
+  await H.adminApi('msg_reply', { code: c.code, testo: 'seconda risposta' }); eq(mailsTo('mario.prova@esempio.it').length, 1, 'l\'ospite non ha ancora letto: niente raffica');
+  eq((await ospite('msg_list', { code: c.code, t: link[2] })).status, 200, 'il link della mail apre i messaggi (e li segna letti)');
+  await H.adminApi('msg_reply', { code: c.code, testo: 'terza' }); eq(mailsTo('mario.prova@esempio.it').length, 2, 'letti: la risposta nuova avvisa subito');
+  // si spengono in Messaggi → Automatici; un SMTP giù non blocca il messaggio e al prossimo si riprova
+  eq((await H.adminApi('msg_imp_save', { conservazione: 90, avvisaTitolare: false, avvisaOspite: false })).status, 200);
+  clock.advance(20 * MIN); await ospite('msg_send', { code: c.code, t: c.t, testo: 'quinto' }); await H.adminApi('msg_reply', { code: c.code, testo: 'quarta' });
+  eq([mailsTo('owner@test').length, mailsTo('mario.prova@esempio.it').length], [3, 2], 'avvisi spenti');
+  eq((await H.adminApi('msg_imp_save', { conservazione: 90, avvisaTitolare: true, avvisaOspite: true })).status, 200);
+  await thread(c.code); global.__mailFail = true; await ospite('msg_send', { code: c.code, t: c.t, testo: 'sesto' }); global.__mailFail = false;
+  eq((await thread(c.code)).messaggi.slice(-1)[0].testo, 'sesto', 'il messaggio c\'è anche se l\'email non è partita');
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'settimo' }); eq(mailsTo('owner@test').length, 4, 'l\'avviso non partito si riprova al messaggio dopo');
   eq((await H.adminApi('msg_imp_save', { conservazione: 3 })).status, 400);
+});
+test('M12 avvisi email nella lingua dell\'ospite: la risposta tradotta con l\'originale sotto; al titolare la traduzione in italiano; anche i messaggi automatici avvisano', async () => {
+  await base({ DEEPL_API_KEY: 'chiave-prova:fx' });
+  const c = await confermata();
+  await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });                     // l'ospite usa l'area in inglese
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'Is there parking?', lingua: 'en' });
+  const h = mailsTo('owner@test')[0]; assert(h && /Is there parking\?/.test(h.text) && /Traduzione automatica in italiano:\n\[IT\] Is there parking\?/.test(h.text), h && h.text);
+  await thread(c.code); await H.adminApi('msg_reply', { code: c.code, testo: 'Sì, in Via Val Gola 22' });
+  const g = mailsTo('mario.prova@esempio.it')[0];
+  assert(g.subject === 'New message from La Columbera' && /^Hi Mario!/.test(g.text) && /\[EN\] Sì, in Via Val Gola 22/.test(g.text) && /Original text \(Italian\):\nSì, in Via Val Gola 22/.test(g.text), g.text);
+  assert(/<html lang="en">/.test(g.html) && /Reply/.test(g.html), 'email in inglese');
+  // messaggio automatico (regola «alla conferma»): parte con la sincronizzazione e avvisa l'ospite, nella sua lingua
+  const d = await confermata({ da: '2026-12-20', a: '2026-12-23', email: 'anna@esempio.it', nome: 'Anna Prova' });
+  await ospite('msg_list', { code: d.code, t: d.t, lingua: 'de' });
+  eq((await H.adminApi('msg_auto_save', { regole: [{ nome: 'Benvenuto', tpl: 'benvenuto', base: 'conferma', attiva: true }] })).status, 200);
+  const d2 = await confermata({ da: '2027-01-05', a: '2027-01-08', email: 'otto@esempio.it', nome: 'Otto Prova' });      // confermata dopo l'attivazione della regola
+  await ospite('msg_list', { code: d2.code, t: d2.t, lingua: 'de' });
+  await sync();
+  const a = mailsTo('otto@esempio.it'); eq(a.length, 1, 'il messaggio automatico avvisa l\'ospite'); eq(mailsTo('anna@esempio.it').length, 0, 'confermata prima di attivare la regola: niente arretrati');
+  assert(a[0].subject === 'Neue Nachricht von La Columbera' && /^Hallo Otto!/.test(a[0].text) && /Originaltext \(Italienisch\):\nCiao Otto/.test(a[0].text) && /Antworten: .*&s=messaggi/.test(a[0].text), a[0].text);
 });
 
 test('M4  template: predefiniti, salvataggio, variabili (prenotazione del sito e del foglio), un template usato da una regola non si cancella', async () => {

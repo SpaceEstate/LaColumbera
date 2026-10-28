@@ -57,7 +57,7 @@ A.view.oggi=()=>{
     <h4 class="adm-h4">Invii automatici di oggi e domani</h4><div id="oggi-auto" data-testid="admin-oggi-auto"><p class="book-note">Carico…</p></div></div>
    <div class="admin-card" data-testid="admin-oggi-oggi">${giorno('Oggi',today,arr(today),dep(today),casa)}${giorno('Domani',dom,arr(dom),dep(dom))}</div></div>
   <div class="admin-card"><h3 style="margin-top:0">Prossimi 7 giorni</h3>${settimana(st)}<p class="book-note">Tocca una casella per aprire il calendario di quell'appartamento.</p>
-   <div class="adm-quick"><a class="btn btn-line" href="#calendario">Blocca notti o cambia prezzi</a><a class="btn btn-line" href="#prenotazioni">Cerca una prenotazione</a><a class="btn btn-line" href="#messaggi">Scrivi a un ospite</a><a class="btn btn-line" href="#guestcard">Emetti Guest Card</a></div></div>`};
+   <div class="adm-quick"><a class="btn btn-line" href="#calendario">Blocca notti o cambia prezzi</a><a class="btn btn-line" href="#prenotazioni">Cerca una prenotazione</a><a class="btn btn-line" href="#pulizie">Pulizie dei prossimi giorni</a><a class="btn btn-line" href="#messaggi">Scrivi a un ospite</a><a class="btn btn-line" href="#guestcard">Emetti Guest Card</a></div></div>`};
 const rep=(id,html)=>{const el=document.getElementById(id);if(el)el.outerHTML=html};
 A.after.oggi=()=>{
   if(!V.health||Date.now()-V.health.ts>5*60e3)A.api('health',{}).then(d=>{V.health={ts:Date.now(),data:d}},()=>{V.health={ts:Date.now(),data:null}}).then(()=>rep('oggi-sem',semaforo()));
