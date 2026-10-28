@@ -155,7 +155,7 @@ const sDisp=(p,i)=>`<div class="field"><label class="closed-toggle"><input type=
   <div id="minper-${i}"></div>
   <button type="button" class="btn btn-line" data-act="minAdd" data-i="${i}">+ Aggiungi periodo</button>
   <h3>Blocca date</h3>
-  <p class="book-note">Le notti bloccate risultano non prenotabili sul sito e vengono segnalate anche ad Airbnb e Booking tramite il calendario iCal.</p>
+  <p class="book-note">Le notti bloccate qui risultano non prenotabili <b>solo sul sito</b>: il calendario che dai a Booking e Airbnb contiene soltanto le prenotazioni fatte dal sito, quindi chiudi le stesse notti anche su Booking e Airbnb.</p>
   <div class="adm-chips" id="chips-${i}"></div>
   ${calTools(i,'avail')}<div id="cal-${i}"></div>
   <h4 class="adm-h4">Notti bloccate</h4><div id="br-${i}" class="adm-ranges"></div>`;
