@@ -176,7 +176,7 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
   3. tenerla cifrata nel database, visibile solo da una pagina admin, con cancellazione automatica.
 - **Verifica *de visu*** non garantita dal processo attuale (codici della cassetta via email).
 - **Dati anagrafici duplicati** nel foglio del check-in e nei TXT, con cancellazione solo manuale.
-- **Browserless:** trasferimento verso un server indicato come statunitense (`production-sfo`), con DPA e garanzie da verificare.
+- **Browserless:** server di Amsterdam (UE, `production-ams`): nessun trasferimento extra SEE per il PDF. Resta da verificare il contratto di trattamento dati (DPA) con il fornitore.
 - **Conservazione illimitata** di prenotazioni, Guest Card ed email nel KV e nelle caselle.
 - **Fornitori senza DPA verificato** (art. 28) e regioni dei server non verificate.
 - **Richieste a terzi dal browser:**

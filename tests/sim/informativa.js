@@ -55,8 +55,8 @@ test('I4 privacy.html: contenuti minimi art. 13, segnaposto riconoscibili, nessu
     assert(s.includes(t), 'testo atteso: ' + t);
   // i segnaposto sono sempre evidenziati (mai testo "finto" mescolato al resto)
   const todo = (s.match(/\[DA COMPLETARE/g) || []).length, marked = (s.match(/<mark class="todo">\[DA COMPLETARE/g) || []).length;
-  assert(todo > 0 && todo === marked, 'segnaposto non evidenziati: ' + todo + ' / ' + marked);
-  assert(/class="draft"/.test(s), 'avviso di testo in revisione mancante');
+  assert(todo === marked, 'segnaposto non evidenziati: ' + todo + ' / ' + marked);
+  assert((todo > 0) === /class="draft"/.test(s), 'l\'avviso «testo in revisione» c\'è solo finché restano segnaposto');
   assert(!/<script[^>]+src="https?:/i.test(s) && !/googletagmanager|gtag\(|fbq\(|document\.cookie|localStorage/.test(s), 'tracciamento o storage non dichiarato');
   assert(!/GDPR compliant|conforme al GDPR|dati al sicuro|nessun dato conservato/i.test(s), 'dichiarazioni assolute non dimostrabili');
 });
