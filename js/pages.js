@@ -44,6 +44,43 @@ function modal(title,html,trigger){
   document.addEventListener('keydown',key);
   document.body.appendChild(m);document.body.classList.add('modal-open');box.querySelector('.modal-x').focus();
   return close}
+// Foto a tutto schermo (galleria dell'appartamento): sfondo sfocato, frecce, scorrimento col dito (avanti, indietro; verso il basso chiude),
+// tastiera (← → Esc), contatore. Chiude con ×, Esc o tocco fuori dalla foto; il focus resta dentro finché è aperta e poi torna dov'era.
+// Alla chiusura onClose(i) riceve la foto vista per ultima (la galleria della pagina si sposta lì).
+function lightbox(foto,start,nome,trigger,onClose){
+  const N=foto.length;let i=start;
+  const m=document.createElement('div');m.className='lb';m.dataset.testid='lightbox';
+  m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-label','Foto di '+nome);m.tabIndex=-1;
+  m.innerHTML=`<div class="lb-bg" aria-hidden="true"></div><figure class="lb-fig"><img class="lb-img" alt="" draggable="false" data-testid="lightbox-img"></figure>
+   <button type="button" class="lb-x" aria-label="Chiudi" data-testid="lightbox-close">×</button>${N>1?`<button type="button" class="lb-nav prev" aria-label="Foto precedente" data-testid="lightbox-prev">‹</button><button type="button" class="lb-nav next" aria-label="Foto successiva" data-testid="lightbox-next">›</button>`:''}
+   <span class="lb-count" aria-live="polite" data-testid="lightbox-count"></span>`;
+  const im=m.querySelector('.lb-img'),bg=m.querySelector('.lb-bg');
+  const show=k=>{i=(k+N)%N;im.src=foto[i];im.alt=nome+' — foto '+(i+1)+' di '+N;bg.style.backgroundImage='url("'+String(foto[i]).replace(/["\\]/g,'')+'")';m.querySelector('.lb-count').textContent=(i+1)+' / '+N;
+    if(N>1)[i+1,i-1].forEach(k=>{new Image().src=foto[(k+N)%N]})};
+  const close=()=>{document.removeEventListener('keydown',key);m.remove();document.body.classList.remove('modal-open');if(onClose)onClose(i);if(trigger&&trigger.focus)trigger.focus({preventScroll:true})};
+  const key=e=>{
+    if(e.key==='Escape'){e.preventDefault();close();return}
+    if(N>1&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){e.preventDefault();show(i+(e.key==='ArrowRight'?1:-1));return}
+    if(e.key!=='Tab')return;
+    const f=[...m.querySelectorAll('button')],a=f[0],z=f[f.length-1],x=document.activeElement;
+    if(e.shiftKey&&(x===a||x===m)){e.preventDefault();z.focus()}
+    else if(!e.shiftKey&&x===z){e.preventDefault();a.focus()}};
+  let sx=0,sy=0,dx=0,dy=0,dito=false,mosso=false;
+  m.addEventListener('click',e=>{
+    if(e.target.closest('.lb-x'))return close();
+    if(e.target.closest('.lb-nav'))return show(i+(e.target.closest('.next')?1:-1));
+    if(mosso){mosso=false;return}      // il clic che alcuni telefoni mandano dopo uno scorrimento non chiude la foto
+    if(!e.target.closest('.lb-img'))close()});
+  m.addEventListener('touchstart',e=>{if(e.touches.length!==1){dito=false;return}dito=true;mosso=false;sx=e.touches[0].clientX;sy=e.touches[0].clientY;dx=dy=0;im.style.transition='none'},{passive:true});
+  m.addEventListener('touchmove',e=>{if(!dito)return;dx=e.touches[0].clientX-sx;dy=e.touches[0].clientY-sy;if(Math.abs(dx)>10||Math.abs(dy)>10)mosso=true;
+    im.style.transform=Math.abs(dx)>Math.abs(dy)?`translateX(${dx}px)`:dy>0?`translateY(${dy}px)`:''},{passive:true});
+  m.addEventListener('touchend',()=>{if(!dito)return;dito=false;im.style.transition='transform .25s ease';im.style.transform='';
+    if(Math.abs(dx)>Math.abs(dy)){if(N>1&&Math.abs(dx)>50)show(i+(dx<0?1:-1))}else if(dy>90)close();
+    setTimeout(()=>{mosso=false},400)});
+  document.addEventListener('keydown',key);
+  // il focus va sulla finestra (non sulla X, che al tocco resterebbe evidenziata): Tab porta ai pulsanti
+  document.body.appendChild(m);document.body.classList.add('modal-open');show(start);m.focus({preventScroll:true});
+  return close}
 // Accesso alla prenotazione (api/_accesso.js): basta il codice di prenotazione; il server risponde con un token di sessione.
 // Il link della mail porta un token segreto ("#c=…&t=…"), i messaggi mandati da Booking/Airbnb il solo codice ("#k=…"): il frammento "#"
 // non va mai al server né ad altri siti, e viene tolto subito dall'indirizzo. Codice e token restano solo in sessionStorage (si cancella chiudendo la scheda).
@@ -118,6 +155,12 @@ async function apt(c){
   $('#g-prev').onclick=()=>goTo(cur-1);
   $('#g-next').onclick=()=>goTo(cur+1);
   th.onclick=e=>{const b=e.target.closest('button');if(b)goTo(+b.dataset.i)};
+  // tocco o clic sulla foto grande (o sul pulsante ⤢): la foto a tutto schermo; trascinare la foto per cambiarla non la apre
+  let trascinata=0;
+  gmWrap.insertAdjacentHTML('beforeend','<button type="button" class="g-zoom" aria-label="Ingrandisci la foto" data-testid="gallery-zoom">⤢</button>');
+  const ingrandisci=t=>{if(Date.now()-trascinata<500)return;lightbox(p.foto,cur,short(p),t,k=>goTo(k))};
+  gm.addEventListener('click',()=>ingrandisci(gmWrap.querySelector('.g-zoom')));
+  gmWrap.querySelector('.g-zoom').onclick=e=>ingrandisci(e.currentTarget);
   document.addEventListener('keydown',e=>{if(document.body.classList.contains('modal-open'))return;if(e.key==='ArrowRight')goTo(cur+1);if(e.key==='ArrowLeft')goTo(cur-1)});
 
   // Swipe col dito sulla foto grande (mobile): trascina a sinistra = avanti, a destra = indietro
@@ -136,7 +179,7 @@ async function apt(c){
       dx=x;gm.style.transform=`translateX(${dx}px)`;
     },{passive:true});
     gmWrap.addEventListener('touchend',()=>{
-      if(!drag)return;drag=false;
+      if(!drag)return;drag=false;if(lock==='x')trascinata=Date.now();
       if(lock==='x'&&Math.abs(dx)>50){
         const dir=dx<0?1:-1;
         goTo(cur+dir);

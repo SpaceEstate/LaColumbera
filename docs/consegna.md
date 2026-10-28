@@ -14,6 +14,9 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 - **Per entrare basta il codice** della prenotazione: niente email né data. I codici nuovi del sito sono di 13 caratteri casuali, mostrati a gruppi (`558R TE56 487A9`); per Booking.com e Airbnb vale il numero del portale, letto dal foglio. Si possono scrivere in minuscolo, con spazi o trattini. Il link della mail di conferma apre l'area con un tocco.
 - **Area clienti tipo app** (si può aggiungere alla schermata Home del telefono): soggiorno con orari e indirizzo, aggiungi al calendario, riepilogo del pagamento riga per riga, informazioni della casa e Wi-Fi (solo nei giorni giusti), dintorni ed eventi, check-in online e Trentino Guest Card, in italiano, inglese e tedesco.
 - **Messaggi con te** (solo prenotazioni confermate del sito; Booking e Airbnb scrivono sulla loro piattaforma), tradotti automaticamente nella loro lingua se attivi DeepL. Quando scrivi, all'ospite arriva un'email con il testo e il pulsante «Rispondi», che apre i messaggi senza chiedere il codice.
+- **Foto degli appartamenti a tutto schermo**: si tocca la foto (o ⤢) e si apre grande, con lo sfondo sfocato; si scorre col dito, con le frecce o con la tastiera, e si chiude con ×, Esc, un tocco fuori dalla foto o trascinando in giù. Le foto verticali si vedono intere.
+- **Come trovarci riorganizzata**: in alto indirizzo, parcheggio e fermata con i pulsanti per il navigatore; poi la mappa, come arrivare in auto, in treno e in aereo passo per passo, gli autobus con gli orari subito in vista e le foto, e il numero da chiamare se ci si perde.
+- **Luoghi di interesse**: le 4 foto delle convenzioni ora si vedono intere; Garda, Val di Non, i meli in fiore, il Bondone d'estate, gli eventi d'estate e Trento d'inverno prendono la foto da pagine ufficiali dedicate (vedi i limiti).
 
 ## Cosa cambia per te
 
@@ -58,7 +61,8 @@ Nessun altro servizio esterno è stato aggiunto (DeepL solo se imposti la chiave
 - **Notifiche push sul telefono: non attivate**, come chiesto. Richiedono chiavi apposite e il consenso dell'ospite nel browser: se le vuoi, decidiamolo prima.
 - La Gestione non si aggiorna da sola (tranne i Messaggi): «Aggiorna» in Oggi o ricarica la pagina.
 - Le 18 prove dello script del foglio restano saltate perché `google-apps-script.gs` non è nel repository (come prima di queste modifiche).
+- Le foto nuove di Luoghi e stagioni arrivano dalla copertina di pagine ufficiali (VisitTrentino e il sito del Natale di Trento): da qui non le ho potute vedere, perché la rete di prova blocca quei siti. Controllale sull'anteprima. Per Garda e Val di Non puoi sempre caricare una foto tua in Gestione → Sito → Luoghi e convenzioni («Carica foto»): ha la precedenza. La foto degli eventi d'estate è quella della pagina delle Feste Vigiliane: se un anno la pagina sparisce, la scheda mostra il segnaposto finché non la si cambia in `js/dintorni.js`.
 
 ## Prove automatiche
 
-`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 18, preavviso 12, sicurezza 20, messaggi 12, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 72. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.
+`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 18, preavviso 12, sicurezza 20, messaggi 12, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 75. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.

@@ -657,6 +657,56 @@ test('W4 servizi e approfondimento: testo sotto la descrizione, otto servizi in 
   r2.doc.querySelector('[data-testid=services-open]').click();
   assert(!r2.doc.querySelector('.modal img, .modal b, #more i, #more script, #srv-top img') && /<img src=x/.test(text(r2.doc.querySelector('.modal'))) && /Voce & altra/.test(text(r2.doc.querySelector('.modal'))), 'tutto resta testo');
 });
+test('W23 foto dell\'appartamento a tutto schermo: si apre toccando la foto o ⤢, sfondo sfocato; si scorre con frecce, tastiera e dito; Esc, X, tocco fuori e dito in giù chiudono; la galleria resta sulla foto vista', async () => {
+  await setup();
+  const { doc, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => $('[data-testid=gallery-thumb-1]'), 'galleria');
+  const N = doc.querySelectorAll('[data-testid^=gallery-thumb-]').length, foto = i => $('[data-testid=gallery-thumb-' + i + '] img').dataset.full;
+  const lb = () => $('[data-testid=lightbox]'), key = (k, o = {}) => doc.dispatchEvent(new w.KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true }, o)));
+  const shown = () => [lb().querySelector('[data-testid=lightbox-img]').getAttribute('src'), text(lb().querySelector('[data-testid=lightbox-count]'))];
+  const gallery = () => [$('[data-testid=gallery-main-img]').getAttribute('src'), text($('[data-testid=gallery-counter]'))];
+  const touch = (el, type, x, y) => { const e = new w.Event(type, { bubbles: true }); e.touches = type === 'touchend' ? [] : [{ clientX: x, clientY: y }]; el.dispatchEvent(e); };
+  const swipe = (el, dx, dy) => { touch(el, 'touchstart', 300, 300); touch(el, 'touchmove', 300 + dx, 300 + dy); touch(el, 'touchend'); };
+  assert(N > 3 && !lb() && $('[data-testid=gallery-zoom]'), 'più foto, finestra chiusa, pulsante ⤢: ' + N);
+  $('[data-testid=gallery-next]').click(); $('[data-testid=gallery-main-img]').click();      // la galleria è sulla seconda foto: si apre lì
+  assert(lb() && doc.body.classList.contains('modal-open') && lb().getAttribute('role') === 'dialog' && lb().getAttribute('aria-modal') === 'true', 'aperta, pagina bloccata, ruolo accessibile');
+  assert.deepEqual(shown(), [foto(1), '2 / ' + N]);
+  assert(/Torre — foto 2 di/.test(lb().querySelector('.lb-img').alt) && /img\/torre\//.test(lb().querySelector('.lb-bg').style.backgroundImage), 'testo alternativo e sfondo con la stessa foto: ' + lb().querySelector('.lb-bg').style.backgroundImage);
+  assert.equal(doc.activeElement, lb(), 'il focus entra nella finestra');
+  $('[data-testid=lightbox-next]').click(); assert.deepEqual(shown(), [foto(2), '3 / ' + N], 'freccia avanti');
+  key('ArrowLeft'); assert.deepEqual(shown(), [foto(1), '2 / ' + N], 'tastiera indietro');
+  assert.deepEqual(gallery(), [foto(1), '2 / ' + N], 'intanto la galleria sotto non si muove');
+  $('[data-testid=lightbox-prev]').click(); $('[data-testid=lightbox-prev]').click(); assert.deepEqual(shown(), [foto(N - 1), N + ' / ' + N], 'dalla prima si passa all\'ultima');
+  key('ArrowRight'); assert.deepEqual(shown(), [foto(0), '1 / ' + N], 'e dall\'ultima alla prima');
+  swipe(lb(), -120, 8); assert.deepEqual(shown(), [foto(1), '2 / ' + N], 'dito verso sinistra: avanti');
+  lb().dispatchEvent(new w.MouseEvent('click', { bubbles: true })); assert(lb(), 'il clic che il telefono manda dopo lo scorrimento non la chiude');
+  swipe(lb(), 110, -5); assert.deepEqual(shown(), [foto(0), '1 / ' + N], 'dito verso destra: indietro');
+  swipe(lb(), 20, 0); assert.deepEqual(shown(), [foto(0), '1 / ' + N], 'un tocco appena mosso non cambia foto');
+  $('[data-testid=lightbox-next]').click(); $('[data-testid=lightbox-next]').click();
+  swipe(lb(), 4, 160); assert(!lb() && !doc.body.classList.contains('modal-open'), 'dito verso il basso: chiusa');
+  assert.deepEqual(gallery(), [foto(2), '3 / ' + N], 'la galleria è sulla foto vista per ultima');
+  assert.equal(doc.activeElement, $('[data-testid=gallery-zoom]'), 'il focus torna sulla galleria');
+  // ⤢, focus che resta dentro, Esc, X, clic sulla foto e fuori
+  const zoom = $('[data-testid=gallery-zoom]'); zoom.click(); assert.deepEqual(shown(), [foto(2), '3 / ' + N], '⤢ apre la foto della galleria');
+  key('Tab', { shiftKey: true }); assert.equal(doc.activeElement, $('[data-testid=lightbox-next]'), 'Maiusc+Tab dalla finestra va all\'ultimo pulsante, non alla pagina sotto');
+  key('Tab'); assert.equal(doc.activeElement, $('[data-testid=lightbox-close]'), 'Tab dall\'ultimo torna al primo');
+  key('Tab', { shiftKey: true }); assert.equal(doc.activeElement, $('[data-testid=lightbox-next]'), 'Maiusc+Tab dal primo va all\'ultimo');
+  key('Escape'); assert(!lb() && !doc.body.classList.contains('modal-open') && doc.activeElement === zoom, 'Esc chiude');
+  zoom.click(); $('[data-testid=lightbox-close]').click(); assert(!lb(), 'la X chiude');
+  zoom.click(); $('[data-testid=lightbox-img]').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); assert(lb(), 'il clic sulla foto non la chiude');
+  lb().dispatchEvent(new w.MouseEvent('click', { bubbles: true })); assert(!lb(), 'il clic fuori dalla foto la chiude');
+  key('ArrowRight'); assert.deepEqual(gallery(), [foto(3), '4 / ' + N], 'chiusa, le frecce della tastiera muovono di nuovo la galleria');
+  // scorrere la galleria col dito non apre la foto grande (il telefono manda un clic dopo lo scorrimento)
+  const gm = $('[data-testid=gallery-main-img]'); swipe(gm, -100, 5); gm.click();
+  assert(!lb() && /^5 \//.test(gallery()[1]), 'scorrimento nella galleria: foto successiva, nessuna finestra');
+  clock.advance(1000); gm.click(); assert(lb(), 'un tocco più tardi la apre'); key('Escape');
+  // una foto sola: niente frecce, il contatore dice 1 / 1
+  const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(a => a.id === 'torre').foto = [foto(0)]; assert.equal((await H.adminApi('save', c)).status, 200);
+  const r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => /1 \/ 1/.test(text(r.doc.querySelector('[data-testid=gallery-counter]'))), 'una foto');
+  r.doc.querySelector('[data-testid=gallery-main-img]').click();
+  const one = r.doc.querySelector('[data-testid=lightbox]'); assert(one && !one.querySelector('[data-testid=lightbox-next]') && text(one.querySelector('[data-testid=lightbox-count]')) === '1 / 1', 'una foto: niente frecce');
+  r.doc.dispatchEvent(new r.w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); assert.equal(text(one.querySelector('[data-testid=lightbox-count]')), '1 / 1');
+});
 test('W5 servizi mancanti nella configurazione salvata: valgono quelli di default.json; un salvataggio da una pagina di gestione vecchia non li cancella', async () => {
   await setup();
   const old = JSON.parse(kv.exec(['GET', 'cfg'])); old.apts.forEach(a => { delete a.servizi; delete a.dettagli; delete a.cin; delete a.cipat; }); kv.exec(['SET', 'cfg', JSON.stringify(old)]);      // configurazione salvata prima di questa versione
@@ -1027,6 +1077,53 @@ test('W19 Gestione · Luoghi e convenzioni: si parte dalle schede del sito; si m
   assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).convenzioni, undefined, 'ripristinate: nella configurazione non c\'è più nulla');
   const pc2 = await load('convenzioni.html', { scripts: ['js/dintorni.js', 'js/site.js'] }); await waitFor(() => pc2.doc.querySelector('[data-testid=partner-card-bisto]'), 'schede di partenza');
   assert.equal(pc2.doc.querySelectorAll('[data-testid^=partner-card-]').length, 5);
+});
+test('W24 Luoghi e stagioni: Garda, Val di Non, meli in fiore, Bondone d\'estate, eventi d\'estate e Trento d\'inverno prendono la foto da pagine dedicate; vale anche per le schede salvate dalla Gestione finché il link non cambia', async () => {
+  await setup();
+  const VT = 'https://www.visittrentino.info/', GARDA = VT + 'it/guida/natura/laghi/lago-di-garda-trentino_md_2263', NON = VT + 'en/trentino/tourist-areas/val-di-non_md_19';
+  const og = (doc, sel) => { const im = doc.querySelector(sel + ' img'); return im && im.dataset.og; };
+  let pub = await load('dintorni.html', { scripts: ['js/site.js', 'js/dintorni.js'] }), d = pub.doc;
+  await waitFor(() => d.querySelector('[data-testid=d-garda]'), 'luoghi');
+  assert.deepEqual([og(d, '[data-testid=d-garda]'), og(d, '[data-testid=d-val-di-non]')], [GARDA, NON], 'Garda e Val di Non: foto dalle schede ufficiali, non dalla home del sito (senza foto o con il logo)');
+  assert.deepEqual([d.querySelector('[data-testid=d-garda]').getAttribute('href'), d.querySelector('[data-testid=d-val-di-non]').getAttribute('href')], ['https://www.gardatrentino.it', 'https://www.visitvaldinon.it'], 'i link restano quelli di prima');
+  assert.equal(og(d, '[data-testid=d-toblino]'), VT + 'it/guida/da-vedere/castelli/castel-toblino_md_2454', 'le altre schede: foto dal loro link, come prima');
+  assert.equal(d.querySelectorAll('[data-testid=d-convenzioni] figure.quad img').length, 4, 'convenzioni: le 4 foto dei locali');
+  const season = (s, i) => { d.querySelector('[data-testid=season-tab-' + s + ']').click(); const c = d.querySelector('[data-testid=attraction-card-' + s + '-' + i + ']'); return [c.getAttribute('href'), c.querySelector('img').dataset.og]; };
+  assert.deepEqual(season('primavera', 1), ['https://www.visitvaldinon.it', VT + 'it/articoli/primavera/fioritura-in-val-di-non'], 'primavera: i meli in fiore');
+  const VIOTE = VT + 'it/giardino-botanico-alpino-viote-del-monte-bondone_md_2363';
+  assert.deepEqual(season('estate', 1), [VIOTE, VIOTE], 'estate: il Bondone senza sci (Giardino Botanico delle Viote)');
+  assert.deepEqual(season('estate', 3), ['eventi.html', VT + 'en/guide/what-to-do/events/feste-vigiliane_e_91856516'], 'estate: gli eventi (le Feste Vigiliane), il link resta la pagina Eventi');
+  assert(/aree-sciistiche/.test(season('inverno', 1)[1]), 'inverno: lo sci sul Bondone resta con la pagina delle piste');
+  assert.deepEqual(season('inverno', 3), ['https://www.visittrento.it', 'https://natale.visittrento.it/en/trento-city-of-christmas'], 'inverno: Trento a Natale');
+  // schede salvate dalla Gestione (non conservano la pagina della foto): con lo stesso link la foto resta quella dedicata; con un link nuovo arriva dal link
+  const L = JSON.parse(JSON.stringify(pub.w.LCDintorni.luoghi)); L.find(x => x.id === 'val-di-non').link = 'https://www.visitvaldinon.it/it/estate';
+  const c = (await H.adminApi('cfg_admin', {})).body; c.luoghi = L; assert.equal((await H.adminApi('save', c)).status, 200);
+  const saved = JSON.parse(kv.exec(['GET', 'cfg'])).luoghi; assert(saved.length === 8 && saved.every(x => !('og' in x)), 'nella configurazione nessun campo nuovo');
+  pub = await load('dintorni.html', { scripts: ['js/site.js', 'js/dintorni.js'] }); d = pub.doc;
+  await waitFor(() => d.querySelector('[data-testid=d-val-di-non][href="https://www.visitvaldinon.it/it/estate"]'), 'schede salvate');
+  assert.deepEqual([og(d, '[data-testid=d-garda]'), og(d, '[data-testid=d-val-di-non]')], [GARDA, 'https://www.visitvaldinon.it/it/estate']);
+});
+test('W25 Come trovarci: indirizzo, parcheggio e fermata con i pulsanti per il navigatore; mappa con legenda; auto, treno e aereo passo per passo; autobus con orari e foto; aiuto al telefono', async () => {
+  await setup();
+  const { doc } = await load('mappa.html', { scripts: ['js/site.js', 'js/mappa.js'] }), $ = s => doc.querySelector(s), href = s => $(s).getAttribute('href');
+  const DIR = 'https://www.google.com/maps/dir/?api=1&destination=';
+  assert.equal(href('[data-testid=mappa-naviga]'), DIR + encodeURIComponent('Via Centrale 48, 38123 Ravina (Trento)'), 'navigatore fino alla struttura');
+  assert.equal(href('[data-testid=mappa-naviga-parcheggio]'), DIR + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)'), 'navigatore fino al parcheggio');
+  assert.equal(href('[data-testid=mappa-vai-bus]'), '#bus'); assert($('#bus[data-testid=bus-section]'), 'la sezione autobus ha ancora l\'indirizzo #bus (link da Luoghi, Eventi e Convenzioni)');
+  for (const f of ['dintorni.html', 'eventi.html', 'convenzioni.html']) assert(fs.readFileSync(path.join(ROOT, f), 'utf8').includes('href="mappa.html#bus"'), f);
+  assert($('[data-testid=mappa-svg] svg title') && /Trento Sud/.test(text($('[data-testid=mappa-svg] svg title'))), 'la mappa disegnata c\'è');
+  assert.deepEqual([...doc.querySelectorAll('[data-testid=map-legend] b')].map(text), ['La Columbera', 'Parcheggio', 'Fermata Ravina Piazza', 'Uscita Trento Sud A22'], 'legenda');
+  assert.deepEqual(['auto', 'treno', 'aereo'].map(k => !!$('[data-testid=mappa-' + k + ']')), [true, true, true], 'auto, treno, aereo');
+  assert.equal(doc.querySelectorAll('[data-testid=mappa-auto] .ct-steps li').length, 3); assert(/Via Val Gola 22/.test(text($('[data-testid=mappa-auto]'))) && /Trento Sud/.test(text($('[data-testid=mappa-auto]'))));
+  assert(/12/.test(text($('[data-testid=mappa-treno]'))) && /Ravina Piazza/.test(text($('[data-testid=mappa-treno]'))) && $('[data-testid=mappa-treno] a[href="#bus"]'), 'in treno: autobus 12 o 14 e il rimando agli orari');
+  assert(/Verona Villafranca/.test(text($('[data-testid=mappa-aereo]'))) && /Bergamo/.test(text($('[data-testid=mappa-aereo]'))) && /Venezia/.test(text($('[data-testid=mappa-aereo]'))));
+  // autobus: prima gli orari, poi le due linee con le foto (aprono la fermata su Google Maps)
+  const orari = $('[data-testid=bus-section] .bus-note'), grid = $('[data-testid=bus-grid]');
+  assert(orari.compareDocumentPosition(grid) & doc.defaultView.Node.DOCUMENT_POSITION_FOLLOWING, 'gli orari vengono prima delle schede');
+  assert(/T-12RP\.PDF$/.test(href('[data-testid=bus-orari-12-btn]')) && /T-14RP\.PDF$/.test(href('[data-testid=bus-orari-14-btn]')) && href('[data-testid=bus-sito-btn]') === 'https://www.trentinotrasporti.it', 'orari delle due linee e avvisi');
+  for (const n of ['12', '14']) { const c = $('[data-testid=bus-line-' + n + '-card]'); assert(c && /maps\/search\/\?api=1&query=Fermata%20Ravina%20Piazza/.test(c.getAttribute('href')) && c.querySelector('img').dataset.local === 'img/bus-' + n + '.jpg', 'linea ' + n + ': foto e fermata'); }
+  assert.equal(href('[data-testid=mappa-chiama]'), 'tel:+393517043594', 'aiuto al telefono');
+  const ext = [...doc.querySelectorAll('main a[href^="http"]')]; assert(ext.length >= 8 && ext.every(a => a.target === '_blank' && /noopener/.test(a.rel)), 'i link esterni si aprono a parte, senza accesso alla pagina');
 });
 test('W20 Gestione · Regole di prenotazione: preavviso, orari e area ospiti insieme; fin dove si prenota (6 mesi, regola fissa) e notti minime con il rimando al calendario', async () => {
   await setup();

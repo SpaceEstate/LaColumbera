@@ -4,7 +4,8 @@
 //
 // FOTO — ogni scheda mostra una foto vera del luogo, mai casuale, in quest'ordine:
 //   1) local — file nel repo (es. 'img/Trento1.jpg'): se c'è, vince sempre.
-//   2) og    — pagina ufficiale da cui prendere la foto di copertina (di norma il link stesso della scheda).
+//   2) og    — pagina ufficiale da cui prendere la foto di copertina (di norma il link stesso della scheda). Quando la copertina del link
+//              non va (un logo, nessuna foto, una foto di un'altra stagione) si indica qui una pagina ufficiale dedicata a quel luogo.
 //   Se non c'è nessuna delle due la scheda mostra un segnaposto neutro, mai una foto a caso.
 // LINK — l'intera scheda è cliccabile; i link esterni si aprono in una nuova scheda.
 (function(){
@@ -26,13 +27,15 @@
      alt:'Vigneti e vini del Trentino',link:VT+'gusto/vini-del-trentino',lt:'Vini del Trentino'},
     {id:'garda',t:'Lago di Garda (sponda trentina)',meta:['40 min','Riva, Torbole, Arco'],
      d:'La parte più selvaggia del Garda: falesie per l\u2019arrampicata, windsurf, kite e passeggiate sul lungolago.',
-     alt:'Lago di Garda Trentino',link:'https://www.gardatrentino.it',lt:'gardatrentino.it'},
+     alt:'Lago di Garda Trentino',link:'https://www.gardatrentino.it',lt:'gardatrentino.it',
+     og:VT+'guida/natura/laghi/lago-di-garda-trentino_md_2263'},      // gardatrentino.it non ha una foto di copertina
     {id:'ciclabile',t:'Ciclabile della Valle dell\u2019Adige',meta:['parte da 5 min','fino a Verona'],
      d:'Piatta e panoramica, attraversa vigneti e frutteti. Da qui potete raggiungere in bici Trento centro, Rovereto o scendere verso il Garda.',
      alt:'Ciclabile lungo l\u2019Adige',link:VT+'guida/attivita-outdoor/ciclabili',lt:'Piste ciclabili del Trentino'},
     {id:'val-di-non',t:'Val di Non e Val di Sole',meta:['45 min','mele · rafting · canyon'],
      d:'Frutteti a perdita d\u2019occhio, canyon del Rio Sass, rafting sul Noce e i castelli della Val di Non.',
-     alt:'Val di Non',link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it'},
+     alt:'Val di Non',link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it',
+     og:'https://www.visittrentino.info/en/trentino/tourist-areas/val-di-non_md_19'},      // la copertina di visitvaldinon.it è il logo
     {id:'convenzioni',t:'Ristoranti e locali convenzionati',meta:['a Ravina e dintorni','partner de La Columbera'],
      d:'Pizzerie, caffè, birrerie e palestre: le realtà del territorio che consigliamo e con cui siamo convenzionati.',
      alt:'Alcuni dei nostri locali convenzionati',link:'convenzioni.html',lt:'Scopri le convenzioni',
@@ -61,7 +64,8 @@
     primavera:[
       {t:'I meli in fiore della Val di Non',m:'45 min · aprile – maggio',alt:'Frutteti in fiore in Val di Non',
        d:'Una fioritura che tinge di bianco e rosa intere vallate: passeggiate facili tra i frutteti, magari in bici.',
-       link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it'},
+       link:'https://www.visitvaldinon.it',lt:'visitvaldinon.it',
+       og:VT+'articoli/primavera/fioritura-in-val-di-non'},      // foto: l'articolo ufficiale sulla fioritura (la copertina di visitvaldinon.it è il logo)
       // foto: scheda ufficiale VisitTrentino del castello (il link resta il sito del museo)
       {t:'Trento e il Castello del Buonconsiglio',m:'10 min · tutto l\u2019anno',alt:'Castello del Buonconsiglio, Trento',
        d:'Il castello dei principi vescovi con la Torre dell\u2019Aquila, poi una passeggiata in Piazza Duomo.',
@@ -72,15 +76,17 @@
        link:VT+'guida/attivita-outdoor/ciclabili',lt:'Piste ciclabili del Trentino'}
     ],
     estate:[
-      {t:'Monte Bondone e le Viotte',m:'20 min · giugno – settembre',alt:'Monte Bondone',
+      // d'estate non si scia: scheda e foto del Giardino Botanico Alpino delle Viote (la pagina delle piste resta per l'inverno)
+      {t:'Monte Bondone e le Viotte',m:'20 min · giugno – settembre',alt:'Giardino Botanico Alpino delle Viote, Monte Bondone',
        d:'Le camminate sulle Tre Cime del Bondone e il Giardino Botanico Le Viotte, tra i più belli d\u2019Europa.',
-       link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
+       link:VT+'giardino-botanico-alpino-viote-del-monte-bondone_md_2363',lt:'visittrentino.info'},
       {t:'Lago di Toblino e Valle dei Laghi',m:'25 min',alt:'Castel Toblino sul lago',
        d:'Il castello sull\u2019acqua, una passeggiata lungolago e una sosta nelle cantine della valle.',
        link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
-      {t:'Gli eventi dell\u2019estate a Trento',m:'sempre aggiornato',alt:'Eventi in Trentino',
+      // foto: le Feste Vigiliane, la festa dell'estate in centro a Trento (il link resta la pagina Eventi del sito)
+      {t:'Gli eventi dell\u2019estate a Trento',m:'sempre aggiornato',alt:'Feste Vigiliane in centro a Trento',
        d:'Festival, concerti e appuntamenti estivi in città: nella pagina Eventi trovi tutti gli appuntamenti in programma, sempre aggiornati.',
-       link:'eventi.html',lt:'Vai agli eventi in programma',og:VT+'guida/cosa-fare/eventi'}
+       link:'eventi.html',lt:'Vai agli eventi in programma',og:'https://www.visittrentino.info/en/guide/what-to-do/events/feste-vigiliane_e_91856516'}
     ],
     autunno:[
       {t:'Vendemmia e Strada del Vino',m:'settembre – ottobre',alt:'Vigneti del Trentino in autunno',
@@ -101,9 +107,10 @@
        d:'Tra i mercatini più amati d\u2019Italia: casette di legno, luci e profumi in Piazza Fiera e dintorni.',
        link:'https://natale.visittrento.it/mercatino',lt:'natale.visittrento.it',
        og:'https://natale.visittrento.it/wp-content/uploads/2024/10/natale-a-trento-mercatino-ph-marco.gober_.jpg'},
+      // foto: la pagina ufficiale di Trento a Natale (la copertina di visittrento.it non è invernale)
       {t:'Trento d\u2019inverno: musei e portici',m:'10 min',alt:'Trento in inverno',
        d:'Il centro storico d\u2019inverno ha un fascino speciale: musei, cioccolata calda e shopping sotto i portici.',
-       link:'https://www.visittrento.it',lt:'visittrento.it'}
+       link:'https://www.visittrento.it',lt:'visittrento.it',og:'https://natale.visittrento.it/en/trento-city-of-christmas'}
     ]
   };
 
@@ -161,9 +168,12 @@
   var okLink=function(l){l=String(l||'');return /^https?:\/\//i.test(l)||/^[a-z0-9][\w-]*\.html(#[\w-]+)?$/i.test(l)?l:''};      // difesa in più: il server salva solo link così
   var okImg=function(u){u=String(u||'');return /^(img\/|https:\/\/)/.test(u)?u:''};
   var lg=document.getElementById('luoghi-grid'),cg=document.getElementById('conv-grid');
+  // pagina da cui prendere la foto: quella indicata qui sopra per la scheda di partenza con lo stesso id e lo stesso link (anche nelle copie
+  // salvate dalla Gestione, che non la conservano); se il link è cambiato la foto arriva dal link nuovo
+  var ogDi=function(p){var d=LUOGHI.filter(function(x){return x.id===p.id&&x.link===p.link})[0];return d&&d.og||''};
   function paintLuoghi(list){
     lg.innerHTML=list.map(function(p,i){
-      return card({tid:'d-'+p.id,h:2,eager:i===0,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:okLink(p.link),lt:p.lt,local:okImg(p.local),noPhoto:p.noPhoto,quad:p.quad&&p.quad.map(okImg)});
+      return card({tid:'d-'+p.id,h:2,eager:i===0,t:p.t,meta:p.meta,d:p.d,alt:p.alt,link:okLink(p.link),lt:p.lt,local:okImg(p.local),og:ogDi(p),noPhoto:p.noPhoto,quad:p.quad&&p.quad.map(okImg)});
     }).join('');
   }
   function paintConv(list){
