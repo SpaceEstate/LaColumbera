@@ -1206,3 +1206,77 @@ table.mx td.mx-multi{background:rgba(122,46,57,.16);color:var(--wine);font-weigh
 
 /* codice di prenotazione a gruppi ("558R TE56 487A9"): non va a capo dentro il codice */
 .code-g{letter-spacing:.05em;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ---------- AREA OSPITI (area-clienti.html, js/area.js) ---------- */
+.ga-login-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.ga-lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--paper)}
+.ga-lang button{border:0;background:none;font:inherit;font-size:.74rem;font-weight:700;letter-spacing:.08em;color:var(--muted);padding:5px 10px;border-radius:999px;cursor:pointer;min-width:40px;min-height:32px}
+.ga-lang button[aria-pressed="true"]{background:var(--wine);color:#fff}
+.ga-lang button:focus-visible,.ga-tabs [role=tab]:focus-visible,.ga-act:focus-visible,.ga-copy:focus-visible{outline:3px solid rgba(122,46,57,.35);outline-offset:2px}
+.auth-wrap.ga-on .auth-col{max-width:760px}
+.ga{display:flex;flex-direction:column;gap:16px}
+.ga-bar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ga-bar .link-btn{margin:0;font-size:.9rem}
+.ga-hero{position:relative;overflow:hidden;border-radius:22px;background:var(--wine-2);color:#fff;min-height:190px;display:flex;align-items:flex-end;box-shadow:var(--shadow-card)}
+.ga-hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}
+.ga-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(58,21,27,.05) 0%,rgba(58,21,27,.82) 100%)}
+.ga-hero-in{position:relative;z-index:1;padding:22px 24px}
+.ga-kicker{font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:#F1DFB9}
+.ga-hero h2{color:#fff;font-style:italic;font-size:clamp(1.9rem,6vw,2.6rem);margin:4px 0 6px}
+.ga-hero p{margin:0 0 10px;color:rgba(255,255,255,.92);font-size:.98rem}
+.ga-count{display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:5px 14px;font-size:.86rem;font-weight:700}
+.ga-tabs{position:sticky;top:64px;z-index:20;display:flex;gap:4px;background:rgba(250,245,236,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:999px;padding:4px;overflow-x:auto;scrollbar-width:none}
+.ga-tabs::-webkit-scrollbar{display:none}
+.ga-tabs [role=tab]{flex:1 0 auto;border:0;background:none;font:inherit;font-size:.9rem;font-weight:700;color:var(--ink);padding:10px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;min-height:44px}
+.ga-tabs [role=tab][aria-selected="true"]{background:var(--wine);color:#fff}
+.ga-tabs .adm-badge{margin-left:6px}
+.ga-panel{display:flex;flex-direction:column;gap:16px;padding:0}      /* il sito dà a ogni <section> un ampio spazio sopra e sotto: qui no */
+.ga-panel[hidden]{display:none}
+.ga .ga-card{background:#fff;border:1px solid rgba(122,46,57,.12);border-radius:18px;box-shadow:var(--shadow-soft);padding:20px 22px}
+.ga-card h3{font-size:1.25rem;margin:0 0 10px;color:var(--wine)}
+.ga-card h4{font-family:var(--sans);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wine);margin:16px 0 6px;font-weight:700}
+.ga-card p{margin:0 0 8px;color:var(--charcoal);font-size:.97rem}
+.ga-card a:not(.btn){color:var(--wine);font-weight:600}
+.ga-card ul{margin:0 0 8px;padding-left:20px}
+.ga-card li{margin:2px 0}
+.ga-pre{white-space:pre-line}
+.booking-card.ga-card:hover{transform:none}
+.bc-cell small{font-size:.82rem;color:var(--muted)}
+.ga-copy{align-self:flex-start;border:1px solid var(--line);background:var(--paper);border-radius:999px;font:inherit;font-size:.84rem;font-weight:700;color:var(--wine);padding:8px 16px;cursor:pointer;min-height:40px}
+.ga-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ga-act{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(122,46,57,.12);border-radius:16px;padding:14px;color:var(--ink);text-decoration:none;font:inherit;text-align:left;cursor:pointer;min-height:64px;box-shadow:0 10px 24px -22px rgba(58,21,27,.5);transition:border-color .2s ease,transform .2s ease}
+.ga-act:hover{border-color:var(--wine);transform:translateY(-1px)}
+.ga-act svg{flex:none;color:var(--wine)}
+.ga-act span{display:flex;flex-direction:column;min-width:0}
+.ga-act b{font-size:.95rem;line-height:1.25}
+.ga-act small{font-size:.8rem;color:var(--muted);line-height:1.3;overflow-wrap:anywhere}
+.ga-btns{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+.ga-btns .btn{padding:11px 20px;font-size:.92rem}
+.ga-rows>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+.ga-rows>div span{color:var(--muted)}
+.ga-rows .ga-tot{border-bottom:0;padding-top:12px}
+.ga-rows .ga-tot span{color:var(--ink);font-weight:700}
+.ga-rows .ga-tot b{font-family:var(--serif);font-size:1.5rem;color:var(--wine);font-weight:400}
+.ga-ok{color:#2d7a3a !important;font-weight:700}
+.ga-ev{list-style:none;margin:0 0 8px;padding:0 !important}
+.ga-ev li{border-bottom:1px solid var(--line);padding:10px 0;margin:0}
+.ga-ev li:last-child{border-bottom:0}
+.ga-ev a,.ga-ev li>b{text-decoration:none;color:var(--ink)}
+.ga-ev a{display:flex;flex-direction:column;font-weight:400}
+.ga-ev-d{font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);font-weight:700}
+.ga-ev small{color:var(--muted)}
+.ga .ga-install{background:var(--paper)}
+.ga-contact{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px}
+.ga-contact a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:#fff;border:1px solid rgba(122,46,57,.12);border-radius:16px;padding:12px 6px;min-height:64px;color:var(--wine);text-decoration:none;font-weight:700;font-size:.86rem}
+.ga-contact a:hover{border-color:var(--wine)}
+.ga-review{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0;color:var(--muted);font-size:.92rem;justify-content:center}
+.ga-review svg{color:var(--gold)}
+.ga-review a{color:var(--wine);font-weight:700}
+@media (max-width:760px){
+  .ga-tabs{top:58px}
+  .ga-hero{min-height:170px;border-radius:18px}
+  .ga-hero-in{padding:18px}
+  .ga .ga-card{padding:18px 16px;border-radius:16px}
+  .ga-act{flex-direction:column;align-items:flex-start;gap:8px;padding:14px 12px}
+}
+@media (max-width:330px){.ga-actions{grid-template-columns:1fr}.ga-act{flex-direction:row;align-items:center}}

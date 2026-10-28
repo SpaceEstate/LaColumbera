@@ -815,8 +815,9 @@ function makeEngine(deps) {
 
   /* ---------- ricerca per codice (Guest Card, area clienti) ---------- */
   const lower = s => String(s || '').toLowerCase();
-  const fromBk = b => ({ code: b.code, id: b.id, da: b.da, a: b.a, notti: b.notti, ospiti: b.ospiti, nome: b.nome, email: b.email || '', stato: b.stato, fonte: 'sito' });
-  const fromRow = r => ({ code: r.codice, id: r.apt, da: r.checkin, a: r.checkout, notti: r.notti, ospiti: r.ospiti, nome: '', email: '', stato: lower(r.stato), fonte: 'foglio' });
+  // fonte = dove sta il record (sito = KV, foglio = registro); origine = dove è nata la prenotazione (sito, booking, airbnb, manuale)
+  const fromBk = b => ({ code: b.code, id: b.id, da: b.da, a: b.a, notti: b.notti, ospiti: b.ospiti, nome: b.nome, email: b.email || '', stato: b.stato, fonte: 'sito', origine: 'sito' });
+  const fromRow = r => ({ code: r.codice, id: r.apt, da: r.checkin, a: r.checkout, notti: r.notti, ospiti: r.ospiti, nome: '', email: '', stato: lower(r.stato), fonte: 'foglio', origine: lower(r.fonte) });
   // Prima le prenotazioni del sito (KV: hanno importo, stato del pagamento, email), poi il registro del foglio (Booking, Airbnb, manuali;
   // anche le prenotazioni del sito vi sono copiate), infine (live: true) lo script del foglio in diretta.
   async function findByCode(config, code, { live = true } = {}) {

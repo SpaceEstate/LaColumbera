@@ -1,8 +1,8 @@
-// La Columbera · pagine appartamento, area clienti, gestione, guest card, eventi
+// La Columbera · pagine appartamento, guest card, eventi (l'area clienti è in js/area.js)
 const $=s=>document.querySelector(s),B=document.body.dataset;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const eur=n=>'€'+Math.round(n);
-const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.err||'Servizio non disponibile');return j});
+const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;throw e}return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 const iso=d=>d.toISOString().slice(0,10);
 const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
@@ -272,48 +272,6 @@ async function apt(c){
   draw();
 }
 
-function clienti(c){
-  const show=r=>{
-      const list=r.prenotazioni||[];
-      const totNotti=list.reduce((s,x)=>s+(+x.notti||0),0);
-      $('#r').innerHTML=`
-      <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${list.length}</b> prenotazion${list.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli, puoi generare la tua <b>Trentino Guest Card</b> e fare il <b>check-in online</b>.</p></div>
-      <div class="booking-cards" data-testid="mie-cards">${list.map(x=>`
-        <article class="booking-card" data-testid="mie-card-${esc(x.code)}">
-          <div class="bc-top"><span class="bc-code">${esc(fmtCode(x.code))}</span><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></div>
-          <h3 class="bc-title">${nomeA(c,x.id)}</h3>
-          <div class="bc-grid">
-            <div class="bc-cell"><span>Check-in</span><b>${fmtD(x.da)}</b></div>
-            <div class="bc-cell"><span>Check-out</span><b>${fmtD(x.a)}</b></div>
-            <div class="bc-cell"><span>Notti</span><b>${x.notti}</b></div>
-            <div class="bc-cell"><span>Ospiti</span><b>${x.ospiti||'—'}</b></div>
-          </div>
-          <div class="bc-actions">
-            <a class="btn btn-wine" href="guest-card.html" data-testid="gc-link-${esc(x.code)}">Crea Guest Card</a>
-            <a class="btn btn-line" href="https://spaceestate.github.io/Checkin/index.html" target="_blank" rel="noopener noreferrer" data-testid="checkin-link-${esc(x.code)}">Check-in online</a>
-            <a class="btn btn-line" href="https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ" target="_blank" rel="noopener noreferrer" data-testid="review-link-${esc(x.code)}">Lascia una recensione</a>
-          </div>
-        </article>`).join('')}</div>`};
-  const load=async(body,btn)=>{
-    let orig;if(btn){if(btn.dataset.loading)return;btn.dataset.loading='1';orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Cerco…'}
-    try{let r;
-      try{r=await api('mie',body)}
-      catch(x){if(!body.t)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta (o link vecchio): si riprova con il solo codice
-      if(r.t)accSet(r.code||body.code,r.t);show(r)}
-    catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
-    finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}}};
-  $('#f').onsubmit=e=>{e.preventDefault();
-    const code=codeIn($('#cd').value);if(!code)return;
-    load(accBody(code),e.target.querySelector('[data-testid="area-clienti-submit"]'))};
-  // Link della mail di conferma (#c=…&t=…), messaggio di benvenuto (#k=…) o sessione già aperta in questa scheda: accesso diretto.
-  // Link con il codice nell'indirizzo (?code=…, il server lo vedrebbe nei log): il codice si precompila soltanto e sparisce dall'indirizzo.
-  const h=accFromHash()||accGet(),qc=new URLSearchParams(location.search).get('code');
-  if(qc)history.replaceState(null,'',location.pathname);
-  if(h&&h.t){$('#cd').value=fmtCode(h.c);load({code:h.c,t:h.t})}
-  else if(h&&h.k){const k=codeIn(h.k);$('#cd').value=k;load({code:k})}
-  else if(qc)$('#cd').value=codeIn(qc);
-}
-
 async function guestcard(c){
   const q=new URLSearchParams(location.search),box=$('#r');
   // Copia negli appunti (con ripiego per i browser che non permettono navigator.clipboard)
@@ -354,7 +312,7 @@ async function guestcard(c){
     $('#e').textContent='';box.innerHTML='';
     try{let r;
       try{r=await api('gc_check',body)}
-      catch(x){if(!body.t)throw x;accDel();r=await api('gc_check',{code:body.code})}      // sessione scaduta: si riprova con il solo codice
+      catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('gc_check',{code:body.code})}      // sessione scaduta (404): si riprova con il solo codice; senza rete la sessione resta
       const code=r.code||body.code;if(r.t)accSet(code,r.t);
       if(r.card){box.innerHTML=renderCard(r.card);return}
       renderConfirm({...r.booking,code})}
@@ -396,5 +354,8 @@ async function eventi(c){
       :`<article class="apt-card ev-card" data-testid="ev-${esc(x.date)}">${inner}</article>`)}).join('');
 }
 
-const P={apt,clienti,guestcard,eventi};
-get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p]&&P[B.p](c));
+// L'area clienti vive in js/area.js (caricato solo da area-clienti.html, parte da sé) e usa gli stessi strumenti di questa pagina
+// (accesso con codice e token, chiamate al server, date): stessa sessione e stesse regole della Guest Card.
+window.LCP={esc,api,get,iso,fmtD,fmtW,fmtL,mdLite,modal,accGet,accSet,accDel,accFromHash,accBody,fmtCode,codeIn};
+const P={apt,guestcard,eventi};
+if(P[B.p])get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p](c));

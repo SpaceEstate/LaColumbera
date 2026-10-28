@@ -119,7 +119,7 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 | Ricevuta di Alloggiati Web | 5 anni (nota del Garante) | Conservazione manuale; il sistema non la gestisce |
 | Dati fiscali e contabili | [DA COMPLETARE] con il commercialista | La vecchia `privacy.html` indicava "10 anni (art. 2220 c.c.)": non è verificabile dal codice e dipende dal regime fiscale del titolare, quindi è stato sostituito da un segnaposto |
 | Stripe, Gmail, Vercel (log), Upstash, Neon, GitHub | Secondo le impostazioni e i contratti dei fornitori [DA VERIFICARE] | |
-| Browser | `sessionStorage` `lc_acc` e `lc_t`: fino alla chiusura della scheda. Check-in: memoria locale `columbera_lingua` (solo la lingua scelta) senza scadenza | |
+| Browser | `sessionStorage` `lc_acc`, `lc_lang`, `lc_pwa_no` e `lc_t`: fino alla chiusura della scheda. Area clienti installabile: Cache Storage `lc-area-v1` con i soli file della pagina (nessun dato della prenotazione). Check-in: memoria locale `columbera_lingua` (solo la lingua scelta) senza scadenza | |
 
 ---
 

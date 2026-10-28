@@ -87,7 +87,8 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 
 ## 4. Risposte, log ed errori
 
-- **`mie`:** `{t, code, prenotazioni:[{code, id, da, a, ospiti, notti, stato}]}`. `code` è il codice registrato (la pagina lo usa con il token). Le prenotazioni non confermate rispondono 404. Nessun nome, email, telefono o importo di altri ospiti.
+- **`mie`:** `{t, code, prenotazioni:[{code, id, da, a, ospiti, notti, stato}], soggiorno}`. `code` è il codice registrato (la pagina lo usa con il token). Le prenotazioni non confermate rispondono 404. Nessun nome, email, telefono o importo di altri ospiti.
+- **`soggiorno`** (area ospiti, `soggiornoOut` in `api/x.js`): appartamento (nome, sottotitolo, prima foto), date, notti, ospiti, origine (sito, booking, airbnb, manuale), orari di check-in e check-out, pagamento (solo prenotazioni del sito: totale, pagato sì/no e data, conto salvato al checkout), testi per l'ospite dell'appartamento, numero WhatsApp. Le **informazioni riservate** (Wi-Fi) arrivano solo da `infoGiorni` giorni prima dell'arrivo fino al giorno della partenza; prima c'è solo la data da cui compariranno. I testi per gli ospiti e le informazioni riservate **non** sono nella configurazione pubblica (`a=cfg`, test S17). I codici della cassetta delle chiavi non passano dall'area clienti: li manda il check-in online, dopo la registrazione degli ospiti.
 - **`gc_check` / `gc_issue`:** prenotazione ridotta a `{id, da, a, notti, ospiti, needsEmail}`. Card ridotta a `{gc_id, stato, valid_from, valid_to, ospiti, email mascherata "ma***@dominio"}`. La risposta grezza di TGC (QR e dati personali) non viene salvata e non viene restituita.
 - **Errori verso il client:** generici ("Errore interno: riprova tra qualche minuto.", "Non è stato possibile avviare il pagamento…", "Webhook Error: firma non valida"). I messaggi di Stripe e le eccezioni interne non vengono più restituiti.
 - **Log:** solo l'azione e un messaggio tecnico troncato a 160 caratteri. Per Stripe si registra solo `e.type` o `e.code`. Nessun codice, token, email, data o IP (lo verifica il test S7, anche con un codice sbagliato).
@@ -117,6 +118,8 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 | Tipo | Nome | Dove | Scopo |
 |---|---|---|---|
 | sessionStorage | `lc_acc` | area clienti, Guest Card, checkout | codice e token di accesso dell'ospite, fino alla chiusura della scheda |
+| sessionStorage | `lc_lang`, `lc_pwa_no` | area clienti | lingua scelta; invito «Aggiungi alla schermata Home» chiuso |
+| Cache Storage | `lc-area-v1` | area clienti (service worker `sw.js`, ambito `/area-clienti`) | solo i file della pagina (HTML, CSS, JS, logo) per aprirla senza rete. Le risposte di `api/` non vengono mai salvate |
 | sessionStorage | `lc_t` | admin | token della sessione admin (invariato) |
 | Cookie | nessuno | – | – |
 | localStorage | nessuno | – | – |

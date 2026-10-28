@@ -49,6 +49,24 @@ const fmtLong=s=>{try{const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(s),t=new Date(Date.
 const noticeBody=(nt,nowMs)=>{const first=AV.minCheckinDate(nowMs,nt);
  return{err:(nt.giorni>0?'Preavviso minimo non rispettato: le prenotazioni online richiedono almeno '+nt.giorni+(nt.giorni===1?' giorno':' giorni')+' di anticipo sul check-in (ore '+nt.ora+').':'La data di arrivo scelta non è più prenotabile.')+' Il primo arrivo prenotabile è '+fmtLong(first)+'. Per arrivi più vicini scrivici a lacolumbera@gmail.com o chiamaci al +39 351 704 3594.',code:'PREAVVISO_INSUFFICIENTE',giorni:nt.giorni,ora:nt.ora,primoArrivo:first}};
 
+// ---- Area clienti: il soggiorno dell'ospite ----
+// Solo ciò che serve alla pagina dell'ospite: niente nome, email o telefono. Le informazioni per l'ospite e quelle riservate (Wi-Fi…) non stanno
+// nella configurazione pubblica (a=cfg): arrivano solo qui, a chi ha il codice; quelle riservate solo da `infoGiorni` giorni prima dell'arrivo
+// fino al giorno della partenza. I codici della cassetta delle chiavi NON passano di qui: li manda il check-in online, dopo la registrazione.
+const RE_HHMM=/^([01]\d|2[0-3]):[0-5]\d$/,PORTALI={booking:'Booking.com',airbnb:'Airbnb'};
+const infoGiorni=c=>{const n=Number(c.infoGiorni);return Number.isInteger(n)&&n>=0&&n<=30?n:2};
+// numero WhatsApp del titolare (solo cifre, con prefisso): non impostato = il telefono pubblicato sul sito; vuoto = non mostrare
+const waNum=c=>c.whatsapp===undefined?'393517043594':String(c.whatsapp||'').replace(/\D/g,'').replace(/^00/,'');
+const soggiornoOut=(config,x,bk)=>{
+ const p=(config.apts||[]).find(q=>q.id===x.id)||{},oggi=todayRome(),dal=AV.isIso(x.da)?addDays(x.da,-infoGiorni(config)):'',vis=!!dal&&oggi>=dal&&oggi<=x.a,ris=String(p.infoRiservate||'').trim();
+ const pagato=bk&&Date.parse(bk.confermata_il)?todayRome(Date.parse(bk.confermata_il)):'',ct=bk&&bk.conto&&Array.isArray(bk.conto.righe)?bk.conto:null;
+ return{code:x.code,id:x.id,apt:{nome:String(p.nome||x.id),sotto:String(p.sotto||''),foto:String((p.foto||[])[0]||'')},da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,stato:x.stato,
+  origine:x.origine||'',portale:PORTALI[x.origine]||'',
+  orari:{checkin:AV.noticeSettings(config).ora,checkout:RE_HHMM.test(config.checkoutOra)?config.checkoutOra:''},
+  pagamento:bk?{totale:+bk.totale||0,pagato:!!bk.pagamento,data:bk.pagamento?pagato:'',conto:ct?{righe:ct.righe.map(r=>({dal:String(r.dal||''),notti:+r.notti||0,prezzo:+r.prezzo||0})),supplemento:+ct.supplemento||0}:null}:null,
+  info:{testo:String(p.infoOspiti||''),riservate:vis?ris:'',riservateDal:ris&&!vis&&dal&&oggi<dal?dal:''},
+  contatti:{whatsapp:waNum(config)}}};
+
 // ---- Registro prenotazioni (Google Sheet via Apps Script): upsert idempotente + coda di ripresa ----
 const sheetUpsertBooking=b=>E.registerBooking(b);   // chiave FONTE|CODICE; se il foglio non risponde accoda (mai perdere una conferma)
 const sheetAppend=sheetUpsertBooking;                // nome storico, per compatibilità
@@ -246,9 +264,10 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
   res.setHeader('Location',img.href);return res.status(302).end();
  }catch{return res.status(502).end()}
 }
-// Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali.
+// Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali,
+// niente informazioni per gli ospiti (istruzioni, Wi-Fi: arrivano solo nell'area clienti, a chi ha il codice).
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
-if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,...p})=>p)})}
+if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,...p})=>p)})}
 if(a==='busy'){const id=String(req.query.id||'');
  // Fail-closed: se la disponibilità non è verificabile NON si mostrano date libere (503 → il sito mostra "non verificabile")
  try{const config=await cfg(req);if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
@@ -302,7 +321,10 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
  // codice lungo e casuale (13 caratteri): è anche la chiave dell'area clienti. Una collisione è praticamente impossibile, ma non si sovrascrive mai una prenotazione
  let code=newBookingCode();for(let i=0;i<3&&await E.bkGet(code);i++)code=newBookingCode();
- const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
+ // conto: come si arriva al totale, per il riepilogo dell'area clienti (le notti consecutive con lo stesso prezzo stanno in una riga). Si salva adesso:
+ // se poi il titolare cambia i prezzi, l'ospite vede comunque quelli che ha pagato.
+ const righe=[];for(const d of g){const pz=np(p,d),l=righe[righe.length-1];if(l&&l.prezzo===pz)l.notti++;else righe.push({dal:d,notti:1,prezzo:pz})}
+ const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,n)},stato:'in_attesa',creato:new Date().toISOString()};
  let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
@@ -345,7 +367,8 @@ if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? 
 let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},async(code,o)=>findBooking(cfgG||(cfgG=await cfg(req)),code,o));
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
- return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}]})}
+ const bk=x.fonte==='sito'?await E.bkGet(x.code):null;
+ return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk)})}
 if(a==='gc_check'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
  if(x.stato==='in_attesa'||x.stato==='richiesta'||x.stato==='da_verificare')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
@@ -487,9 +510,15 @@ if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img|
 if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.err)return res.status(400).json({err:pre.err});
  // campi di contenuto nuovi: una pagina di gestione non aggiornata (non li invia) non deve cancellare quelli già salvati
  const oa=new Map((old.apts||[]).map(x=>[String(x.id),x])),saved=(p,k)=>p[k]!==undefined?p[k]:(oa.get(String(p.id))||{})[k],ostr=(v,n)=>v===undefined?undefined:String(v).trim().slice(0,n);
- const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
+ const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),infoOspiti:ostr(saved(p,'infoOspiti'),8000),infoRiservate:ostr(saved(p,'infoRiservate'),2000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
  for(const k of Object.keys(b.ical||{}))n.ical[k]=String(b.ical[k]||'');
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
+ // area clienti: orario di check-out (vuoto = non mostrarlo), da quanti giorni prima dell'arrivo si vedono le informazioni riservate, numero WhatsApp.
+ // Un campo non inviato (pagina di gestione non aggiornata) tiene il valore già salvato.
+ if(b.checkoutOra!==undefined&&b.checkoutOra!==''&&!RE_HHMM.test(b.checkoutOra))return res.status(400).json({err:'Orario di check-out non valido: usa il formato HH:MM (es. 10:00) oppure lascialo vuoto'});
+ if(b.infoGiorni!==undefined&&infoGiorni({infoGiorni:b.infoGiorni})!==Number(b.infoGiorni))return res.status(400).json({err:'Giorni per le informazioni riservate non validi: un numero intero da 0 a 30'});
+ const keepG=(k,f)=>{const v=b[k]!==undefined?b[k]:old[k];if(v!==undefined)n[k]=f(v)};
+ keepG('checkoutOra',v=>RE_HHMM.test(v)?v:'');keepG('infoGiorni',v=>infoGiorni({infoGiorni:v}));keepG('whatsapp',v=>String(v||'').replace(/[^\d+ ]/g,'').trim().slice(0,20));
  const keep=new Set(n.apts.flatMap(p=>p.foto));
  for(const p of old.apts)for(const u of p.foto)if(!keep.has(u)&&/blob\.vercel-storage\.com/.test(u))await del(u).catch(()=>{});
  await kv('SET','cfg',JSON.stringify(n));

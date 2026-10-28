@@ -32,13 +32,16 @@ const route=()=>{const[s,sub]=(location.hash||'#panoramica').slice(1).split('/')
 
 const norm=()=>{S.ical=S.ical||{};S.closed=S.closed||{};S.chi=S.chi||'';
   const pg=Number(S.preavvisoGiorni);S.preavvisoGiorni=Number.isInteger(pg)&&pg>=0&&pg<=365?pg:0;S.checkinOra=/^([01]\d|2[0-3]):[0-5]\d$/.test(S.checkinOra)?S.checkinOra:'16:00';
+  // area ospiti: check-out (vuoto = non mostrato), giorni prima dell'arrivo per le informazioni riservate, WhatsApp (non impostato = il telefono del sito)
+  S.checkoutOra=/^([01]\d|2[0-3]):[0-5]\d$/.test(S.checkoutOra)?S.checkoutOra:'';const ig=Number(S.infoGiorni);S.infoGiorni=Number.isInteger(ig)&&ig>=0&&ig<=30?ig:2;
+  if(typeof S.whatsapp!=='string')S.whatsapp='+39 351 704 3594';
   S.apts.forEach(p=>{p.prices=p.prices||{};p.periodi=p.periodi||[];p.blocked=p.blocked||{};p.minPeriodi=p.minPeriodi||[];p.foto=p.foto||[];p.inclusi=p.inclusi||1;
     if(!Array.isArray(p.extraSteps)||!p.extraSteps.length)p.extraSteps=(+p.extra>0)?[+p.extra]:[0];
     // Il prezzo base è quello del 1° ospite e ogni ospite dopo il primo ha il suo supplemento. Un vecchio "N ospiti inclusi" diventa
     // N-1 supplementi a 0: i prezzi a notte per 1, 2, 3… ospiti restano identici a prima (il sito e il server non cambiano).
     if(p.inclusi>1){p.extraSteps=[...Array(p.inclusi-1).fill(0),...p.extraSteps];p.inclusi=1}
     p.extraSteps=p.extraSteps.slice(0,Math.max(1,(+p.max||1)-1));
-    ['cin','cipat','dettagli','servizi'].forEach(k=>{if(typeof p[k]!=='string')p[k]=''})})};
+    ['cin','cipat','dettagli','servizi','infoOspiti','infoRiservate'].forEach(k=>{if(typeof p[k]!=='string')p[k]=''})})};
 const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
   (D.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>BUSY[e.id]&&BUSY[e.id].add(x)));
   (D.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>BUSY[x.id]&&BUSY[x.id].add(z)))};
@@ -128,7 +131,14 @@ const sTesti=(p,i)=>`<div class="field"><label>Nome</label><input data-b="a:${i}
   <div class="field"><textarea rows="16" data-b="a:${i}:dettagli" data-testid="admin-dettagli-${p.id}">${esc(p.dettagli)}</textarea></div>
   <h3>Servizi</h3>
   <p class="book-note">L'elenco che si apre con «Mostra tutti i servizi». Scrivi «## Gruppo» per aprire un gruppo; ogni servizio è una riga che inizia con «- ». I primi 8 compaiono anche nella pagina.</p>
-  <div class="field"><textarea rows="16" data-b="a:${i}:servizi" data-testid="admin-servizi-${p.id}">${esc(p.servizi)}</textarea></div>`;
+  <div class="field"><textarea rows="16" data-b="a:${i}:servizi" data-testid="admin-servizi-${p.id}">${esc(p.servizi)}</textarea></div>
+  ${sOspiti(p,i)}`;
+// Area ospiti: testi che vede solo chi entra con il codice di una prenotazione di questo appartamento (mai sulla pagina pubblica)
+const sOspiti=(p,i)=>`<h3>Area ospiti</h3>
+  <p class="book-note">Questi testi li vede solo l'ospite che entra nell'area clienti con il codice di una prenotazione di ${esc(short(p))}: non compaiono sul sito pubblico. Scrivi «## Titolo» per aprire una scheda (es. «## Regole della casa», «## Raccolta differenziata», «## Prima di partire»).</p>
+  <div class="field"><label>Informazioni per l'ospite</label><textarea rows="10" data-b="a:${i}:infoOspiti" data-testid="admin-info-ospiti-${p.id}" placeholder="## Regole della casa&#10;- …">${esc(p.infoOspiti)}</textarea></div>
+  <div class="field"><label>Wi-Fi e informazioni riservate</label><textarea rows="4" data-b="a:${i}:infoRiservate" data-testid="admin-info-riservate-${p.id}" placeholder="Rete: …&#10;Password: …">${esc(p.infoRiservate)}</textarea></div>
+  <p class="book-note">Le informazioni riservate compaiono solo da ${S.infoGiorni} ${S.infoGiorni===1?'giorno':'giorni'} prima dell'arrivo fino al giorno della partenza (si cambia in Prenotazioni → Area ospiti). Non scrivere qui i codici della cassetta delle chiavi: per entrare nell'area basta il codice di prenotazione; i codici della cassetta li manda il check-in online, dopo la registrazione degli ospiti.</p>`;
 
 const sFoto=(p,i)=>`<p class="book-note">Trascina le foto per cambiare l'ordine oppure usa le frecce. La <b>prima</b> è la copertina (★ per usarne un'altra). Le foto vengono ridimensionate automaticamente.</p>
   <div class="pm-grid" id="pm-${i}"></div>
@@ -224,7 +234,14 @@ const vNotice=()=>`<div class="admin-card" data-testid="admin-notice"><h2>Preavv
   <div class="fields-grid">
    <div class="field"><label for="pre-g">Preavviso minimo (giorni)</label><input id="pre-g" type="number" min="0" max="365" step="1" inputmode="numeric" data-b="c:preavvisoGiorni" value="${esc(S.preavvisoGiorni)}" data-testid="admin-notice-days"></div>
    <div class="field"><label for="pre-h">Orario di check-in (ora di Roma)</label><input id="pre-h" type="time" data-b="c:checkinOra" value="${esc(S.checkinOra)}" style="-webkit-appearance:none;appearance:none;display:block;min-height:46px" data-testid="admin-checkin-time"></div></div>
-  <p class="book-note" id="pre-ex" data-testid="admin-notice-example"></p></div>`;
+  <p class="book-note" id="pre-ex" data-testid="admin-notice-example"></p></div>
+  <div class="admin-card" data-testid="admin-area-ospiti"><h2>Area ospiti</h2>
+  <p class="book-note">Cosa vede l'ospite nell'area clienti. L'orario di check-in è quello qui sopra. Ricordati di salvare.</p>
+  <div class="fields-grid">
+   <div class="field"><label for="ga-co">Orario di check-out <small>(vuoto = non mostrato)</small></label><input id="ga-co" type="time" data-b="c:checkoutOra" value="${esc(S.checkoutOra)}" style="-webkit-appearance:none;appearance:none;display:block;min-height:46px" data-testid="admin-checkout-time"></div>
+   <div class="field"><label for="ga-ig">Wi-Fi e informazioni riservate: visibili da</label><div class="adm-inp"><input id="ga-ig" type="number" min="0" max="30" step="1" inputmode="numeric" data-b="c:infoGiorni" value="${esc(S.infoGiorni)}" style="max-width:90px" data-testid="admin-info-giorni"><span>giorni prima dell'arrivo</span></div></div>
+   <div class="field"><label for="ga-wa">Numero WhatsApp <small>(vuoto = non mostrato)</small></label><input id="ga-wa" type="tel" data-b="c:whatsapp" value="${esc(S.whatsapp)}" data-testid="admin-whatsapp"></div></div>
+  <p class="book-note">I testi per gli ospiti (regole della casa, Wi-Fi…) si scrivono in ogni appartamento → Testi → Area ospiti.</p></div>`;
 const RE_HHMM=/^([01]\d|2[0-3]):[0-5]\d$/;
 function preRender(){const el=$('#pre-ex');if(!el)return;
   const g=Number(S.preavvisoGiorni),h=RE_HHMM.test(S.checkinOra)?S.checkinOra:'',gOk=Number.isInteger(g)&&g>=0&&g<=365;
@@ -473,6 +490,8 @@ async function save(){
   const pg=Number(S.preavvisoGiorni);      // preavviso minimo (Prenotazioni): il server ricontrolla comunque
   if(!Number.isInteger(pg)||pg<0||pg>365){o.textContent='Controlla il preavviso minimo (in Prenotazioni): un numero intero di giorni da 0 a 365';o.className='admin-msg warn';btn.disabled=false;return}
   if(!RE_HHMM.test(S.checkinOra)){o.textContent='Controlla l’orario di check-in (in Prenotazioni): formato HH:MM';o.className='admin-msg warn';btn.disabled=false;return}
+  if(S.checkoutOra&&!RE_HHMM.test(S.checkoutOra)){o.textContent='Controlla l’orario di check-out (in Prenotazioni → Area ospiti): formato HH:MM, oppure lascialo vuoto';o.className='admin-msg warn';btn.disabled=false;return}
+  const ig=Number(S.infoGiorni);if(!Number.isInteger(ig)||ig<0||ig>30){o.textContent='Controlla i giorni per le informazioni riservate (in Prenotazioni → Area ospiti): da 0 a 30';o.className='admin-msg warn';btn.disabled=false;return}
   for(const p of S.apts){ // controlli di coerenza prima di inviare
     const bad=p.periodi.find(q=>!q.da||!q.a||q.a<q.da);if(bad){o.textContent='Controlla i periodi di prezzo di '+short(p)+': date mancanti o invertite';o.className='admin-msg warn';btn.disabled=false;return}
     const bm=p.minPeriodi.find(q=>!q.da||!q.a||q.a<q.da);if(bm){o.textContent='Controlla i periodi di soggiorno minimo di '+short(p)+': date mancanti o invertite';o.className='admin-msg warn';btn.disabled=false;return}}
