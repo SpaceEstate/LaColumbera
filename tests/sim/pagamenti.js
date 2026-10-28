@@ -231,6 +231,7 @@ test('P13 il controllo al ritorno è limitato (60 richieste ogni 10 minuti per I
 test('P14 configurazione di Vercel: le funzioni hanno 60 secondi (foglio e feed iCal possono essere lenti) e restano entro il limite di 12 funzioni del piano gratuito', async () => {
   const v = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'vercel.json'), 'utf8'));
   eq(v.functions && v.functions['api/**/*.js'] && v.functions['api/**/*.js'].maxDuration, 60, 'maxDuration');
+  eq(v.regions, ['fra1'], 'le funzioni girano a Francoforte, come Upstash: dati in UE e meno attesa');
   const n = fs.readdirSync(path.join(__dirname, '..', '..', 'api')).filter(f => f.endsWith('.js') && !f.startsWith('_')).length; assert(n <= 12, 'Vercel Hobby: al massimo 12 funzioni (ora ' + n + ')');
 });
 
