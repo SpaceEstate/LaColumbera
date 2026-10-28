@@ -120,7 +120,7 @@ async function waitFor(fn, what, tries = 150) {
 }
 const text = el => (el && el.textContent || '').replace(/\s+/g, ' ').trim();
 const adminToken = async () => (await H.api('login', { u: 'admin', p: 'pw' })).body.t;
-const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
+const loadAdmin = async (hash = '', extra = {}) => { const r = await load('admin.html', Object.assign({ hash, token: await adminToken(), scripts: ['js/site.js', 'js/adempimenti.js', 'js/istat.js', 'js/admin-messaggi.js', 'js/admin.js'] }, extra)); await waitFor(() => r.doc.querySelector('#adm-body .admin-card'), 'pannello admin'); return r; };
 const goto = async (r, hash, sel) => { r.w.location.hash = hash; await waitFor(() => r.doc.querySelector(sel), 'sezione ' + hash); };
 
 const tests = [];
@@ -343,6 +343,33 @@ test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; B
   assert(/Arrivi domani/.test(text(r.doc.querySelector('[data-testid=ga-count]'))), 'cambio lingua dentro l\'area');
   r.doc.querySelector('[data-testid=ga-logout]').click();
   assert(!r.doc.querySelector('#login').hidden && !r.doc.querySelector('[data-testid=guest-app]') && !r.w.sessionStorage.getItem('lc_acc'), 'uscita: sessione cancellata');
+});
+
+test('U4j area ospiti · Messaggi: si scrive e si legge (testo, mai HTML), la risposta arriva tradotta con l\'originale; Booking/Airbnb senza scheda Messaggi', async () => {
+  await setup({ DEEPL_API_KEY: 'chiave-prova' });
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, lang: 'en-GB', scripts: AREA });
+  await waitFor(() => r.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
+  const panel = tabOf(r, 'messaggi');
+  await waitFor(() => r.doc.querySelector('[data-testid=ga-chat-vuota]'), 'nessun messaggio');
+  r.doc.querySelector('[data-testid=ga-testo]').value = 'Hi! <img src=x onerror="window.__x=1"> Can we check in at 6pm?';
+  r.doc.querySelector('#ga-send').requestSubmit();
+  await waitFor(() => panel.querySelector('.ga-msg.me'), 'messaggio inviato');
+  assert(!panel.querySelector('.ga-bubble img') && /<img src=x/.test(text(panel.querySelector('.ga-msg.me'))) && !r.w.__x, 'il testo resta testo');
+  assert.equal(r.doc.querySelector('[data-testid=ga-testo]').value, '', 'campo svuotato');
+  const th = (await H.adminApi('msg_thread', { code: c.code })).body;
+  assert.equal(th.messaggi[0].tradotto, '[IT] Hi! <img src=x onerror="window.__x=1"> Can we check in at 6pm?', 'il titolare legge in italiano');
+  await H.adminApi('msg_reply', { code: c.code, testo: 'Certo, alle 18 va benissimo: https://www.lacolumbera.test/mappa.html' });
+  tabOf(r, 'soggiorno'); tabOf(r, 'messaggi');
+  const them = await waitFor(() => panel.querySelector('.ga-msg.them'), 'risposta del titolare');
+  assert(/\[EN\] Certo, alle 18 va benissimo/.test(text(them)) && them.querySelector('.ga-bubble a[href="https://www.lacolumbera.test/mappa.html"][rel~=noopener]'), 'tradotta, link cliccabile: ' + them.innerHTML);
+  const ob = them.querySelector('[data-orig]'); assert(/Show original/.test(text(ob)));
+  const orig = r.doc.querySelector('#ga-o-' + ob.dataset.orig); assert(orig.hidden); ob.click(); assert(!orig.hidden && /^Certo, alle 18/.test(text(orig)), 'mostra l\'originale');
+  // Airbnb: niente chat nel sito (scrive sulla piattaforma)
+  regAirbnb();
+  const a = await load('area-clienti.html', { hash: '#k=HMSEDESZCW', scripts: AREA });
+  await waitFor(() => a.doc.querySelector('[data-testid=guest-app]'), 'area ospiti Airbnb');
+  assert(!a.doc.querySelector('[data-testid=ga-tab-messaggi]'), 'nessuna scheda Messaggi per Airbnb');
 });
 
 /* ===================== pannello admin (admin.js) ===================== */
@@ -756,6 +783,55 @@ test('W12 Gestione · Area ospiti: testi per gli ospiti in ogni appartamento, ch
   const g = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
   await waitFor(() => g.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
   assert(/entro le 10:30/.test(text(g.doc.querySelector('[data-testid=mie-card-' + c.code + ']'))) && !g.doc.querySelector('[data-testid=ga-wa]'), 'check-out mostrato, WhatsApp nascosto');
+});
+
+test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta con un template, programmazione; template compilati per Airbnb; regola automatica e «salta»', async () => {
+  await setup(); regAirbnb();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  await H.api('msg_send', { code: c.code, t: c.t, testo: 'Buongiorno, c\'è il parcheggio? <b>grazie</b>' });
+  const r = await loadAdmin('#panoramica'), $ = s => r.doc.querySelector(s), set = (el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
+  assert.equal(text($('[data-testid=admin-msg-badge]')), '1', 'badge nel menu');
+  await goto(r, '#messaggi', '[data-testid=msg-conv-' + c.code + ']');
+  assert(r.doc.body.classList.contains('adp-active'), 'niente barra «Salva modifiche»');
+  const row = $('[data-testid=msg-conv-' + c.code + ']'); assert(row.classList.contains('unread') && /Mario Rossi/.test(text(row)) && /parcheggio\? <b>grazie<\/b>/.test(text(row)), text(row));
+  await goto(r, '#messaggi/c/' + c.code, '[data-testid=msg-thread]');
+  await waitFor(() => $('[data-testid=msg-messages] .ga-msg'), 'messaggi');
+  assert(!$('[data-testid=msg-messages] b') && /<b>grazie<\/b>/.test(text($('[data-testid=msg-messages]'))), 'testo, mai HTML');
+  await waitFor(() => !$('[data-testid=admin-msg-badge]'), 'letta: il badge sparisce');
+  const pick = $('[data-testid=msg-tpl-pick]'); pick.value = 'promemoria'; pick.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  await waitFor(() => /ci vediamo giovedì 10 dicembre/.test($('[data-testid=msg-testo]').value), 'template compilato nella risposta');
+  $('#msg-reply').requestSubmit();
+  await waitFor(() => r.doc.querySelectorAll('[data-testid=msg-messages] .ga-msg.me').length === 1, 'risposta inviata');
+  assert(/inviato/.test(text($('[data-testid=msg-messages] .ga-msg.me'))), 'non ancora letto');
+  // programmata per domani
+  $('[data-testid=msg-testo]').value = 'Promemoria programmato';
+  $('[data-testid=msg-prog-open]').click(); $('[data-testid=msg-quando]').value = '2026-10-03T10:00'; $('[data-testid=msg-prog-ok]').click();
+  await waitFor(() => /Programmato per/.test(text($('[data-testid=msg-out]'))), 'programmato');
+  // template: compila per la prenotazione Airbnb (testo da incollare nella chat di Airbnb)
+  await goto(r, '#messaggi/template', '[data-testid=msg-tpl]');
+  const box = [...r.doc.querySelectorAll('.msg-tpl')].find(x => /area ospiti/.test(x.querySelector('[data-tf=nome]').value)); assert(box, 'template per Booking e Airbnb');
+  const i = box.dataset.i;
+  const sel = r.doc.querySelector('[data-tprev="' + i + '"]'); sel.value = 'HMSEDESZCW';
+  $('[data-testid=msg-tpl-fill-' + i + ']').click();
+  await waitFor(() => !$('[data-testid=msg-tpl-prev-' + i + ']').hidden, 'anteprima');
+  assert(/area-clienti\.html#k=HMSEDESZCW/.test(text($('[data-testid=msg-tpl-prev-' + i + ']'))), text($('[data-testid=msg-tpl-prev-' + i + ']')));
+  set(r.doc.querySelector('[data-tf=nome][data-i="0"]'), 'Benvenuto rinominato'); $('[data-testid=msg-tpl-save]').click();
+  await waitFor(() => /Template salvati/.test(text($('[data-testid=msg-tpl-out]'))), 'salvati');
+  assert.equal(JSON.parse(kv.exec(['GET', 'msg:tpl']))[0].nome, 'Benvenuto rinominato');
+  // regola: due giorni prima dell'arrivo alle 10, attiva; compare tra i prossimi invii quando manca meno di una settimana
+  await goto(r, '#messaggi/automatici', '[data-testid=msg-auto]');
+  $('[data-testid=msg-rule-add]').click();
+  const q = await waitFor(() => $('[data-testid=msg-rule-quando-0]'), 'nuova regola'); q.value = 'prima'; q.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  const n = await waitFor(() => $('[data-testid=msg-rule-n-0]'), 'giorni'); n.value = '2'; n.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  const at = $('[data-testid=msg-rule-attiva-0]'); at.checked = true; at.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  $('[data-testid=msg-auto-save]').click();
+  await waitFor(() => /Regole salvate/.test(text($('[data-testid=msg-auto-out]'))), 'regole salvate');
+  const reg = JSON.parse(kv.exec(['GET', 'msg:auto']))[0]; assert.deepEqual([reg.attiva, reg.base, reg.giorni, reg.ora], [true, 'arrivo', -2, '10:00']);
+  clock.set('2026-12-03T09:00:00Z');
+  const r2 = await loadAdmin('#messaggi/automatici');
+  const sk = await waitFor(() => r2.doc.querySelector('[data-testid=msg-skip-' + reg.id + '-' + c.code + ']'), 'prossimo invio');
+  sk.click(); await waitFor(() => /saltato/.test(text(r2.doc.querySelector('[data-testid=msg-next-' + reg.id + '-' + c.code + ']'))), 'saltato');
+  assert.equal(kv.exec(['GET', 'msg:fatto:' + reg.id + ':' + c.code]), 'saltato');
 });
 
 /* ===================== Adempimenti → Alloggiati Web (js/adempimenti.js) ===================== */

@@ -34,7 +34,9 @@ const L={
   eventi:'Eventi durante il tuo soggiorno',nessunEvento:'Nessun evento in calendario per le tue date.',tuttiEventi:'Tutti gli eventi',caricoEventi:'Carico gli eventi…',
   luoghi:'Luoghi di interesse',luoghiD:'Trento, laghi, castelli e montagna',conv:'Convenzioni',convD:'Vantaggi per gli ospiti',trovarciD:'Auto, autobus e parcheggio',tutti:'Eventi a Trento',tuttiD:'Il calendario completo',
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area ospiti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
-  calTitolo:a=>'Soggiorno a La Columbera · '+a,calArea:'Area ospiti'},
+  calTitolo:a=>'Soggiorno a La Columbera · '+a,calArea:'Area ospiti',
+  chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
+  scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti'},
  en:{eyebrow:'Guest area',titolo:'Your booking',sub:'Enter your booking code: you will find it in the confirmation email if you booked on our website, otherwise it is your Booking.com or Airbnb reservation number.',
   etCodice:'Booking code',entra:'Open',cerco:'Searching…',privacy:'Your booking code works like a key: do not share it with anyone who is not staying with you. We only use it to show you your booking and the related services.',informativa:'Privacy notice',lingua:'Language',
   err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',
@@ -49,7 +51,9 @@ const L={
   eventi:'Events during your stay',nessunEvento:'No events scheduled for your dates.',tuttiEventi:'All events',caricoEventi:'Loading events…',
   luoghi:'Places to visit',luoghiD:'Trento, lakes, castles and mountains',conv:'Partner offers',convD:'Perks for our guests',trovarciD:'Car, bus and parking',tutti:'Events in Trento',tuttiD:'The full calendar',
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
-  calTitolo:a=>'Stay at La Columbera · '+a,calArea:'Guest area'},
+  calTitolo:a=>'Stay at La Columbera · '+a,calArea:'Guest area',
+  chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
+  scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left'},
  de:{eyebrow:'Gästebereich',titolo:'Ihre Buchung',sub:'Geben Sie Ihren Buchungscode ein: Sie finden ihn in der Bestätigungs-E-Mail, wenn Sie auf unserer Website gebucht haben, ansonsten ist es Ihre Buchungsnummer von Booking.com oder Airbnb.',
   etCodice:'Buchungscode',entra:'Öffnen',cerco:'Suche…',privacy:'Der Buchungscode funktioniert wie ein Schlüssel: Geben Sie ihn nicht an Personen weiter, die nicht mit Ihnen übernachten. Wir verwenden ihn nur, um Ihnen Ihre Buchung und die zugehörigen Dienste anzuzeigen.',informativa:'Datenschutzhinweis',lingua:'Sprache',
   err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
@@ -64,7 +68,9 @@ const L={
   eventi:'Veranstaltungen während Ihres Aufenthalts',nessunEvento:'Für Ihre Daten sind keine Veranstaltungen geplant.',tuttiEventi:'Alle Veranstaltungen',caricoEventi:'Veranstaltungen werden geladen…',
   luoghi:'Sehenswürdigkeiten',luoghiD:'Trient, Seen, Burgen und Berge',conv:'Partnerangebote',convD:'Vorteile für unsere Gäste',trovarciD:'Auto, Bus und Parkplatz',tutti:'Veranstaltungen in Trient',tuttiD:'Der ganze Kalender',
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
-  calTitolo:a=>'Aufenthalt in La Columbera · '+a,calArea:'Gästebereich'}
+  calTitolo:a=>'Aufenthalt in La Columbera · '+a,calArea:'Gästebereich',
+  chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
+  scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen'}
 };
 const pickL=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
 let lang=pickL(ss('lc_lang'))||(navigator.languages||[navigator.language]).map(pickL).find(Boolean)||'en';
@@ -129,6 +135,9 @@ const cards=(txt,title0)=>{const out=[];let cur=null;
 
 /* ---------------- stato della pagina ---------------- */
 let R=null,tab='soggiorno',evCache=null,deferredInstall=null;
+// messaggi: v = versione già mostrata (il server dice solo «niente di nuovo» se non cambia), poll = controlli fatti dall'ultima attività
+const MS={v:null,list:[],timer:null,poll:0,busy:false,err:''};
+const MAX_TESTO=2000,POLL_MS=20000,POLL_MAX=30;      // un controllo ogni 20 secondi, solo con la scheda Messaggi aperta e la pagina in primo piano, al massimo 10 minuti senza toccare nulla
 const sog=()=>{const r=R||{},s=r.soggiorno;if(s)return s;
  const x=(r.prenotazioni||[])[0]||{};return Object.assign({apt:{nome:x.id||''},orari:{},info:{},contatti:{},pagamento:null},x)};      // risposta di una versione precedente del server
 
@@ -148,10 +157,10 @@ async function load(body,btn){
   try{r=await api('mie',body)}
   catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
   if(r.t)accSet(r.code||body.code,r.t);
-  R=r;tab='soggiorno';evCache=null;paint()}
+  R=r;tab='soggiorno';evCache=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
  catch(x){showErr(x)}
  finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig||t('entra');delete btn.dataset.loading}}}
-function logout(){accDel();R=null;$('#r').innerHTML='';const lg=$('#login');if(lg)lg.hidden=false;document.querySelector('.auth-wrap').classList.remove('ga-on');const cd=$('#cd');if(cd){cd.value='';cd.focus()}}
+function logout(){accDel();R=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});$('#r').innerHTML='';const lg=$('#login');if(lg)lg.hidden=false;document.querySelector('.auth-wrap').classList.remove('ga-on');const cd=$('#cd');if(cd){cd.value='';cd.focus()}}
 
 /* ---------------- disegno ---------------- */
 const act=(href,ic,label,desc,attrs)=>`<a class="ga-act" href="${esc(href)}"${attrs||''}>${icon(ic)}<span><b>${esc(label)}</b>${desc?`<small>${esc(desc)}</small>`:''}</span></a>`;
@@ -217,6 +226,57 @@ async function paintEvents(s){
  el.innerHTML=list.length?`<ul class="ga-ev">${list.map(x=>{const u=safe(x.url),inner=`<span class="ga-ev-d">${esc(dDay(x.date))}${x.time?' · '+esc(x.time):''}</span><b>${esc(x.title)}</b>${x.location?`<small>${esc(x.location)}</small>`:''}`;
    return `<li data-testid="ga-ev-${esc(x.date)}">${u?`<a href="${esc(u)}"${ext}>${inner}</a>`:inner}</li>`}).join('')}</ul>`:`<p class="book-note" data-testid="ga-ev-none">${esc(t('nessunEvento'))}</p>`}
 
+/* ---------------- messaggi (solo prenotazioni fatte sul sito) ---------------- */
+// testo sempre come testo; i soli indirizzi http(s) diventano link (si aprono in un'altra scheda)
+const linkify=s=>esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+const ora=ts=>{try{return new Date(ts).toLocaleString(LOC[lang],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch{return ''}};
+const chatOn=()=>{const s=sog();return !!(s.messaggi&&s.messaggi.attivi)};
+function pMessaggi(){
+ return `<section class="ga-card ga-chat" data-testid="ga-chat"><p class="book-note">${esc(t('chatNota'))}</p>
+  <div class="ga-thread" id="ga-thread" data-testid="ga-thread">${threadHtml()}</div>
+  <form id="ga-send" class="ga-compose" data-testid="ga-compose" novalidate>
+   <label for="ga-testo">${esc(t('scrivi'))}</label>
+   <textarea id="ga-testo" rows="3" maxlength="${MAX_TESTO}" placeholder="${esc(t('scriviPh'))}" data-testid="ga-testo"></textarea>
+   <div class="ga-compose-bar"><small id="ga-cnt" aria-live="polite"></small><button class="btn btn-wine" data-testid="ga-invia">${esc(t('invia'))}</button></div>
+   <p class="form-err" id="ga-merr" role="alert" data-testid="ga-merr">${esc(MS.err)}</p></form></section>`}
+function threadHtml(){
+ if(!MS.list.length)return `<p class="book-note" data-testid="ga-chat-vuota">${esc(t('chatVuota'))}</p>`;
+ return MS.list.map(m=>{const me=m.da==='ospite';
+  return `<div class="ga-msg ${me?'me':'them'}" data-testid="ga-msg-${esc(m.id)}"><div class="ga-bubble">${linkify(m.testo)}</div>
+   <div class="ga-meta">${esc(me?t('tu'):t('noi'))} · ${esc(ora(m.ts))}${m.originale?` · <span>${esc(t('tradotto'))}</span> · <button type="button" class="link-btn" data-orig="${esc(m.id)}">${esc(t('originale'))}</button>`:''}</div>
+   ${m.originale?`<div class="ga-orig" id="ga-o-${esc(m.id)}" hidden>${linkify(m.originale)}</div>`:''}</div>`}).join('')}
+function paintThread(scroll){const el=$('#ga-thread');if(!el)return;const near=el.scrollHeight-el.scrollTop-el.clientHeight<80;el.innerHTML=threadHtml();if(scroll||near)el.scrollTop=el.scrollHeight}
+function setBadge(n){const s=sog();if(s.messaggi)s.messaggi.nonLetti=n;const b=$('#ga-t-messaggi .adm-badge');if(n>0){if(b)b.textContent=n;else{const tb=$('#ga-t-messaggi');if(tb)tb.insertAdjacentHTML('beforeend',`<span class="adm-badge">${n}</span>`)}}else if(b)b.remove()}
+// chiamata con il token della sessione; se è scaduto (4 ore) si rientra con il solo codice, come all'accesso
+async function callG(a,extra){
+ const code=R.code||sog().code,b=accBody(code);
+ try{const r=await api(a,Object.assign({},b,extra));if(r.t)accSet(code,r.t);return r}
+ catch(x){if(!b.t||x.status!==404||a==='msg_v')throw x;accDel();const r=await api(a,Object.assign({code},extra));if(r.t)accSet(code,r.t);return r}}
+async function loadMsgs(first){
+ if(!R||!chatOn())return;
+ try{const r=await callG('msg_list',{lingua:lang,v:first?null:MS.v});
+  if(!r.invariato){MS.list=r.messaggi||[];MS.v=r.v;paintThread(first)}
+  setBadge(0)}
+ catch(x){if(x.status===404||x.status===401)stopPoll()}}
+// controllo periodico: prima solo la versione (leggerissimo); l'elenco intero solo se è cambiato qualcosa
+async function pollMsgs(){
+ try{const r=await callG('msg_v');if(r.v!==MS.v)await loadMsgs(false)}
+ catch(x){if(x.status===404)await loadMsgs(false)}}      // token scaduto: l'elenco rientra con il codice e rinnova la sessione
+function stopPoll(){clearTimeout(MS.timer);MS.timer=null}
+function schedulePoll(){stopPoll();if(tab!=='messaggi'||MS.poll>=POLL_MAX)return;
+ MS.timer=setTimeout(async()=>{MS.timer=null;if(tab!=='messaggi')return;if(document.visibilityState==='visible'){MS.poll++;await pollMsgs()}schedulePoll()},POLL_MS)}
+function active(){MS.poll=0;if(tab==='messaggi'&&!MS.timer)schedulePoll()}
+async function sendMsg(f){
+ const ta=$('#ga-testo'),btn=f.querySelector('button'),testo=(ta.value||'').trim();
+ if(!testo||MS.busy)return;
+ MS.busy=true;btn.disabled=true;btn.textContent=t('invio');MS.err='';const e=$('#ga-merr');if(e)e.textContent='';
+ try{const m=await callG('msg_send',{testo,lingua:lang});
+  MS.list.push({id:m.id,da:'ospite',testo:m.testo,ts:m.ts});ta.value='';cnt();paintThread(true);
+  loadMsgs(false)}      // la versione è cambiata: si allinea subito (e prende eventuali risposte arrivate nel frattempo)
+ catch(x){MS.err=x.status===429?(lang==='it'?x.message:t('troppiMsg')):x.status===400&&lang==='it'?x.message:t('errInvio');const el=$('#ga-merr');if(el)el.textContent=MS.err}
+ finally{MS.busy=false;btn.disabled=false;btn.textContent=t('invia');active()}}
+function cnt(){const ta=$('#ga-testo'),c=$('#ga-cnt');if(!ta||!c)return;const left=MAX_TESTO-ta.value.length;c.textContent=left<200?t('caratteri',left):''}
+
 /* ---------------- app installabile (PWA) ---------------- */
 const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch{return false}};
 const isIos=()=>/iphone|ipad|ipod/i.test(navigator.userAgent||'')||(/Macintosh/.test(navigator.userAgent||'')&&navigator.maxTouchPoints>1);
@@ -229,31 +289,38 @@ function paint(){
  const s=sog(),lg=$('#login');if(lg)lg.hidden=true;
  document.querySelector('.auth-wrap').classList.add('ga-on');
  document.documentElement.lang=lang;
- const tabs=[['soggiorno',t('tabSoggiorno')],['info',t('tabInfo')],['dintorni',t('tabDintorni')]];
+ const tabs=[['soggiorno',t('tabSoggiorno')],...(chatOn()?[['messaggi',t('tabMessaggi')]]:[]),['info',t('tabInfo')],['dintorni',t('tabDintorni')]];
  if(!tabs.some(x=>x[0]===tab))tab='soggiorno';
+ const nl=chatOn()?+s.messaggi.nonLetti||0:0;
  $('#r').innerHTML=`<div class="ga" data-testid="guest-app">
   <div class="ga-bar">${langSel('ga-lang-app')}<button type="button" class="link-btn" data-act="logout" data-testid="ga-logout">${esc(t('esci'))}</button></div>
   <header class="ga-hero">${s.apt.foto?`<img class="ga-hero-img" src="${esc(s.apt.foto)}" alt="" decoding="async">`:''}<div class="ga-hero-in">
    <span class="ga-kicker">${esc(t('titolo'))}</span><h2>${esc(short(s.apt.nome))}</h2>
    <p>${esc(dDay(s.da))} → ${esc(dDay(s.a))} · ${esc(t('nNotti',s.notti))}${s.ospiti?' · '+esc(t('nOspiti',s.ospiti)):''}</p>
    <span class="ga-count" data-testid="ga-count">${esc(countdown(s))}</span></div></header>
-  <div class="ga-tabs" role="tablist" aria-label="${esc(t('tabs'))}">${tabs.map(([k,l])=>`<button type="button" role="tab" id="ga-t-${k}" aria-controls="ga-p-${k}" aria-selected="${k===tab}" tabindex="${k===tab?0:-1}" data-tab="${k}" data-testid="ga-tab-${k}">${esc(l)}</button>`).join('')}</div>
-  ${tabs.map(([k])=>`<section class="ga-panel" role="tabpanel" id="ga-p-${k}" aria-labelledby="ga-t-${k}"${k===tab?'':' hidden'}>${k==='soggiorno'?pSoggiorno(s):k==='info'?pInfo(s):pDintorni(s)}</section>`).join('')}
+  <div class="ga-tabs" role="tablist" aria-label="${esc(t('tabs'))}">${tabs.map(([k,l])=>`<button type="button" role="tab" id="ga-t-${k}" aria-controls="ga-p-${k}" aria-selected="${k===tab}" tabindex="${k===tab?0:-1}" data-tab="${k}" data-testid="ga-tab-${k}">${esc(l)}${k==='messaggi'&&nl?`<span class="adm-badge">${nl}</span>`:''}</button>`).join('')}</div>
+  ${tabs.map(([k])=>`<section class="ga-panel" role="tabpanel" id="ga-p-${k}" aria-labelledby="ga-t-${k}"${k===tab?'':' hidden'}>${k==='soggiorno'?pSoggiorno(s):k==='messaggi'?pMessaggi():k==='info'?pInfo(s):pDintorni(s)}</section>`).join('')}
  </div>`;
- if(tab==='dintorni')paintEvents(s)}
+ if(tab==='dintorni')paintEvents(s);
+ if(tab==='messaggi'){loadMsgs(true);active()}}
 function setTab(k,focus){tab=k;
  $$('.ga-tabs [role=tab]').forEach(b=>{const on=b.dataset.tab===k;b.setAttribute('aria-selected',on);b.tabIndex=on?0:-1;if(on&&focus)b.focus()});
  $$('.ga-panel').forEach(p=>{p.hidden=p.id!=='ga-p-'+k});
- if(k==='dintorni')paintEvents(sog())}
+ if(k==='dintorni')paintEvents(sog());
+ if(k==='messaggi'){loadMsgs(MS.v==null);active()}else stopPoll()}
 
 /* ---------------- eventi della pagina ---------------- */
 function wire(){
  const f=$('#f');
  f.onsubmit=e=>{e.preventDefault();const code=codeIn($('#cd').value);if(!code)return;load(accBody(code),f.querySelector('[data-testid="area-clienti-submit"]'))};
+ document.addEventListener('submit',e=>{if(e.target&&e.target.id==='ga-send'){e.preventDefault();sendMsg(e.target)}});
+ document.addEventListener('input',e=>{if(e.target&&e.target.id==='ga-testo'){cnt();active()}});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&tab==='messaggi'&&R){loadMsgs(false);active()}});
  document.addEventListener('click',async e=>{
   const lb=e.target.closest('[data-lang]');
   if(lb){lang=lb.dataset.lang;ss('lc_lang',lang);if(R)paint();else i18nLogin();const nb=$(`[data-lang="${lang}"]`);if(nb)nb.focus();return}
   const tb=e.target.closest('.ga-tabs [role=tab]');if(tb){setTab(tb.dataset.tab);return}
+  const og=e.target.closest('[data-orig]');if(og){const o=$('#ga-o-'+og.dataset.orig);if(o){o.hidden=!o.hidden;og.setAttribute('aria-expanded',String(!o.hidden))}return}
   const cp=e.target.closest('[data-copy]');
   if(cp){const ok=await copia(cp.dataset.copy);cp.textContent=ok?t('copiato'):cp.textContent;clearTimeout(cp._t);cp._t=setTimeout(()=>{cp.textContent=t('copia')},2200);return}
   const a=e.target.closest('[data-act]');if(!a)return;

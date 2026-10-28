@@ -122,4 +122,25 @@ Email:    ${b.email||'—'}
 Telefono: ${tel||'—'}${b.pagamento?'\nRif. Stripe: '+b.pagamento:''}`;
   return{subject:`Nuova prenotazione · ${aptName(b.id)} · ${dLong(b.da)} · ${b.code}`,html,text}};
 
-module.exports={guestMail,ownerMail};
+// ---------------- AVVISI DEI MESSAGGI (api/_messaggi.js) ----------------
+// Al titolare: un ospite ha scritto. Senza il testo del messaggio (resta nell'area riservata): solo chi, quale soggiorno e il link per rispondere.
+const avvisoTitolare=(b,site)=>{
+  const link=site+'/admin.html#messaggi',chi=String(b.nome||'').trim()||'un ospite',quando=b.da?dLong(b.da):'';
+  const html=shell({site,eyebrow:'Nuovo messaggio',preheader:`${chi} ti ha scritto nell'area ospiti`,title:`Nuovo messaggio da<br><span style="color:${C.wine}">${esc(chi)}</span>`,
+    body:sec(`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center">Ti ha scritto nell'area ospiti${b.id?' l\'ospite di <b>'+esc(aptName(b.id))+'</b>':''}${quando?', arrivo '+esc(quando):''}. Per leggere il messaggio e rispondere apri la Gestione.</p>`,'16px 32px 0')+
+      sec(button(link,'Leggi e rispondi'),'24px 32px 0')+
+      sec(`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">Per non disturbarti ricevi al massimo un avviso ogni 15 minuti per conversazione. Si disattiva in Gestione → Messaggi → Automatici.</p>`,'22px 32px 32px')});
+  const text=`Nuovo messaggio da ${chi}${b.id?' ('+aptName(b.id)+(quando?', arrivo '+quando:'')+')':''} nell'area ospiti.\n\nPer leggerlo e rispondere: ${link}`;
+  return{subject:`💬 Nuovo messaggio da ${chi}${b.id?' · '+aptName(b.id):''}`,html,text}};
+// All'ospite (solo se il titolare l'ha attivato): c'è un messaggio per te. Con il link che apre l'area ospiti (token nel frammento "#").
+const avvisoOspite=(b,site,token)=>{
+  const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token):'');
+  const nome=String(b.nome||'').trim().split(/\s+/)[0];
+  const html=shell({site,eyebrow:'Nuovo messaggio · New message',preheader:'Hai un nuovo messaggio da La Columbera · You have a new message',title:`Ciao${nome?' '+esc(nome):''}!`,
+    body:sec(`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center">Ti abbiamo scritto un messaggio sul tuo soggiorno: lo trovi nella tua area ospiti.</p><p style="margin:10px 0 0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">We have sent you a message about your stay: you will find it in your guest area.</p>`,'16px 32px 0')+
+      sec(button(link,'Leggi il messaggio · Read it'),'24px 32px 0')+
+      sec(`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">Il link ti fa entrare direttamente: non inoltrarlo a chi non soggiorna con te.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'22px 32px 32px')});
+  const text=`Ciao${nome?' '+nome:''}! Ti abbiamo scritto un messaggio sul tuo soggiorno a La Columbera: lo trovi nella tua area ospiti.\nWe have sent you a message about your stay: you will find it in your guest area.\n\n${link}\n\nInformativa privacy: ${site}/privacy.html`;
+  return{subject:'Nuovo messaggio da La Columbera · New message',html,text}};
+
+module.exports={guestMail,ownerMail,avvisoTitolare,avvisoOspite};

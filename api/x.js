@@ -35,7 +35,7 @@ const deny=(res,r)=>{if(r.retryAfter)res.setHeader('Retry-After',String(r.retryA
 // La Guest Card restituita all'ospite: solo ciò che serve a mostrarla (niente risposta grezza del sistema TGC, email mascherata)
 const cardOut=k=>k?{gc_id:k.gc_id||'',stato:k.stato||'',valid_from:k.valid_from,valid_to:k.valid_to,ospiti:k.ospiti,email:maskEmail(k.email)}:null;
 // Azioni che accettano un corpo grande (solo admin): per tutte le altre il corpo oltre 20 KB è rifiutato
-const BIG_BODY=new Set(['save','up']);
+const BIG_BODY=new Set(['save','up','msg_tpl_save']);
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 // supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
@@ -188,6 +188,14 @@ async function syncAlerts(config,req){
   }
  }finally{await kv('DEL','alert:lock').catch(()=>{})}
 }
+
+// ---- Messaggi (area clienti ↔ Gestione), template, invii automatici e traduzione: api/_messaggi.js e api/_traduci.js ----
+const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a)});
+const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e)});
+const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
+// si scrive solo alle prenotazioni del sito confermate: gli ospiti di Booking e Airbnb usano la chat della loro piattaforma
+const chatOk=x=>!!x&&x.origine==='sito'&&x.stato==='confermata';
+const msgErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({err:e.message});throw e};
 
 // ---- Eventi automatici ----
 // Fonte: guida eventi ufficiale VisitTrentino (il vecchio indirizzo /it/eventi non esiste più: dava 404).
@@ -367,8 +375,24 @@ if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? 
 let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},async(code,o)=>findBooking(cfgG||(cfgG=await cfg(req)),code,o));
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
- const bk=x.fonte==='sito'?await E.bkGet(x.code):null;
- return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk)})}
+ const bk=x.fonte==='sito'?await E.bkGet(x.code):null,sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk);
+ sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code)}:{attivi:false};
+ return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:sg})}
+// Controllo leggero dei messaggi nuovi (ogni 20 secondi dall'area ospiti con la scheda Messaggi aperta): solo con il token, una chiave letta.
+// Ha un limite suo (non consuma le 60 consultazioni per IP): una famiglia con due telefoni sulla stessa rete non resta bloccata.
+if(a==='msg_v'){const lim=await ACC.limitIp(req,'mv',{max:240,win:600});if(lim)return deny(res,lim);
+ const code=String(b.code||'').trim().toUpperCase();
+ if(!(code&&await ACC.verify(code,b.t)))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ return res.json({v:await MSG.versione(code)})}
+// Messaggi dell'area clienti (prenotazioni del sito confermate): elenco nella lingua dell'ospite, invio con un limite per prenotazione
+if(a==='msg_list'||a==='msg_send'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
+ if(!chatOk(x))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ const lg=['it','en','de'].includes(b.lingua)?b.lingua:'it';
+ if(a==='msg_list')return res.json(Object.assign({t:r.token||undefined},await MSG.perOspite(x.code,lg,b.v)));
+ if(typeof b.testo!=='string'||!b.testo.trim())return res.status(400).json({err:'Scrivi un messaggio'});
+ if(b.testo.length>require('./_messaggi.js').MAX_TESTO)return res.status(400).json({err:'Messaggio troppo lungo: al massimo 2000 caratteri'});
+ const lim=await ACC.limitKey('ms',x.code,{max:20,win:3600},'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto. Per le urgenze chiamaci al +39 351 704 3594.');if(lim)return deny(res,lim);
+ return res.json(Object.assign({t:r.token||undefined},await MSG.daOspite(x.code,b.testo,lg,{booking:await E.bkGet(x.code),site:siteOf(req)})))}
 if(a==='gc_check'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
  if(x.stato==='in_attesa'||x.stato==='richiesta'||x.stato==='da_verificare')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
@@ -427,6 +451,10 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
   await syncAlerts(config,req).catch(e=>console.error('syncAlerts:',e.message));
   // rete di sicurezza dei pagamenti: prenotazioni rimaste "in attesa" con una sessione Stripe già pagata (webhook perso) vengono confermate qui
   out.pagamenti=await require('./_pagato.js').riconciliaInAttesa(req).catch(e=>({controllate:0,recuperate:0,errori:[String(e&&e.message||e).slice(0,80)]}));
+  // messaggi automatici e conservazione delle conversazioni: confinati (non lanciano, al massimo ~6 secondi), la sincronizzazione delle date non ne dipende
+  let bks=null;try{bks=await E.bkAll()}catch(e){bks=null}      // senza l'elenco delle prenotazioni non si manda né si cancella nulla
+  out.messaggi=bks?await MSG.esegui(config,bks,siteOf(req)).catch(()=>({errori:1})):{errori:1};
+  if(bks)await MSG.pulizia(bks).catch(()=>{});
   return res.json(out)}
  if(a==='reconcile')return res.json(await E.reconcile(config,{days:Math.min(Math.max(+b.days||90,7),180)}));
  const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
@@ -466,8 +494,31 @@ if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
   bk=(await E.bkAll()).filter(x=>!(x.stato==='in_attesa'&&Date.parse(x.creato)<t40)).sort((x,y)=>String(x.creato).localeCompare(String(y.creato))),
   occupancy=await E.adminOccupancy(config,{fresh:false}),sync=await E.syncState(config,{events:true}),ext=[];
  for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro'});delete f.events}
- for(const r of await E.registryRows())if(r.stato!=='ANNULLATA')ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
- return res.json({bk,ext,occupancy,sync})}
+ const rows=(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA');
+ for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
+ // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu)
+ const reg=rows.map(r=>({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti}));
+ return res.json({bk,ext,occupancy,sync,reg,msgNonLetti:await MSG.nonLettiHost().catch(()=>0)})}
+// ---- Messaggi (Gestione): conversazioni, risposte, template, regole automatiche, messaggi programmati ----
+if(a==='msg_inbox')return res.json(await MSG.inbox(await E.bkAll()));
+if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet(String(b.code||'').trim().toUpperCase());
+ if(!bk)return res.status(404).json({err:'Conversazione non trovata'});
+ if(a==='msg_thread')return res.json(Object.assign(await MSG.perHost(bk.code,b.v,b.lo),{prenotazione:{code:bk.code,nome:bk.nome||'',email:bk.email||'',tel:bk.tel||'',apt:bk.id,dal:bk.da,al:bk.a,ospiti:bk.ospiti,notti:bk.notti,stato:bk.stato},scrivibile:chatOk({origine:'sito',stato:bk.stato})}));
+ if(!chatOk({origine:'sito',stato:bk.stato}))return res.status(409).json({err:'Si può scrivere solo alle prenotazioni confermate'});
+ try{if(a==='msg_prog_add')return res.json(await MSG.programma(bk.code,b.testo,b.quando));
+  return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false?null:await MSG.linguaDi(bk.code),booking:bk,site:siteOf(req)}))}catch(e){return msgErr(res,e)}}
+if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI});
+if(a==='msg_tpl_save')try{return res.json({templates:await MSG.salvaTemplates(b.templates)})}catch(e){return msgErr(res,e)}
+if(a==='msg_auto'){const bks=await E.bkAll(),by=new Map(bks.map(x=>[x.code,x]));
+ return res.json({regole:await MSG.regole(),templates:await MSG.templates(),prossimi:await MSG.prossimi(bks,7),programmati:(await MSG.programmati()).map(p=>Object.assign({},p,{nome:(by.get(p.code)||{}).nome||'',apt:(by.get(p.code)||{}).id||''})),impostazioni:await MSG.impostazioni(),traduzione:TR.attiva()})}
+if(a==='msg_auto_save')try{return res.json({regole:await MSG.salvaRegole(b.regole,((await cfg(req)).apts||[]).map(p=>p.id))})}catch(e){return msgErr(res,e)}
+if(a==='msg_salta')try{await MSG.salta(b.regola,b.code,b.salta!==false);return res.json({ok:1})}catch(e){return msgErr(res,e)}
+if(a==='msg_prog_del'){await MSG.annullaProgrammato(b.id);return res.json({ok:1})}
+if(a==='msg_imp_save')try{return res.json(await MSG.salvaImpostazioni(b))}catch(e){return msgErr(res,e)}
+if(a==='msg_fill'){ // un template compilato per una prenotazione del sito o del foglio (anteprima, testo da copiare nella chat di Booking o Airbnb)
+ const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase(),{live:false});
+ if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
+ return res.json({testo:require('./_messaggi.js').riempi(String(b.testo||'').slice(0,4000),x,config,siteOf(req),'it')})}
 if(a==='busy_debug'){ // perché una data è occupata: elenco fonti per ogni giorno, vista ospite (con orizzonte e fail-closed)
  const config=await cfg(req),id=String(req.query.id||b.id||'');if(!E.aptExists(config,id))return res.status(404).json({err:'not found'});
  const occ=await E.occupancyOf(config,id,{mode:'guest',fresh:true}),from=todayRome(),out=[];

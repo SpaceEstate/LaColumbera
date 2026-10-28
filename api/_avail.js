@@ -952,4 +952,4 @@ function makeEngine(deps) {
 }
 
 module.exports = { makeEngine, parseICS, icalDate, icalFeed, rangeDays, addDays, nightsBetween, todayRome, isIso, hmac, srcOf, LUA_ACQUIRE, LUA_RELEASE, K,
-  noticeSettings, parseNoticeInput, noticeCutoffMs, noticeOk, minCheckinDate, NOTICE_MAX_DAYS, GUEST_MONTHS, addMonthsIso, maxBookingDate };
+  noticeSettings, parseNoticeInput, noticeCutoffMs, noticeOk, minCheckinDate, NOTICE_MAX_DAYS, GUEST_MONTHS, addMonthsIso, maxBookingDate, zonedToUtcMs, TZ };

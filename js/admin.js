@@ -1,5 +1,5 @@
 // La Columbera · Pannello di gestione
-// Sezioni: Panoramica · Appartamenti (Testi, Foto, Prezzi, Disponibilità, Calendari) · Prenotazioni · Guest Card · Eventi · Home
+// Sezioni: Panoramica · Appartamenti (Testi, Foto, Prezzi, Disponibilità, Calendari) · Prenotazioni · Messaggi (js/admin-messaggi.js) · Guest Card · Eventi · Home
 // Tutto quello che modifichi resta in memoria finché non premi "Salva modifiche" (barra in basso).
 (function(){
 'use strict';
@@ -28,7 +28,7 @@ let t=sessionStorage.lc_t||'',S=null,D={bk:[],ext:[]},EV=[],GC=[],BUSY={},dirty=
 const V={month:{},sel:{},anchor:{},bkf:'tutte'};
 const idx=id=>S.apts.findIndex(p=>p.id===id);
 const aptById=id=>S.apts.find(p=>p.id===id);
-const route=()=>{const[s,sub]=(location.hash||'#panoramica').slice(1).split('/');return{s:s||'panoramica',sub:sub||''}};
+const route=()=>{const[s,sub,arg]=(location.hash||'#panoramica').slice(1).split('/');return{s:s||'panoramica',sub:sub||'',arg:arg||''}};
 
 const norm=()=>{S.ical=S.ical||{};S.closed=S.closed||{};S.chi=S.chi||'';
   const pg=Number(S.preavvisoGiorni);S.preavvisoGiorni=Number.isInteger(pg)&&pg>=0&&pg<=365?pg:0;S.checkinOra=/^([01]\d|2[0-3]):[0-5]\d$/.test(S.checkinOra)?S.checkinOra:'16:00';
@@ -72,16 +72,17 @@ function nav(){
   const L=(h,label,extra='')=>`<a href="#${h}" class="${r.s===h?'on':''}">${label}${extra}</a>`;
   $('#adm-nav').innerHTML=L('panoramica','Panoramica')
     +'<div class="grp">Appartamenti</div>'+S.apts.map(p=>L(p.id,esc(short(p)))).join('')
-    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('sync','Sincronizzazione',syncIssues()?`<span class="adm-badge">${syncIssues()}</span>`:'')+L('guestcard','Guest Card')+L('adempimenti','Adempimenti')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
+    +'<div class="grp">Gestione</div>'+L('prenotazioni','Prenotazioni',n?`<span class="adm-badge">${n}</span>`:'')+L('messaggi','Messaggi',D.msgNonLetti?`<span class="adm-badge" data-testid="admin-msg-badge">${D.msgNonLetti}</span>`:'')+L('sync','Sincronizzazione',syncIssues()?`<span class="adm-badge">${syncIssues()}</span>`:'')+L('guestcard','Guest Card')+L('adempimenti','Adempimenti')+L('eventi','Eventi')+L('home','Home · Chi siamo')}
 
 function body(){
   const r=route(),p=aptById(r.s),el=$('#adm-body');if(!el)return;
   if(p){const sub=['testi','foto','prezzi','disponibilita','calendari'].includes(r.sub)?r.sub:'testi';el.innerHTML=aptView(p,sub);aptAfter(p,sub)}
-  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,adempimenti:vAdp,eventi:vEv,sync:vSync}[r.s]||vPano)();
-  document.body.classList.toggle('adp-active',!p&&r.s==='adempimenti');      // la barra "Salva modifiche" non serve in questa sezione
+  else el.innerHTML=({panoramica:vPano,home:vHome,prenotazioni:vBook,guestcard:vGc,adempimenti:vAdp,eventi:vEv,sync:vSync,messaggi:vMsg}[r.s]||vPano)();
+  document.body.classList.toggle('adp-active',!p&&(r.s==='adempimenti'||r.s==='messaggi'));      // la barra "Salva modifiche" non serve in queste sezioni (salvano da sole)
   if(!p&&r.s==='sync')syncAfter();
   if(!p&&r.s==='adempimenti')adpAfter();
   if(!p&&r.s==='prenotazioni')preRender();
+  if(!p&&r.s==='messaggi')msgAfter(r);else if(window.LCMessaggi)window.LCMessaggi.unmount();
   nav()}
 
 // ---------- Panoramica ----------
@@ -377,6 +378,13 @@ function adpAfter(){const el=$('#adp-root');if(!el)return;
   if(ist){document.querySelectorAll('.adp-modal').forEach(n=>n.remove());document.body.classList.remove('adp-noscroll')}      // una finestra dell'altra scheda rimasta aperta non resta sopra questa pagina
   mod.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()}})}
 
+// ---------- Messaggi (conversazioni, template, automatici): la sezione vive in js/admin-messaggi.js e salva da sola ----------
+const vMsg=()=>'<div id="msg-root" data-testid="msg-root"></div>';
+function msgAfter(r){const el=$('#msg-root');if(!el)return;
+  if(!window.LCMessaggi){el.innerHTML='<div class="admin-card"><p class="form-err">Modulo Messaggi non caricato: ricarica la pagina.</p></div>';return}
+  window.LCMessaggi.mount(el,{token:()=>t,onUnauthorized:()=>{sessionStorage.removeItem('lc_t');t='';login()},apts:()=>S.apts,bk:()=>D.bk,reg:()=>D.reg||[],
+    onBadge:n=>{if(D.msgNonLetti!==n){D.msgNonLetti=n;nav()}}},r.sub,r.arg)}
+
 // ---------- Eventi ----------
 function vEv(){return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono nella pagina «Eventi» del sito.</p>
   <form id="evform" class="ev-form"><div class="field" style="margin:0"><label>Titolo</label><input name="title" required data-testid="ev-title"></div><div class="field" style="margin:0"><label>Data</label><input name="date" type="date" required data-testid="ev-date"></div><div class="field" style="margin:0"><label>Ora</label><input name="time" placeholder="21:00" data-testid="ev-time"></div><div class="field" style="margin:0"><label>Luogo</label><input name="location" data-testid="ev-loc"></div><div class="field" style="margin:0"><label>Link (facoltativo)</label><input name="url" placeholder="https://" data-testid="ev-url"></div><button class="btn btn-wine" data-testid="ev-add">+ Aggiungi</button></form>
@@ -448,7 +456,7 @@ function cellClick(cell,e){
 // ---------- Eventi DOM ----------
 function wire(){
   M.addEventListener('click',e=>{
-    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;document.body.classList.remove('adp-active');window.LCAdempimenti&&window.LCAdempimenti.reset();window.LCIstat&&window.LCIstat.reset();login();return}
+    if(e.target.id==='out'){sessionStorage.removeItem('lc_t');t='';S=null;dirty=false;document.body.classList.remove('adp-active');window.LCAdempimenti&&window.LCAdempimenti.reset();window.LCIstat&&window.LCIstat.reset();window.LCMessaggi&&window.LCMessaggi.reset();login();return}
     if(e.target.id==='save'){save();return}
     const a=e.target.closest('[data-act]');if(a){ACT[a.dataset.act]&&ACT[a.dataset.act](a,e);return}
     const c=e.target.closest('.pcell');if(c)cellClick(c,e)});
@@ -482,7 +490,7 @@ function wire(){
   M.addEventListener('dragleave',e=>{const it=e.target.closest('.pm-item');it&&it.classList.remove('dragover')});
   M.addEventListener('drop',e=>{const it=e.target.closest('.pm-item');if(!it||+it.dataset.i!==dI)return;e.preventDefault();const to=+it.dataset.j;if(dF!=null&&dF!==to)movePh(dI,dF,to);dI=dF=null});
   window.addEventListener('hashchange',()=>{if(S){body();window.scrollTo({top:0,behavior:'smooth'})}});
-  window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}})}
+  window.addEventListener('beforeunload',e=>{if(dirty||(window.LCMessaggi&&window.LCMessaggi.dirty())){e.preventDefault();e.returnValue=''}})}
 
 // ---------- Salvataggio ----------
 async function save(){

@@ -80,6 +80,11 @@ function makeAccess({ kv, kvp, now }) {
 
   // limite "per IP" che conta OGNI richiesta (checkout): null se va bene, altrimenti la risposta 429
   async function limitIp(req, scope, rule) { return (await hit(scope, ipKey(req), rule)) > rule.max ? tooMany(rule) : null; }
+  // limite su una chiave qualsiasi (es. i messaggi di una prenotazione): conta ogni richiesta; msg = testo della risposta 429
+  async function limitKey(scope, key, rule, msg) {
+    if ((await hit(scope, sha('k|' + key).slice(0, 24), rule)) <= rule.max) return null;
+    const r = tooMany(rule); if (msg) r.body = { err: msg }; return r;
+  }
   // limite che conta solo i FALLIMENTI (login): blockedIp prima di provare, countFail dopo un fallimento
   async function blockedIp(req, scope, rule) { return (await peek(scope, ipKey(req))) >= rule.max ? tooMany(rule) : null; }
   const countFail = (req, scope, rule) => hit(scope, ipKey(req), rule);
@@ -140,7 +145,7 @@ function makeAccess({ kv, kvp, now }) {
     return { ok: true, booking, token };
   }
 
-  return { authorize, issue, issueForBooking, verify, limitIp, blockedIp, countFail, ipKey, RL };
+  return { authorize, issue, issueForBooking, verify, limitIp, limitKey, blockedIp, countFail, ipKey, RL };
 }
 
 // Email mascherata per le risposte all'ospite (es. "ma***@esempio.it"): mai l'indirizzo completo.

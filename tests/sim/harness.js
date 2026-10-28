@@ -55,6 +55,7 @@ class FakeKV {
       case 'HGET': { const e = this.hash(a[0]); return e && a[1] in e.v ? e.v[a[1]] : null; }
       case 'HSET': { const e = this.hash(a[0], true); let n = 0; for (let i = 1; i < a.length; i += 2) { if (!(a[i] in e.v)) n++; e.v[a[i]] = String(a[i + 1]); } return n; }
       case 'HSETNX': { const e = this.hash(a[0], true); if (a[1] in e.v) return 0; e.v[a[1]] = String(a[2]); return 1; }
+      case 'HINCRBY': { const e = this.hash(a[0], true); const n = (parseInt(e.v[a[1]], 10) || 0) + parseInt(a[2], 10); e.v[a[1]] = String(n); return n; }
       case 'HDEL': { const e = this.hash(a[0]); if (!e) return 0; let n = 0; for (const f of a.slice(1)) if (delete e.v[f]) n++; return n; }
       case 'HGETALL': { const e = this.hash(a[0]); const o = []; if (e) for (const [f, v] of Object.entries(e.v)) o.push(f, v); return o; }
       case 'RPUSH': { const e = this.list(a[0], true); for (const v of a.slice(1)) e.v.push(String(v)); return e.v.length; }
@@ -110,6 +111,14 @@ async function routeFetch(url, opts = {}) {
     if (f.error) { const e = new Error(f.error); e.cause = { code: f.error }; throw e; }
     return res(f.status || 200, f.body == null ? '' : f.body);
   }
+  if (url.startsWith('https://api.deepl.com/') || url.startsWith('https://api-free.deepl.com/')) {      // DeepL finto: "[EN] testo"; global.__deepl = { mode: 'ok'|'down'|'slow', calls: [] }
+    const d = global.__deepl || (global.__deepl = { mode: 'ok', calls: [] }), body = JSON.parse(opts.body || '{}');
+    d.calls.push({ url, body, auth: (opts.headers || {}).Authorization });
+    if (d.mode === 'down') return res(503, '{"message":"giù"}');
+    if (d.mode === 'slow') await sleepAbortable(60000, opts.signal);
+    const tgt = String(body.target_lang || '').slice(0, 2), src = l => /[äöüß]/i.test(l) ? 'DE' : /\b(the|and|is|we|you|thanks?)\b/i.test(l) ? 'EN' : /\b(merci|bonjour|nous)\b/i.test(l) ? 'FR' : 'IT';
+    return res(200, JSON.stringify({ translations: (body.text || []).map(t => ({ detected_source_language: body.source_lang || src(t), text: src(t) === tgt && !body.source_lang ? t : '[' + tgt + '] ' + t })) }));
+  }
   if (url.startsWith(WEBAPP_URL)) {
     webapp.calls.push({ method: opts.method || 'GET', url });
     if (webapp.mode === 'down') return res(500, 'Internal Error');
@@ -128,7 +137,7 @@ global.fetch = (...a) => routeFetch(...a);
 /* ---------------- ambiente Vercel ---------------- */
 const SECRETS = { SYNC_SECRET: 'sync-test-secret', SHEET_SECRET: 'sheet-test-secret', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 function setEnv(extra) {
-  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_)/.test(k)) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_)/.test(k)) delete process.env[k];
   Object.assign(process.env, { KV_REST_API_URL: KV_URL, KV_REST_API_TOKEN: 'tok', SHEET_WEBAPP_URL: WEBAPP_URL, SHEET_SECRET: SECRETS.SHEET_SECRET, SYNC_SECRET: SECRETS.SYNC_SECRET,
     STRIPE_SECRET_KEY: 'sk_test', STRIPE_WEBHOOK_SECRET: SECRETS.STRIPE_WEBHOOK_SECRET, GMAIL_USER: 'info@test', GMAIL_APP_PASSWORD: 'x', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 'sess',
     OWNER_EMAIL: 'owner@test', FEED_TIMEOUT_MS: '150', REG_TIMEOUT_MS: '300' }, extra || {});
@@ -283,7 +292,7 @@ const PREFETCH = { syncRapida: [PRE.feeds], syncCompleta: [PRE.feeds, PRE.recon]
 /* ---------------- ambiente di test ---------------- */
 const defaultCfg = () => { const d = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')); return Object.assign(d, { ical: { torre: FEED.bookingTorre + ',' + FEED.airbnbTorre, corte: FEED.bookingCorte + ',' + FEED.airbnbCorte }, closed: {} }); };
 async function newEnv({ legacyRows, env, cfg, startIso } = {}) {
-  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false;
+  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false;
   clock.set(startIso || '2026-10-02T09:00:00Z');
   setEnv(env); V = loadVercel();
   const c = cfg || defaultCfg(); kv.exec(['SET', 'cfg', JSON.stringify(c)]);
