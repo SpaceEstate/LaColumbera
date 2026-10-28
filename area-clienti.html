@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Area personale · La Columbera</title>
-<meta name="description" content="Consulta le tue prenotazioni a La Columbera con il codice di prenotazione.">
+<meta name="description" content="La tua prenotazione a La Columbera: entra con il codice di prenotazione.">
 <meta name="theme-color" content="#7A2E39">
 <link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
 
@@ -32,23 +32,15 @@
     <div class="auth-col">
       <div class="auth-card" data-testid="area-clienti-card">
         <span class="section-eyebrow">Area personale</span>
-        <h1>Le tue prenotazioni</h1>
-        <p class="sub">Se hai prenotato sul nostro sito apri il link della email di conferma: entri direttamente. Altrimenti inserisci il codice prenotazione (anche quello di Booking o Airbnb) e la data di arrivo.</p>
+        <h1>La tua prenotazione</h1>
+        <p class="sub">Inserisci il codice di prenotazione: lo trovi nella email di conferma se hai prenotato sul nostro sito, altrimenti è il numero di prenotazione di Booking.com o Airbnb.</p>
         <form id="f" data-testid="area-clienti-form">
           <div class="field">
-            <label for="cd">Codice prenotazione</label>
-            <input id="cd" type="text" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" data-testid="area-clienti-code">
+            <label for="cd">Codice di prenotazione</label>
+            <input id="cd" type="text" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="es. 558R TE56 487A9" data-testid="area-clienti-code">
           </div>
-          <div class="field">
-            <label for="cda">Data di arrivo</label>
-            <input id="cda" name="da" type="date" required data-testid="area-clienti-arrivo">
-          </div>
-          <div class="field">
-            <label for="cem">Email della prenotazione <small>(solo se hai prenotato sul nostro sito)</small></label>
-            <input id="cem" name="email" type="email" autocomplete="email" inputmode="email" data-testid="area-clienti-email">
-          </div>
-          <button type="submit" class="btn btn-wine" style="width:100%;justify-content:center" data-testid="area-clienti-submit">Vedi prenotazioni</button>
-          <p class="book-note" data-testid="area-clienti-privacy">Codice, data di arrivo ed email servono solo a verificare che la prenotazione sia tua. <a href="privacy.html">Informativa privacy</a></p>
+          <button type="submit" class="btn btn-wine" style="width:100%;justify-content:center" data-testid="area-clienti-submit">Entra</button>
+          <p class="book-note" data-testid="area-clienti-privacy">Il codice vale come una chiave della tua prenotazione: non condividerlo con chi non soggiorna con te. Lo usiamo solo per mostrarti la prenotazione e i servizi collegati. <a href="privacy.html">Informativa privacy</a></p>
         </form>
       </div>
       <div id="r" style="margin-top:28px" data-testid="area-clienti-results"></div>

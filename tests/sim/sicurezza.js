@@ -57,16 +57,25 @@ test('S1  accesso autorizzato: il token del checkout e quello della mail aprono 
   eq((await H.api('mie', { code: c.code, t: m[2] }, as(ip()))).status, 200, 'il token della mail funziona');
 });
 
-test('S2  il codice da solo non basta: senza token né data → rifiutato, sempre con la stessa risposta', async () => {
+test('S2  basta il codice: quello del sito e il numero Booking/Airbnb del foglio aprono area clienti e Guest Card; un codice sbagliato ha sempre la stessa risposta', async () => {
   await base();
   const c = await confermata();
+  let r = await H.api('mie', { code: c.code }, as(ip()));
+  eq(r.status, 200, 'codice del sito da solo'); eq(r.body.code, c.code); eq(r.body.prenotazioni[0].code, c.code);
+  assert(/^[A-Za-z0-9_-]{22}$/.test(r.body.t), 'token di sessione per le richieste successive');
+  eq((await H.api('gc_check', { code: c.code, t: r.body.t }, as(ip()))).status, 200, 'il token di sessione vale per la Guest Card');
+  eq((await H.api('gc_check', { code: c.code }, as(ip()))).status, 200, 'Guest Card con il solo codice');
+  r = await H.api('mie', { code: 'hmsedeszcw' }, as(ip()));
+  eq(r.status, 200, 'Airbnb (foglio), anche in minuscolo'); eq([r.body.code, r.body.prenotazioni[0].id], ['HMSEDESZCW', 'corte']);
+  r = await H.api('gc_check', { code: '6877.180.932' }, as(ip()));
+  eq(r.status, 200, 'Booking scritto come lo mostra Booking (con i punti)'); eq(r.body.code, '6877180932'); eq(r.body.booking.needsEmail, true);
   const risposte = [];
-  for (const a of ['mie', 'gc_check', 'gc_issue']) {
-    const r = await H.api(a, { code: c.code }, as(ip())); eq(r.status, 404, a); risposte.push(r.body);
+  for (const [a, code] of [['mie', 'ZZZZZZZZZZZZZ'], ['gc_check', 'ZZZZZZ'], ['gc_issue', '1234567890'], ['mie', c.code.slice(0, 12)], ['mie', c.code + 'X']]) {
+    const x = await H.api(a, { code }, as(ip())); eq(x.status, 404, a + ' ' + code); risposte.push(JSON.stringify(x.body));
   }
-  const inesistente = await H.api('mie', { code: 'ZZZZZZ' }, as(ip()));
-  eq(inesistente.status, 404); eq(inesistente.body, risposte[0], 'codice esistente e inesistente: stessa risposta (niente enumerazione)');
-  eq(new Set(risposte.map(x => JSON.stringify(x))).size, 1);
+  const nc = await checkout({ da: '2027-01-10', a: '2027-01-13' });              // pagamento non completato: la prenotazione esiste ma non si vede
+  const x = await H.api('mie', { code: nc.body.code }, as(ip())); eq(x.status, 404); risposte.push(JSON.stringify(x.body));
+  eq(new Set(risposte).size, 1, 'codice inesistente, troncato o non confermato: stessa risposta (niente enumerazione)');
 });
 
 test('S3  token manomesso, di un\'altra prenotazione o scaduto → rifiutato', async () => {
@@ -81,35 +90,53 @@ test('S3  token manomesso, di un\'altra prenotazione o scaduto → rifiutato', a
   eq((await H.api('mie', { code: a.code, t: a.t }, as(ip()))).status, 404, 'scaduto (30 giorni dopo il check-out)');
 });
 
-test('S4  senza token: codice + data di arrivo + email (sito) oppure codice + data (Booking/Airbnb); rilascia un token di sessione', async () => {
+test('S4  codice del sito: 13 caratteri casuali senza lettere ambigue; si scrive anche minuscolo, a gruppi, con trattini, O per 0 e I/L per 1', async () => {
   await base();
+  const A = require(path.join(ROOT, 'api', '_accesso.js')), RE = /^[0-9A-HJKMNP-TV-Z]{13}$/, seen = new Set();
+  for (let i = 0; i < 5000; i++) { const k = A.newBookingCode(); assert(RE.test(k), 'alfabeto di Crockford: ' + k); assert(/[A-DF-HJKMNP-TV-Z]/.test(k), 'almeno una lettera (il foglio non lo trasforma in un numero): ' + k); seen.add(k); }
+  eq(seen.size, 5000, 'nessun doppione');
+  const chars = new Set([...seen].join('')); eq(chars.size, 32, 'tutti i 32 caratteri dell\'alfabeto compaiono');
+  eq(A.codeCandidates('558r te56-487a9'), ['558RTE56487A9', '558RTE56-487A9'], 'prima senza spazi e trattini');
+  eq(A.codeCandidates(' 55OR TE5I 487L9 '), ['55ORTE5I487L9', '550RTE5148719'], 'O→0, I/L→1 solo come ultima prova');
+  eq(A.codeCandidates('6877.180.932'), ['6877180932'], 'Booking con i punti');
+  eq(A.codeCandidates('AB-12'), ['AB12', 'AB-12'], 'un codice manuale con trattino si prova anche così com\'è');
+  eq(A.codeCandidates('<script>'), [], 'caratteri non ammessi'); eq(A.codeCandidates(''), []);
   const c = await confermata();
-  let r = await H.api('mie', { code: c.code, da: '2026-12-10', email: 'MARIO.PROVA@esempio.it ' }, as(ip()));
-  eq(r.status, 200, 'email senza differenze di maiuscole/spazi'); assert(/^[A-Za-z0-9_-]{22}$/.test(r.body.t), 'token di sessione');
-  eq((await H.api('gc_check', { code: c.code, t: r.body.t }, as(ip()))).status, 200, 'il token di sessione vale per la Guest Card');
-  eq((await H.api('mie', { code: c.code, da: '2026-12-10', email: 'altro@esempio.it' }, as(ip()))).status, 404, 'email sbagliata');
-  eq((await H.api('mie', { code: c.code, da: '2026-12-10' }, as(ip()))).status, 404, 'prenotazione del sito: l\'email serve');
-  eq((await H.api('mie', { code: c.code, da: '2026-12-11', email: 'mario.prova@esempio.it' }, as(ip()))).status, 404, 'data sbagliata');
-  r = await H.api('gc_check', { code: 'hmsedeszcw', da: '2026-10-05' }, as(ip()));
-  eq(r.status, 200, 'prenotazione Airbnb dal foglio: codice + data'); eq(r.body.booking.needsEmail, true);
-  eq((await H.api('gc_check', { code: 'HMSEDESZCW', da: '2026-10-06' }, as(ip()))).status, 404);
-  clock.advance(14 * 24 * 60 * MIN); await H.sync();
-  eq((await H.api('gc_check', { code: 'HMSEDESZCW', da: '2026-10-05' }, as(ip()))).status, 404, 'soggiorno concluso da più di 7 giorni: niente accesso senza token');
+  assert(RE.test(c.code), 'il checkout usa il codice lungo: ' + c.code);
+  const g = c.code.slice(0, 4) + ' ' + c.code.slice(4, 8) + ' ' + c.code.slice(8);
+  for (const v of [c.code.toLowerCase(), g, g.replace(/ /g, '-'), '  ' + g.toLowerCase() + ' ']) {
+    const r = await H.api('mie', { code: v }, as(ip())); eq(r.status, 200, 'variante: ' + v); eq(r.body.code, c.code, 'risponde con il codice registrato');
+  }
+  if (/[01]/.test(c.code)) {
+    const v = c.code.replace(/0/g, 'O').replace(/1/g, 'I');
+    eq((await H.api('mie', { code: v }, as(ip()))).status, 200, 'O e I scritti al posto di 0 e 1');
+  }
+  const mail = global.__mails.find(m => m.to === 'mario.prova@esempio.it');
+  assert(mail.text.includes(g) && mail.html.includes(c.code.slice(8)), 'la mail mostra il codice a gruppi');
+  assert(/area-clienti\.html#c=[0-9A-Z]{13}&t=/.test(mail.text), 'il link della mail con token resta');
 });
 
-test('S5  tentativi ripetuti: limitati per IP e per codice; l\'utente legittimo non resta bloccato', async () => {
+test('S5  tentativi ripetuti: 10 codici sbagliati per IP, poi pausa; tetto di 300 l\'ora su tutti gli IP (chi ha il token entra comunque)', async () => {
   await base();
   const c = await confermata(), att = ip();
-  for (let i = 0; i < 10; i++) eq((await H.api('mie', { code: 'AAAA' + i, da: '2026-12-10', email: 'x@esempio.it' }, as(att))).status, 404);
-  let r = await H.api('mie', { code: c.code, t: c.t }, as(att));
-  eq(r.status, 429, 'dopo 10 errori lo stesso IP si ferma (anche con dati giusti)'); assert(+r.headers['retry-after'] > 0, 'Retry-After');
-  eq((await H.api('mie', { code: c.code, t: c.t }, as(ip()))).status, 200, 'un altro IP (l\'ospite vero) continua a entrare');
-  // tentativi distribuiti su più IP contro lo STESSO codice (indovinare la data): dopo 10 il codice si blocca per il solo accesso senza token
-  for (let i = 0; i < 10; i++) eq((await H.api('mie', { code: c.code, da: '2026-11-0' + (i % 9 + 1), email: 'mario.prova@esempio.it' }, as(ip()))).status, 404);
-  eq((await H.api('mie', { code: c.code, da: '2026-12-10', email: 'mario.prova@esempio.it' }, as(ip()))).status, 429, 'codice bloccato per l\'accesso senza token');
-  eq((await H.api('mie', { code: c.code, t: c.t }, as(ip()))).status, 200, 'con il link (token) l\'ospite entra comunque');
+  for (let i = 0; i < 10; i++) eq((await H.api('mie', { code: 'AAAABBBBCCCC' + i }, as(att))).status, 404);
+  let r = await H.api('mie', { code: c.code }, as(att));
+  eq(r.status, 429, 'dopo 10 errori lo stesso IP si ferma (anche con il codice giusto)'); assert(+r.headers['retry-after'] > 0, 'Retry-After');
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 200, 'un altro IP (l\'ospite vero) continua a entrare');
   clock.advance(16 * MIN);
-  eq((await H.api('mie', { code: c.code, t: c.t }, as(att))).status, 200, 'trascorsa la finestra l\'IP torna libero');
+  eq((await H.api('mie', { code: c.code }, as(att))).status, 200, 'trascorsa la finestra l\'IP torna libero');
+  // tentativi distribuiti su molti IP: ogni codice sbagliato conta anche nel totale; un token sbagliato no (non è un tentativo di indovinare un codice)
+  const before = +kv.exec(['GET', 'rl:fa:tutti']) || 0;
+  for (let i = 0; i < 5; i++) eq((await H.api('mie', { code: 'ZZZZ' + i + 'YYYYXXXX' }, as(ip()))).status, 404);
+  await H.api('mie', { code: c.code, t: 'x'.repeat(22) }, as(ip()));
+  eq(+kv.exec(['GET', 'rl:fa:tutti']) - before, 5, 'contatore totale');
+  kv.exec(['SET', 'rl:fa:tutti', '299', 'EX', '3600']);
+  eq((await H.api('mie', { code: 'ZZZZZZZZZZZZZ' }, as(ip()))).status, 404, 'il 300° errore');
+  r = await H.api('mie', { code: c.code }, as(ip()));
+  eq(r.status, 429, 'oltre il tetto: anche un codice giusto aspetta'); assert(+r.headers['retry-after'] > 0);
+  eq((await H.api('mie', { code: c.code, t: c.t }, as(ip()))).status, 200, 'con il token (link della mail, sessione aperta) si entra comunque');
+  clock.advance(61 * MIN);
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 200, 'dopo un\'ora il tetto si azzera');
   // consultazioni lecite ripetute: 60 ogni 10 minuti per IP
   const u = ip(); for (let i = 0; i < 60; i++) eq((await H.api('mie', { code: c.code, t: c.t }, as(u))).status, 200);
   eq((await H.api('mie', { code: c.code, t: c.t }, as(u))).status, 429, 'oltre 60 consultazioni in 10 minuti');
@@ -135,14 +162,15 @@ test('S7  log: niente token, email, nomi o telefoni (anche negli errori); errori
   let c, tok;
   const out = await logs(async () => {
     c = await confermata();
-    tok = (await H.api('mie', { code: c.code, da: '2026-12-10', email: 'mario.prova@esempio.it' }, as(ip()))).body.t;
+    tok = (await H.api('mie', { code: c.code }, as(ip()))).body.t;
+    await H.api('mie', { code: c.code.slice(0, 12) + 'Z' }, as(ip()));                // codice sbagliato: nemmeno lui finisce nei log
     await H.api('mie', { code: c.code, t: 'manomesso' + c.t }, as(ip()));
     global.__stripeFail = true;
     const e = await checkout({ da: '2027-01-10', a: '2027-01-13' });
     eq(e.status, 500); assert(!/stripe giù/.test(JSON.stringify(e.body)), 'il messaggio interno non arriva al client');
     global.__stripeFail = false;
   });
-  for (const s of [c.t, tok, 'mario.prova@esempio.it', 'Mario Prova', '0000000']) assert(!out.includes(s), 'nei log non deve comparire: ' + s);
+  for (const s of [c.t, tok, c.code, c.code.slice(0, 12) + 'Z', 'mario.prova@esempio.it', 'Mario Prova', '0000000']) assert(!out.includes(s), 'nei log non deve comparire: ' + s);
 });
 
 test('S8  annullo del pagamento: senza il token del checkout non libera le notti di nessuno', async () => {
@@ -226,6 +254,36 @@ test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da serv
   // nessun VALORE segreto nel frontend: formati delle chiavi e assegnazioni di un valore ai nomi delle variabili. Il solo NOME di una variabile
   // (es. nel messaggio «Manca STRIPE_SECRET_KEY su Vercel» della scheda Pagamenti) non è un segreto.
   assert(!/sk_live|sk_test_[A-Za-z0-9]{10}|whsec_[A-Za-z0-9]{10}|AIza[0-9A-Za-z_-]{20}|(?:STRIPE_[A-Z_]+|SESSION_SECRET|SYNC_SECRET|SHEET_SECRET|GMAIL_APP_PASSWORD|ADMIN_PASSWORD)\s*[:=]\s*['"`][^'"`\s]{6,}/.test(js.map(f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')).join('')), 'nessuna chiave nel frontend');
+});
+
+test('S15 finestra di accesso con il codice: sito fino a 30 giorni dopo il check-out, Booking/Airbnb fino a 7; annullate e non confermate mai', async () => {
+  await base();
+  const c = await confermata();                                                     // check-out 13/12/2026
+  clock.set('2027-01-11T10:00:00Z');
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 200, '29 giorni dopo il check-out');
+  clock.set('2027-01-13T10:00:00Z');
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 404, 'oltre i 30 giorni');
+  await base();
+  clock.set('2026-10-17T10:00:00Z');                                                // Airbnb: check-out 11/10
+  eq((await H.api('gc_check', { code: 'HMSEDESZCW' }, as(ip()))).status, 200, '6 giorni dopo il check-out');
+  clock.set('2026-10-19T10:00:00Z');
+  eq((await H.api('gc_check', { code: 'HMSEDESZCW' }, as(ip()))).status, 404, 'oltre i 7 giorni');
+  await base();
+  const d = await confermata();
+  eq((await H.adminApi('stato', { code: d.code, stato: 'annullata' })).status, 200);
+  eq((await H.api('mie', { code: d.code }, as(ip()))).status, 404, 'annullata');
+  eq((await H.api('gc_check', { code: d.code }, as(ip()))).status, 409, 'Guest Card: lo dice chiaramente (prenotazione annullata)');
+});
+
+test('S16 calendario per Booking e Airbnb (for=site): nessun codice di prenotazione, solo un\'impronta stabile', async () => {
+  await base();
+  const c = await confermata(), get = async () => (await H.api('ical', {}, { method: 'GET', query: { id: 'torre', for: 'site' } })).text;
+  const a = await get(), uid = (/UID:(\S+)/.exec(a) || [])[1];
+  assert(!a.includes(c.code) && !a.toLowerCase().includes(c.code.toLowerCase()), 'il codice (chiave dell\'area clienti) non va alle piattaforme');
+  assert(/^sito-[0-9a-f]{20}@lacolumbera$/.test(uid || ''), 'UID: ' + uid);
+  eq((/UID:(\S+)/.exec(await get()) || [])[1], uid, 'stesso UID a ogni lettura: le piattaforme aggiornano, non duplicano');
+  const all = (await H.api('ical', {}, { method: 'GET', query: { for: 'all', k: 'chiave-ical-di-prova' } })).text;
+  assert(all.includes(c.code), 'il calendario personale (con chiave) mostra il codice al titolare');
 });
 
 /* ===================== esecuzione ===================== */

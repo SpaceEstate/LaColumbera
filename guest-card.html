@@ -18,16 +18,14 @@
 <section class="page-intro"><div class="wrap">
 <span class="section-eyebrow" data-reveal>Vantaggi ospiti</span>
 <h1 data-reveal data-reveal-delay="1">Trentino <em>Guest Card</em></h1>
-<p class="lead" data-reveal data-reveal-delay="2">Se arrivi dall'area clienti la prenotazione è già riconosciuta; altrimenti inserisci codice, data di arrivo (ed email, se hai prenotato sul nostro sito). Periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti.</p>
+<p class="lead" data-reveal data-reveal-delay="2">Se arrivi dall'area clienti la prenotazione è già riconosciuta; altrimenti inserisci il codice di prenotazione (quello della email di conferma, oppure il numero di Booking.com o Airbnb). Periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti.</p>
 </div></section>
 <section style="padding:20px 0 100px"><div class="wrap" style="max-width:640px">
 <div class="auth-card" data-testid="gc-card">
 <form id="f" data-testid="gc-form">
-<div class="field"><label for="gc-code">Codice prenotazione</label><input id="gc-code" type="text" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" data-testid="gc-code"></div>
-<div class="field"><label for="gc-da">Data di arrivo</label><input id="gc-da" name="da" type="date" required data-testid="gc-arrivo"></div>
-<div class="field"><label for="gc-em">Email della prenotazione <small>(solo se hai prenotato sul nostro sito)</small></label><input id="gc-em" name="email" type="email" autocomplete="email" inputmode="email" data-testid="gc-prenotazione-email"></div>
+<div class="field"><label for="gc-code">Codice di prenotazione</label><input id="gc-code" type="text" name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="es. 558R TE56 487A9" data-testid="gc-code"></div>
 <button type="submit" class="btn btn-wine" style="width:100%;justify-content:center" data-testid="gc-submit">Verifica prenotazione</button>
-<p class="book-note" data-testid="gc-form-privacy">Codice, data di arrivo ed email servono solo a verificare che la prenotazione sia tua. <a href="privacy.html">Informativa privacy</a></p>
+<p class="book-note" data-testid="gc-form-privacy">Il codice serve solo a riconoscere la tua prenotazione. <a href="privacy.html">Informativa privacy</a></p>
 <p class="form-err" id="e" data-testid="gc-error"></p>
 </form>
 </div>

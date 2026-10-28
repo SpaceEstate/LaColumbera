@@ -15,10 +15,13 @@ const dLong=s=>{const m=/^(\d{4})-(\d\d)-(\d\d)/.exec(s||'');if(!m)return x.F2(s
   try{const t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});return t.charAt(0).toUpperCase()+t.slice(1)}catch{return x.F2(s)}};
 const eur=n=>{const v=Number(n);if(!isFinite(v))return '€ '+esc(n);return '€ '+v.toLocaleString('it-IT',{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2})};
 const plural=(n,one,many)=>n+' '+(+n===1?one:many);
-// Codice spaziato per la lettura (es. "A1B2C3" -> "A1B 2C3" solo visivamente: il testo copiato resta intero grazie al letter-spacing)
+// Codice del sito (13 caratteri) a gruppi per leggerlo e dettarlo: "558R TE56 487A9". Gli spazi non contano: l'area clienti accetta il codice
+// con o senza spazi e trattini. Gli altri codici (es. quelli di prima, di 6 caratteri) restano come sono.
+const fmtCode=code=>{const s=String(code||'');return /^[0-9A-Z]{13}$/.test(s)?s.slice(0,4)+' '+s.slice(4,8)+' '+s.slice(8):s};
+// I gruppi vanno a capo tra loro (mai dentro un gruppo) se lo schermo del telefono è stretto
 const codeBox=code=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border:1px dashed ${C.gold};border-radius:10px"><tr><td align="center" style="padding:20px 16px">
-<div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">Numero di prenotazione</div>
-<div style="font-family:${MONO};font-size:34px;line-height:40px;font-weight:700;letter-spacing:8px;color:${C.wine};padding:8px 0 0 8px">${esc(code)}</div></td></tr></table>`;
+<div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">Codice di prenotazione</div>
+<div style="font-family:${MONO};font-size:28px;line-height:38px;font-weight:700;letter-spacing:4px;word-spacing:6px;color:${C.wine};padding:8px 0 0 4px">${fmtCode(code).split(' ').map(g=>`<span style="white-space:nowrap">${esc(g)}</span>`).join(' ')}</div></td></tr></table>`;
 
 const row=(k,v,last)=>`<tr><td style="padding:13px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:14px;color:${C.muted}">${k}</td><td align="right" style="padding:13px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:15px;font-weight:700;color:${C.ink}">${v}</td></tr>`;
 
@@ -51,7 +54,7 @@ const sec=(inner,pad)=>`<tr><td style="padding:${pad||'22px 32px 0'}">${inner}</
 
 // ---------------- EMAIL OSPITE ----------------
 // token = chiave segreta di accesso (api/_accesso.js): va nel frammento "#", che il browser non invia mai al server né ad altri siti.
-// Senza token (es. errore nel crearlo) il link apre solo l'area clienti, dove si accede con codice + data di arrivo + email.
+// Senza token (es. errore nel crearlo) il link apre solo l'area clienti, dove si entra con il codice di prenotazione.
 const guestMail=(b,site,token)=>{
   const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token):'');
   const nome=String(b.nome||'').trim().split(/\s+/)[0];
@@ -64,13 +67,13 @@ const guestMail=(b,site,token)=>{
     sec(`<div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:12px">Riepilogo del soggiorno</div>${recap(b)}`,'30px 32px 0')+
     sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-radius:12px"><tr><td style="padding:24px 22px 10px">
 <div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink};padding-bottom:8px">La tua area personale</div>
-<p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il numero di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px">${esc(b.code)}</b> puoi accedere all'<b>area personale</b> del nostro sito e, prima di arrivare, sbrigare tutto online:</p>
+<p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il codice di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px;white-space:nowrap">${esc(fmtCode(b.code))}</b> entri nell'<b>area personale</b> del nostro sito e, prima di arrivare, sbrighi tutto online:</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${step('1','Check-in online','Compili i dati degli ospiti in pochi minuti, così all\'arrivo è tutto pronto.')}${step('2','Trentino Guest Card','La richiedi direttamente dall\'area personale: musei, trasporti e attrazioni del territorio inclusi.')}</table>
-</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente: non inoltrarlo ad altri. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci codice, data di arrivo ed email della prenotazione.</div></td></tr></table>`,'30px 32px 0')+
+</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.</div></td></tr></table>`,'30px 32px 0')+
     sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda rispondi pure a questo messaggio o scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
   const text=`Grazie${nome?', '+nome:''}! La tua prenotazione a La Columbera è confermata.
 
-NUMERO DI PRENOTAZIONE: ${b.code}
+CODICE DI PRENOTAZIONE: ${fmtCode(b.code)}
 
 ${aptName(b.id)}${aptSub(b.id)?' ('+aptSub(b.id)+')':''}
 Check-in:  ${dLong(b.da)}
@@ -79,9 +82,9 @@ Notti:     ${b.notti}
 Ospiti:    ${b.ospiti}
 Importo pagato: ${eur(b.totale)}
 
-Dall'area personale del sito puoi fare il check-in online e richiedere la Trentino Guest Card. Questo link ti fa entrare direttamente (non inoltrarlo ad altri):
+Dall'area personale del sito puoi fare il check-in online e richiedere la Trentino Guest Card. Questo link ti fa entrare direttamente:
 ${link}
-In alternativa: ${site}/area-clienti.html con codice prenotazione, data di arrivo ed email.
+In alternativa: ${site}/area-clienti.html con il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.
 
 Per qualsiasi domanda: lacolumbera@gmail.com · +39 351 704 3594
 Informativa privacy: ${site}/privacy.html

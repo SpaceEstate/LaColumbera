@@ -1203,3 +1203,6 @@ table.data.bkt .stato-select{width:100%;padding:10px 12px;font-size:.9rem}
 table.mx td.mx-free{color:#7f9a6c}
 table.mx td.mx-busy{background:rgba(122,46,57,.06);color:var(--charcoal)}
 table.mx td.mx-multi{background:rgba(122,46,57,.16);color:var(--wine);font-weight:700}
+
+/* codice di prenotazione a gruppi ("558R TE56 487A9"): non va a capo dentro il codice */
+.code-g{letter-spacing:.05em;white-space:nowrap;font-variant-numeric:tabular-nums}

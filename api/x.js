@@ -28,8 +28,9 @@ const cipatPub=()=>{const v=String(process.env.ISTAT_CIPAT||'').trim();return /^
 const AV=require('./_avail.js'),days=AV.rangeDays,addDays=AV.addDays,todayRome=AV.todayRome;
 // Motore unico di disponibilità: tutta la logica "busy" (iCal, foglio, sito, hold, blocchi) vive in _avail.js
 const E=AV.makeEngine({kv,kvp,fetch:(...a)=>fetch(...a),env:process.env});
-// Accesso degli ospiti alla prenotazione: codice = identificativo, token segreto = autorizzazione; limiti di frequenza su KV (api/_accesso.js)
-const {makeAccess,maskEmail}=require('./_accesso.js'),ACC=makeAccess({kv,kvp});
+// Accesso degli ospiti alla prenotazione: basta il codice (lungo e casuale per il sito, numero del portale per Booking/Airbnb), poi un token di sessione;
+// il link della mail porta un token segreto. Limiti di frequenza su KV (api/_accesso.js)
+const {makeAccess,maskEmail,newBookingCode}=require('./_accesso.js'),ACC=makeAccess({kv,kvp});
 const deny=(res,r)=>{if(r.retryAfter)res.setHeader('Retry-After',String(r.retryAfter));return res.status(r.status).json(r.body)};
 // La Guest Card restituita all'ospite: solo ciò che serve a mostrarla (niente risposta grezza del sistema TGC, email mascherata)
 const cardOut=k=>k?{gc_id:k.gc_id||'',stato:k.stato||'',valid_from:k.valid_from,valid_to:k.valid_to,ospiti:k.ospiti,email:maskEmail(k.email)}:null;
@@ -299,7 +300,9 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
   if(pre.conflicts.length)return res.status(409).json(ND)}
  catch(e){console.error('checkout/pre:',e.message);return res.status(503).json(NV)}
  const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
- const r={code:c.randomBytes(3).toString('hex').toUpperCase(),id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
+ // codice lungo e casuale (13 caratteri): è anche la chiave dell'area clienti. Una collisione è praticamente impossibile, ma non si sovrascrive mai una prenotazione
+ let code=newBookingCode();for(let i=0;i<3&&await E.bkGet(code);i++)code=newBookingCode();
+ const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,stato:'in_attesa',creato:new Date().toISOString()};
  let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
@@ -337,17 +340,18 @@ if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? 
   try{await require('./_pagato.js').riconcilia(bk,req)}catch(e){console.error('checkout_status:',String(e&&(e.code||e.message)||'errore').slice(0,80))}      // un errore (Stripe, passo già in corso) non cambia la risposta: si dice lo stato attuale
   bk=await E.bkGet(code)||bk}
  return res.json({stato:bk.stato,email:maskEmail(bk.email)})}
-// Area clienti e Guest Card: il codice da solo NON basta. Serve il token (link della mail / sessione) oppure codice + data di arrivo + email.
-const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t,da:b.da,email:b.email},async code=>findBooking(await cfg(req),code));
+// Area clienti e Guest Card: basta il codice della prenotazione (o il token del link della mail / della sessione già aperta).
+// Il codice "ufficiale" della risposta (code) è quello registrato: la pagina lo usa con il token per le richieste successive.
+let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},async(code,o)=>findBooking(cfgG||(cfgG=await cfg(req)),code,o));
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
- return res.json({t:r.token||undefined,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}]})}
+ return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}]})}
 if(a==='gc_check'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato==='annullata')return res.status(409).json({err:'Questa prenotazione risulta annullata'});
  if(x.stato==='in_attesa'||x.stato==='richiesta'||x.stato==='da_verificare')return res.status(409).json({err:'Prenotazione non ancora confermata: riprova dopo la conferma (pagamento completato)'});
  if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});
  const card=await jg(GCK(x.code));
- return res.json({t:r.token||undefined,booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,needsEmail:!x.email},card:cardOut(card)})}
+ return res.json({t:r.token||undefined,code:x.code,booking:{id:x.id,da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,needsEmail:!x.email},card:cardOut(card)})}
 if(a==='gc_issue'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.stato!=='confermata')return res.status(409).json({err:'La prenotazione non è (ancora) confermata'});
  if(!(x.ospiti>0))return res.status(409).json({err:'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com'});

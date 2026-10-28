@@ -44,19 +44,24 @@ function modal(title,html,trigger){
   document.addEventListener('keydown',key);
   document.body.appendChild(m);document.body.classList.add('modal-open');box.querySelector('.modal-x').focus();
   return close}
-// Accesso alla prenotazione: il codice è solo un identificativo, l'accesso lo dà un token segreto (api/_accesso.js).
-// Il token arriva dal checkout o dal link della mail ("#c=…&t=…": il frammento non va mai al server né ad altri siti),
-// resta solo in sessionStorage (si cancella chiudendo la scheda) e viene tolto subito dall'indirizzo.
+// Accesso alla prenotazione (api/_accesso.js): basta il codice di prenotazione; il server risponde con un token di sessione.
+// Il link della mail porta un token segreto ("#c=…&t=…"), i messaggi mandati da Booking/Airbnb il solo codice ("#k=…"): il frammento "#"
+// non va mai al server né ad altri siti, e viene tolto subito dall'indirizzo. Codice e token restano solo in sessionStorage (si cancella chiudendo la scheda).
 const ACC_KEY='lc_acc';
 const accGet=()=>{try{const v=JSON.parse(sessionStorage.getItem(ACC_KEY)||'null');return v&&v.c&&v.t?v:null}catch{return null}};
 const accSet=(c,t)=>{try{if(c&&t)sessionStorage.setItem(ACC_KEY,JSON.stringify({c:String(c).toUpperCase(),t}))}catch{}};
 const accDel=()=>{try{sessionStorage.removeItem(ACC_KEY)}catch{}};
 try{sessionStorage.removeItem('lc_code')}catch{}      // chiave della versione precedente: non serve più
-const accFromHash=()=>{const h=new URLSearchParams(location.hash.slice(1)),c=(h.get('c')||'').trim().toUpperCase(),t=(h.get('t')||'').trim();
+// dal frammento: {c,t} (link della mail) oppure {k} (solo il codice, dal messaggio di benvenuto)
+const accFromHash=()=>{const h=new URLSearchParams(location.hash.slice(1)),c=(h.get('c')||'').trim().toUpperCase(),t=(h.get('t')||'').trim(),k=(h.get('k')||'').trim();
   if(location.hash)history.replaceState(null,'',location.pathname+location.search);
-  if(c&&t){accSet(c,t);return{c,t}}return null};
-// credenziali da mandare al server: token se c'è (per QUEL codice), altrimenti data di arrivo ed email digitate
-const accBody=(code,f)=>{const s=accGet();if(s&&s.c===code)return{code,t:s.t};const d=f?Object.fromEntries(new FormData(f)):{};return{code,da:String(d.da||'').trim(),email:String(d.email||'').trim()}};
+  if(c&&t){accSet(c,t);return{c,t}}return k?{k}:null};
+// credenziali da mandare al server: il token se c'è per QUEL codice, altrimenti il codice da solo
+const accBody=code=>{const s=accGet();return s&&s.c===code?{code,t:s.t}:{code}};
+// codice del sito (13 caratteri) a gruppi per leggerlo: "558R TE56 487A9"; gli altri restano come sono
+const fmtCode=c=>{c=String(c||'');return /^[0-9A-Z]{13}$/.test(c)?c.slice(0,4)+' '+c.slice(4,8)+' '+c.slice(8):c};
+// il codice come lo digita l'ospite: maiuscolo e senza spazi (punti e trattini li gestisce il server: alcuni codici del foglio hanno un trattino)
+const codeIn=v=>String(v||'').toUpperCase().replace(/\s+/g,'');
 const short=p=>p.nome.replace('La Columbera ','');
 const nomeA=(c,id)=>esc(short(c.apts.find(p=>p.id===id)||{nome:id}));
 
@@ -150,9 +155,9 @@ async function apt(c){
     const cc=(qp.get('code')||'').trim().toUpperCase(),s=accGet(),tk=s&&s.c===cc?s.t:'',
       mail='<a href="mailto:lacolumbera@gmail.com">lacolumbera@gmail.com</a>',
       view=(st,em)=>{
-        if(st==='confermata')return`<h3>Prenotazione confermata 🎉</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Ti abbiamo scritto una email di conferma${em?` a <b>${esc(em)}</b>`:''} (controlla anche lo spam), con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card.</p>`;
-        if(st==='da_verificare'||st==='annullata')return`<h3>Pagamento ricevuto</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Stiamo verificando la tua prenotazione e ti scriviamo al più presto. Per qualsiasi dubbio scrivici a ${mail} indicando il codice.</p>`;
-        return`<h3>Grazie, stiamo registrando la prenotazione</h3><p>Il tuo codice è <b>${esc(cc)}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>. Se entro qualche minuto non la vedi (controlla anche lo spam), scrivici a ${mail} indicando il codice.</p>`};
+        if(st==='confermata')return`<h3>Prenotazione confermata 🎉</h3><p>Il tuo codice è <b class="code-g">${esc(fmtCode(cc))}</b>. Ti abbiamo scritto una email di conferma${em?` a <b>${esc(em)}</b>`:''} (controlla anche lo spam), con il link alla tua <a href="area-clienti.html">area clienti</a>, dove fai il check-in online e crei la tua Trentino Guest Card. Con il codice entri nell'area clienti anche senza la email.</p>`;
+        if(st==='da_verificare'||st==='annullata')return`<h3>Pagamento ricevuto</h3><p>Il tuo codice è <b class="code-g">${esc(fmtCode(cc))}</b>. Stiamo verificando la tua prenotazione e ti scriviamo al più presto. Per qualsiasi dubbio scrivici a ${mail} indicando il codice.</p>`;
+        return`<h3>Grazie, stiamo registrando la prenotazione</h3><p>Il tuo codice è <b class="code-g">${esc(fmtCode(cc))}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>. Se entro qualche minuto non la vedi (controlla anche lo spam), scrivici a ${mail} indicando il codice.</p>`};
     const paint=(st,em)=>{box.innerHTML=`<div class="form-ok" data-testid="booking-success" data-stato="${esc(st||'')}">${view(st,em)}</div>`};
     paint('');
     if(cc&&tk)for(let i=0;i<6;i++){      // fino a ~15 s: di solito la conferma c'è al primo o al secondo controllo
@@ -275,7 +280,7 @@ function clienti(c){
       <div class="admin-card"><h2>Ciao 👋</h2><p>Hai <b>${list.length}</b> prenotazion${list.length===1?'e':'i'} — totale <b>${totNotti} notti</b>. Qui trovi i dettagli, puoi generare la tua <b>Trentino Guest Card</b> e fare il <b>check-in online</b>.</p></div>
       <div class="booking-cards" data-testid="mie-cards">${list.map(x=>`
         <article class="booking-card" data-testid="mie-card-${esc(x.code)}">
-          <div class="bc-top"><span class="bc-code">${esc(x.code)}</span><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></div>
+          <div class="bc-top"><span class="bc-code">${esc(fmtCode(x.code))}</span><span class="stato ${esc(x.stato||'confermata')}">${esc(x.stato||'confermata')}</span></div>
           <h3 class="bc-title">${nomeA(c,x.id)}</h3>
           <div class="bc-grid">
             <div class="bc-cell"><span>Check-in</span><b>${fmtD(x.da)}</b></div>
@@ -291,18 +296,22 @@ function clienti(c){
         </article>`).join('')}</div>`};
   const load=async(body,btn)=>{
     let orig;if(btn){if(btn.dataset.loading)return;btn.dataset.loading='1';orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Cerco…'}
-    try{const r=await api('mie',body);if(r.t)accSet(body.code,r.t);show(r)}
-    catch(x){if(body.t)accDel();$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
+    try{let r;
+      try{r=await api('mie',body)}
+      catch(x){if(!body.t)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta (o link vecchio): si riprova con il solo codice
+      if(r.t)accSet(r.code||body.code,r.t);show(r)}
+    catch(x){$('#r').innerHTML=`<p class="form-err">${esc(x.message)}</p>`}
     finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}}};
   $('#f').onsubmit=e=>{e.preventDefault();
-    const code=String($('#cd').value||'').trim().toUpperCase();if(!code)return;
-    load(accBody(code,e.target),e.target.querySelector('[data-testid="area-clienti-submit"]'))};
-  // Link della mail di conferma (#c=…&t=…) o sessione già aperta in questa scheda: accesso diretto.
-  // Link delle mail precedenti (?code=…): il codice si precompila, poi servono data di arrivo ed email.
+    const code=codeIn($('#cd').value);if(!code)return;
+    load(accBody(code),e.target.querySelector('[data-testid="area-clienti-submit"]'))};
+  // Link della mail di conferma (#c=…&t=…), messaggio di benvenuto (#k=…) o sessione già aperta in questa scheda: accesso diretto.
+  // Link con il codice nell'indirizzo (?code=…, il server lo vedrebbe nei log): il codice si precompila soltanto e sparisce dall'indirizzo.
   const h=accFromHash()||accGet(),qc=new URLSearchParams(location.search).get('code');
   if(qc)history.replaceState(null,'',location.pathname);
-  if(h){$('#cd').value=h.c;load({code:h.c,t:h.t})}
-  else if(qc)$('#cd').value=qc.trim().toUpperCase();
+  if(h&&h.t){$('#cd').value=fmtCode(h.c);load({code:h.c,t:h.t})}
+  else if(h&&h.k){const k=codeIn(h.k);$('#cd').value=k;load({code:k})}
+  else if(qc)$('#cd').value=codeIn(qc);
 }
 
 async function guestcard(c){
@@ -338,21 +347,26 @@ async function guestcard(c){
       const email=x.needsEmail?($('#gc-email').value||'').trim():undefined;
       if(x.needsEmail&&!/.+@.+\..+/.test(email||'')){$('#e2').textContent="Inserisci un'email valida";return}
       btn.dataset.loading='1';btn.disabled=true;const orig=btn.textContent;btn.textContent='Genero…';
-      try{const s=accGet(),g=await api('gc_issue',{code:x.code,t:s&&s.c===x.code?s.t:'',email});box.innerHTML=renderCard(g)}
+      try{const g=await api('gc_issue',Object.assign(accBody(x.code),{email}));box.innerHTML=renderCard(g)}
       catch(err){$('#e2').textContent=err.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   };
   const check=async body=>{
     $('#e').textContent='';box.innerHTML='';
-    try{const r=await api('gc_check',body);if(r.t)accSet(body.code,r.t);
+    try{let r;
+      try{r=await api('gc_check',body)}
+      catch(x){if(!body.t)throw x;accDel();r=await api('gc_check',{code:body.code})}      // sessione scaduta: si riprova con il solo codice
+      const code=r.code||body.code;if(r.t)accSet(code,r.t);
       if(r.card){box.innerHTML=renderCard(r.card);return}
-      renderConfirm({...r.booking,code:body.code})}
-    catch(x){if(body.t)accDel();$('#e').textContent=x.message}};
-  $('#f').onsubmit=e=>{e.preventDefault();const code=$('#gc-code').value.trim().toUpperCase();if(code)check(accBody(code,e.target))};
-  // dall'area clienti (stessa scheda) il token è già in sessionStorage; dai vecchi link ?code=… si precompila solo il codice
-  const s=accGet(),qc=q.get('code');
+      renderConfirm({...r.booking,code})}
+    catch(x){$('#e').textContent=x.message}};
+  $('#f').onsubmit=e=>{e.preventDefault();const code=codeIn($('#gc-code').value);if(code)check(accBody(code))};
+  // dall'area clienti (stessa scheda) il token è già in sessionStorage; dal messaggio di benvenuto (#k=…) basta il codice;
+  // dai link con ?code=… si precompila solo il codice
+  const h=accFromHash()||accGet(),qc=q.get('code');
   if(qc)history.replaceState(null,'',location.pathname);
-  if(s){$('#gc-code').value=s.c;check({code:s.c,t:s.t})}
-  else if(qc)$('#gc-code').value=qc.trim().toUpperCase();
+  if(h&&h.t){$('#gc-code').value=fmtCode(h.c);check({code:h.c,t:h.t})}
+  else if(h&&h.k){const k=codeIn(h.k);$('#gc-code').value=k;check({code:k})}
+  else if(qc)$('#gc-code').value=codeIn(qc);
 }
 
 async function eventi(c){

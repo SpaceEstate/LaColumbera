@@ -172,7 +172,8 @@ test('U4e ritorno dal pagamento: la pagina chiede lo stato al server e dice la v
   const { doc, log, w } = await load('torre.html', { search: '?pagamento=successo&code=' + c, session: { lc_acc: JSON.stringify({ c, t: co.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => doc.querySelector('[data-testid=booking-success][data-stato=confermata]'), 'conferma mostrata');
   const t = text(doc.querySelector('[data-testid=booking-success]'));
-  assert(/Prenotazione confermata/.test(t) && t.includes(c) && /ma\*\*\*@test\.it/.test(t) && /spam/.test(t), t);
+  assert(/Prenotazione confermata/.test(t) && t.replace(/ /g, '').includes(c) && /ma\*\*\*@test\.it/.test(t) && /spam/.test(t), t);
+  assert(t.includes(c.slice(0, 4) + ' ' + c.slice(4, 8) + ' ' + c.slice(8)), 'codice a gruppi, leggibile');
   assert(!/mario@test\.it/.test(t), 'l\'email intera non compare nella pagina');
   assert.equal(stato(c), 'confermata'); assert(global.__mails.some(m => m.to === 'owner@test') && global.__mails.some(m => m.to === 'mario@test.it'), 'email partite');
   assert(log.calls.some(x => x.a === 'checkout_status' && x.status === 200)); assert.equal(w.location.search, '', 'indirizzo ripulito');
@@ -183,7 +184,7 @@ test('U4f ritorno dal pagamento: da un altro browser (senza token) o con il serv
   const a = await load('torre.html', { search: '?pagamento=successo&code=' + c, scripts: ['js/site.js', 'js/pages.js'] });      // nessun token nella scheda
   await waitFor(() => a.doc.querySelector('[data-testid=booking-success]'), 'messaggio');
   const t = text(a.doc.querySelector('[data-testid=booking-success]'));
-  assert(/stiamo registrando/.test(t) && t.includes(c) && /lacolumbera@gmail\.com/.test(t) && !/confermata 🎉/.test(t), t);
+  assert(/stiamo registrando/.test(t) && t.replace(/ /g, '').includes(c) && /lacolumbera@gmail\.com/.test(t) && !/confermata 🎉/.test(t), t);
   assert(!a.log.calls.some(x => x.a === 'checkout_status'), 'senza token non si chiede nulla');
   global.__stripeRetrieveFail = true; global.__stripeState[JSON.parse(kv.exec(['HGET', 'bkh', c])).sessione] = { paid: true };
   const b = await load('torre.html', { search: '?pagamento=successo&code=' + c, session: { lc_acc: JSON.stringify({ c, t: co.t }) }, scripts: ['js/site.js', 'js/pages.js'] });
@@ -223,23 +224,33 @@ test('U4b area clienti dal link della mail (#c=…&t=…): entra subito, il toke
   const g = await load('guest-card.html', { session: { lc_acc: r.w.sessionStorage.getItem('lc_acc') }, scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => g.doc.querySelector('[data-testid=gc-confirm]'), 'Guest Card: prenotazione riconosciuta senza ridigitare nulla');
 });
-test('U4c area clienti senza link: codice da solo rifiutato; codice + data di arrivo + email ok; vecchi link ?code= solo precompilano', async () => {
+test('U4c area clienti senza link: basta il codice (anche minuscolo e a gruppi); codice sbagliato = messaggio chiaro; ?code= precompila soltanto; #k= entra e sparisce', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body;
   await H.webhook('checkout.session.completed', H.paidSession(c.code));
   const r = await load('area-clienti.html', { search: '?code=' + c.code, scripts: ['js/site.js', 'js/pages.js'] });
   await sleep(60);
   assert.equal(r.doc.querySelector('#cd').value, c.code, 'codice precompilato'); assert.equal(r.w.location.search, '', 'codice tolto dall\'indirizzo');
-  assert(!r.log.calls.some(x => x.a === 'mie'), 'con il solo codice non parte nessuna richiesta');
-  r.doc.querySelector('#cda').value = '2026-12-11'; r.doc.querySelector('#cem').value = 'mario@test.it';
+  assert(!r.log.calls.some(x => x.a === 'mie'), 'dal link con ?code= non parte nessuna richiesta da sola');
+  assert(!r.doc.querySelector('#cda') && !r.doc.querySelector('#cem') && !r.doc.querySelector('input[type=date]') && !r.doc.querySelector('input[type=email]'), 'nessuna data né email da inserire');
+  r.doc.querySelector('#cd').value = c.code.slice(0, 12) + 'Z';
   r.doc.querySelector('#f').dispatchEvent(new r.w.Event('submit', { cancelable: true }));
-  await waitFor(() => /Prenotazione non trovata/.test(text(r.doc.querySelector('#r'))), 'errore con data sbagliata');
-  r.doc.querySelector('#cda').value = '2026-12-10';
+  await waitFor(() => /Prenotazione non trovata/.test(text(r.doc.querySelector('#r'))), 'errore con il codice sbagliato');
+  r.doc.querySelector('#cd').value = (c.code.slice(0, 4) + ' ' + c.code.slice(4, 8) + ' ' + c.code.slice(8)).toLowerCase();
   r.doc.querySelector('#f').dispatchEvent(new r.w.Event('submit', { cancelable: true }));
   await waitFor(() => r.doc.querySelector('[data-testid=mie-card-' + c.code + ']'), 'prenotazione mostrata');
-  assert(JSON.parse(r.w.sessionStorage.getItem('lc_acc')).t, 'token di sessione salvato per la Guest Card');
+  const acc = JSON.parse(r.w.sessionStorage.getItem('lc_acc'));
+  assert(acc.t && acc.c === c.code, 'token di sessione salvato per il codice registrato (non per come è stato scritto)');
+  // messaggio di benvenuto (Booking/Airbnb, WhatsApp): area-clienti.html#k=CODICE apre subito l'area e il codice sparisce dall'indirizzo
+  const k = await load('area-clienti.html', { hash: '#k=' + c.code.toLowerCase(), scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => k.doc.querySelector('[data-testid=mie-card-' + c.code + ']'), 'entra con #k=');
+  assert.equal(k.w.location.hash, '', 'il codice non resta nella barra degli indirizzi');
+  // sessione scaduta nella stessa scheda: si rientra con il solo codice, senza errori
+  const old = await load('area-clienti.html', { session: { lc_acc: JSON.stringify({ c: c.code, t: 'x'.repeat(22) }) }, scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => old.doc.querySelector('[data-testid=mie-card-' + c.code + ']'), 'rientra con il codice');
+  assert.notEqual(JSON.parse(old.w.sessionStorage.getItem('lc_acc')).t, 'x'.repeat(22), 'token nuovo');
 });
-test('U4d Guest Card per una prenotazione Airbnb del foglio: codice + data di arrivo, poi email per la card', async () => {
+test('U4d Guest Card per una prenotazione Airbnb del foglio: basta il codice, poi email per la card', async () => {
   await setup();
   const snap = JSON.parse(kv.exec(['GET', 'reg:snap']) || '{"rows":[]}');
   if (!(snap.rows || []).some(x => x.codice === 'HMSEDESZCW')) {      // lo stub dello script non popola il registro: si scrive la stessa istantanea
@@ -248,11 +259,13 @@ test('U4d Guest Card per una prenotazione Airbnb del foglio: codice + data di ar
   }
   const g = await load('guest-card.html', { scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => g.log.calls.some(x => x.a === 'cfg'), 'pagina pronta'); await sleep(40);
-  g.doc.querySelector('#gc-code').value = 'hmsedeszcw'; g.doc.querySelector('#gc-da').value = '2026-10-05';
+  assert(!g.doc.querySelector('#gc-da') && !g.doc.querySelector('#gc-em'), 'nessuna data né email per riconoscere la prenotazione');
+  g.doc.querySelector('#gc-code').value = 'hmsedeszcw';
   g.doc.querySelector('#f').dispatchEvent(new g.w.Event('submit', { cancelable: true }));
   await waitFor(() => g.doc.querySelector('[data-testid=gc-confirm]') || (g.log.calls.find(x => x.a === 'gc_check') && text(g.doc.querySelector('#e'))), 'risposta');
   assert(g.doc.querySelector('[data-testid=gc-confirm]'), 'prenotazione riconosciuta: ' + text(g.doc.querySelector('#e')) + ' ' + JSON.stringify(g.log.calls));
   assert(g.doc.querySelector('[data-testid=gc-email]'), 'chiede l\'email per la card (la prenotazione del foglio non ne ha)');
+  assert.equal(JSON.parse(g.w.sessionStorage.getItem('lc_acc')).c, 'HMSEDESZCW', 'sessione per il codice registrato');
 });
 
 /* ===================== pannello admin (admin.js) ===================== */

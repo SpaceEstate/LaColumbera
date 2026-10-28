@@ -56,6 +56,9 @@ function zonedToUtcMs(y, mo, d, h, mi, s, tz) {
   return guess;
 }
 const sha1 = s => crypto.createHash('sha1').update(String(s)).digest('hex');
+// UID dell'evento nel calendario che si dà a Booking e Airbnb: un'impronta del codice, mai il codice. Il codice apre l'area clienti
+// dell'ospite, il calendario lo leggono le piattaforme. Sempre uguale per la stessa prenotazione (le piattaforme aggiornano, non duplicano).
+const siteUid = code => 'sito-' + crypto.createHash('sha256').update('lacolumbera-uid|' + String(code).toUpperCase()).digest('hex').slice(0, 20) + '@lacolumbera';
 const hmac = (secret, msg) => crypto.createHmac('sha256', String(secret)).update(String(msg)).digest('hex');
 const clean = m => String(m == null ? '' : m).replace(/https?:\/\/\S+/g, '[url]').slice(0, 160);
 const bkParse = s => { if (s == null) return null; try { return JSON.parse(s); } catch { return null; } };
@@ -692,7 +695,7 @@ function makeEngine(deps) {
     const t = now(), cut = addDays(todayRome(t), -7), ev = [];
     for (const b of await bkAll()) {
       if (b.id !== aptId || !['confermata', 'richiesta', 'da_verificare'].includes(b.stato) || !isIso(b.da) || !isIso(b.a) || b.a <= cut) continue;
-      ev.push({ uid: 'sito-' + String(b.code).toUpperCase() + '@lacolumbera', start: b.da, end: b.a, summary: 'Prenotazione sito - La Columbera' });
+      ev.push({ uid: siteUid(b.code), start: b.da, end: b.a, summary: 'Prenotazione sito - La Columbera' });
     }
     if (manual) {
       const p = (config.apts || []).find(x => x.id === aptId), dd = Object.keys((p && p.blocked) || {}).filter(d => p.blocked[d] && d >= cut).sort();
@@ -814,7 +817,9 @@ function makeEngine(deps) {
   const lower = s => String(s || '').toLowerCase();
   const fromBk = b => ({ code: b.code, id: b.id, da: b.da, a: b.a, notti: b.notti, ospiti: b.ospiti, nome: b.nome, email: b.email || '', stato: b.stato, fonte: 'sito' });
   const fromRow = r => ({ code: r.codice, id: r.apt, da: r.checkin, a: r.checkout, notti: r.notti, ospiti: r.ospiti, nome: '', email: '', stato: lower(r.stato), fonte: 'foglio' });
-  async function findByCode(config, code) {
+  // Prima le prenotazioni del sito (KV: hanno importo, stato del pagamento, email), poi il registro del foglio (Booking, Airbnb, manuali;
+  // anche le prenotazioni del sito vi sono copiate), infine (live: true) lo script del foglio in diretta.
+  async function findByCode(config, code, { live = true } = {}) {
     code = String(code || '').trim().toUpperCase();
     if (!code) return null;
     const b = await bkGet(code);
@@ -823,8 +828,9 @@ function makeEngine(deps) {
     const snap = bkParse(await kv('GET', K.reg));
     const row = ((snap && snap.rows) || []).find(r => r.codice.toUpperCase() === code);
     if (row) return fromRow(row);
-    const live = await webappGet('find', { code });            // codice recentissimo o riga fuori finestra export
-    if (live.ok && live.data.row) { const n = normReg(live.data.row, aptIds); if (n.row) return fromRow(n.row); }
+    if (!live) return null;
+    const lv = await webappGet('find', { code });              // codice recentissimo o riga fuori finestra export
+    if (lv.ok && lv.data.row) { const n = normReg(lv.data.row, aptIds); if (n.row) return fromRow(n.row); }
     return null;
   }
 
