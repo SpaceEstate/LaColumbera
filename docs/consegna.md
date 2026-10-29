@@ -29,6 +29,8 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 - **Messaggi**: conversazioni, template, messaggi automatici (es. il giorno prima dell'arrivo) e programmati. In ogni template scegli se parte da solo (appena la prenotazione è confermata, oppure qualche giorno prima o dopo il check-in o il check-out) o se lo usi a mano. Quando un ospite scrive ti arriva un'email con il testo e «Rispondi», che apre la conversazione.
 - **Pulizie**: per il periodo che scegli, un testo per Corte e uno per Torre con entrate, uscite, ospiti, notti e letti (matrimoniale o singoli), da copiare e mandare a chi fa le pulizie. Senza nomi degli ospiti. Con la spunta «Nel testo» togli le prenotazioni lette male o doppie; quelle che si accavallano sono segnalate.
 - **Luoghi e Convenzioni** ora si modificano dalla Gestione.
+- **Prenotazioni manuali** (telefono, di persona): le scrivi nel foglio Prenotazioni senza numero, con data, appartamento, ospiti, notti e una nota (per esempio il prezzo). Il foglio mette il codice da solo; le notti si chiudono sul sito e in Gestione la vedi come «Manuale», con la nota. Con il codice l'ospite entra nell'area clienti.
+- **Foglio più corto**: ogni notte lo script cancella le prenotazioni concluse da più di 7 giorni (le manuali spariscono del tutto, nota compresa); l'ultima resta finché non ne arriva un'altra. Va installata la revisione nuova dello script: `docs/foglio-prenotazioni.md`.
 - **Annulla e rimborsa** nel dettaglio della prenotazione, in qualsiasi momento (rimborso totale su Stripe, notti libere, foglio, email all'ospite). Quando annulla l'ospite ti arriva un'email.
 - **Ricevute**: quando un ospite la chiede ti arriva un'email con i dati; la emetti come fai di solito e in Gestione carichi il PDF, che parte all'ospite. In Oggi trovi quelle da mandare.
 - **Salvataggio più sicuro**: la barra «Salva modifiche» compare solo quando serve e dice dove hai modificato; se hai salvato da un altro dispositivo nel frattempo, nulla viene sovrascritto senza chiedertelo.
@@ -36,7 +38,7 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 
 ## Cosa non è cambiato
 
-Pagamento con Stripe e webhook, motore delle disponibilità (iCal, foglio, coda di ripresa), Alloggiati Web e ISTAT, Trentino Guest Card, calcolo dei prezzi, preavviso e orizzonte di 6 mesi. I dati già salvati non vengono convertiti: i campi nuovi sono facoltativi e, finché non li usi, il sito pubblico resta identico. Prenotazioni esistenti con codici più corti non ce ne sono (lo hai confermato): i codici del foglio Booking/Airbnb restano quelli del portale.
+Pagamento con Stripe e webhook, motore delle disponibilità (iCal, foglio, coda di ripresa; dello script del foglio cambiano solo le prenotazioni manuali e la pulizia notturna, la sincronizzazione è identica), Alloggiati Web e ISTAT, Trentino Guest Card, calcolo dei prezzi, preavviso e orizzonte di 6 mesi. I dati già salvati non vengono convertiti: i campi nuovi sono facoltativi e, finché non li usi, il sito pubblico resta identico. Prenotazioni esistenti con codici più corti non ce ne sono (lo hai confermato): i codici del foglio Booking/Airbnb restano quelli del portale.
 
 ## Variabili su Vercel
 
@@ -52,7 +54,7 @@ Nessun altro servizio esterno è stato aggiunto (DeepL solo se imposti la chiave
 ## Verifica a mano (dopo il deploy di anteprima)
 
 1. **Accesso**: prenotazione di prova con Stripe in modalità test → il link della mail apre l'area clienti; poi in un'altra finestra entra scrivendo solo il codice (anche in minuscolo, con gli spazi). Prova anche il numero di una prenotazione Booking o Airbnb del foglio.
-2. **Foglio**: controlla che lo script del foglio accetti e cerchi i codici nuovi di 13 caratteri (lo script non è nel repository, quindi non l'ho potuto provare).
+2. **Foglio**: installa la revisione nuova dello script (`docs/foglio-prenotazioni.md` §1). Poi scrivi una prenotazione manuale di prova e controlla codice, calendario e Gestione; dopo le 3 di notte controlla in Apps Script → Esecuzioni quali righe ha cancellato la pulizia.
 3. **iPhone**: apri il link della mail dall'app Mail e il link `#k=…` da WhatsApp; prova «Aggiungi a Home».
 4. **Messaggi**: segui i passi di `docs/messaggi.md` §9.
 5. **Gestione**: segui i passi di `docs/gestione.md` §10 (calendario, vecchi indirizzi, due dispositivi, prenotazioni, pulizie, Luoghi).
@@ -64,10 +66,10 @@ Nessun altro servizio esterno è stato aggiunto (DeepL solo se imposti la chiave
 - Le email dei messaggi contengono il testo (scelta tua): si spengono in Messaggi → Automatici. Niente allegati.
 - **Notifiche push sul telefono: non attivate**, come chiesto. Richiedono chiavi apposite e il consenso dell'ospite nel browser: se le vuoi, decidiamolo prima.
 - La Gestione non si aggiorna da sola (tranne i Messaggi): «Aggiorna» in Oggi o ricarica la pagina.
-- Le 18 prove dello script del foglio restano saltate perché `google-apps-script.gs` non è nel repository (come prima di queste modifiche).
+- Lo script del foglio non è nel repository, che è pubblico: le 20 prove che lo richiedono si saltano, a meno di indicarlo con `LC_GAS_FILE`. Con lo script che mi hai mandato, e con la revisione nuova, passano tutte e 35.
 - Stripe non restituisce la sua commissione sui pagamenti rimborsati. L'imposta di soggiorno pagata con il check-in online non si rimborsa da qui (è un altro sistema). Il sito non emette ricevute né fatture: le emetti tu, il sito raccoglie i dati e le manda.
 - Le foto nuove di Luoghi e stagioni arrivano dalla copertina di pagine ufficiali (VisitTrentino e il sito del Natale di Trento): da qui non le ho potute vedere, perché la rete di prova blocca quei siti. Controllale sull'anteprima. Per Garda e Val di Non puoi sempre caricare una foto tua in Gestione → Sito → Luoghi e convenzioni («Carica foto»): ha la precedenza. La foto degli eventi d'estate è quella della pagina delle Feste Vigiliane: se un anno la pagina sparisce, la scheda mostra il segnaposto finché non la si cambia in `js/dintorni.js`.
 
 ## Prove automatiche
 
-`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 25, preavviso 12, sicurezza 21, messaggi 13, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 81. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.
+`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (20 saltati senza lo script del foglio; con lo script 35 ok), pagamenti 25, preavviso 12, sicurezza 21, messaggi 13, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 82. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.

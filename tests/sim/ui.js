@@ -1362,6 +1362,27 @@ test('W31 Gestione · Messaggi → Template: un template nuovo parte da solo gi�
   const n = r.log.confirms.length; $('[data-testid=msg-tpl-auto-link-' + iG + ']').click();
   await waitFor(() => $('[data-testid=msg-auto]'), 'Automatici'); assert.equal(r.log.confirms.length, n);
 });
+test('W32 Gestione · prenotazione manuale (scritta a mano nel foglio): «Manuale» con la nota, nessun testo da portale, come mandare il codice, come annullarla; anche in Pulizie', async () => {
+  await setup();
+  const snap = JSON.parse(kv.exec(['GET', 'reg:snap']) || '{"rows":[]}'), NOTA = 'Rossi, 300 € in contanti <b>';
+  snap.rows = (snap.rows || []).concat([{ id: 'MANUALE|MK7Q2M9XW4', fonte: 'MANUALE', codice: 'MK7Q2M9XW4', apt: 'torre', checkin: '2026-10-05', checkout: '2026-10-08', notti: 3, ospiti: 2, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: NOTA, flags: [] }]);
+  kv.exec(['SET', 'reg:snap', JSON.stringify(Object.assign({ invalid: [], lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' }, snap, { count: snap.rows.length }))]);
+  const r = await loadAdmin('#prenotazioni'), $ = s => r.doc.querySelector(s);
+  const nota = await waitFor(() => $('[data-testid=admin-book-nota-MK7Q2M9XW4]'), 'riga della manuale');
+  assert(/Prenotazione manuale/.test(text(nota.closest('td'))) && text(nota) === NOTA && !nota.querySelector('b'), 'nota come testo: ' + text(nota.closest('td')));
+  assert([...$('[data-testid=admin-book-src]').options].some(o => o.value === 'Manuale'), 'origine «Manuale» nel filtro');
+  await goto(r, '#prenotazioni/MK7Q2M9XW4', '[data-testid=admin-book-MK7Q2M9XW4]');
+  const card = $('[data-testid=admin-book-MK7Q2M9XW4]'), tutto = text($('#adm-body'));
+  assert(/Prenotazione manuale/.test(text(card.querySelector('h2'))) && text($('[data-testid=admin-book-nota]')) === 'Nota del foglio: ' + NOTA, text(card));
+  assert(/Pagamento fuori dal sito/.test(text($('[data-testid=admin-book-pay]'))) && /WhatsApp, SMS o email/.test(text($('[data-testid=admin-book-area]'))) && /chat del sito non c'è/.test(text($('[data-testid=admin-book-msg]'))), tutto);
+  assert(!/portale|Ospite di Manuale|gestito da Manuale/.test(tutto), 'nessun testo da portale: ' + tutto.match(/.{0,40}(portale|di Manuale).{0,40}/));
+  assert(/STATO = ANNULLATA le notti tornano libere/.test(text($('[data-testid=admin-book-manuale]'))) && !$('[data-testid=admin-book-actions] select.stato-select') && !$('[data-act=bookDel]'), 'lo stato si cambia nel foglio');
+  assert.equal(text($('[data-testid=admin-book-code]')), 'MK7Q2M9XW4');
+  await waitFor(() => $('#bk-tpl') && /area ospiti/.test(($('#bk-tpl').selectedOptions[0] || {}).textContent || ''), 'template con il link all\'area ospiti');
+  // in Pulizie c'è come le altre
+  await goto(r, '#pulizie', '[data-testid=admin-pul-torre]');
+  await waitFor(() => /Manuale/.test(text($('[data-testid=admin-pul-torre]'))), 'in Pulizie');
+});
 test('W22 email dei messaggi: «Rispondi» dell\'ospite apre l\'area già sui Messaggi, senza codice; «Rispondi» del titolare apre la conversazione (anche passando dal login)', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));

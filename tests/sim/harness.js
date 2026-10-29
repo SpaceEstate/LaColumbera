@@ -196,6 +196,8 @@ class FakeSheet {
     return new FakeRange(this, a, b, c || 1, d || 1, false);
   }
   appendRow(vals) { const r = this.getLastRow() + 1; this.getRange(r, 1, 1, vals.length).setValues([vals]); }
+  deleteRows(r, n) { if (r < 2 || n < 1) throw new Error('deleteRows: righe non valide'); this.rows.splice(r - 1, n); this.deleted = (this.deleted || 0) + n; }   // come Sheets: le righe sotto salgono
+  deleteRow(r) { this.deleteRows(r, 1); }
   copyTo(ss) { const s = ss.insertSheet('Copia di ' + this.name); s.rows = JSON.parse(JSON.stringify(this.rows)); return s; }
 }
 class FakeRange {
@@ -225,7 +227,8 @@ const zoned = (y, mo, d, tz) => { // mezzanotte nel fuso tz -> Date
 };
 // Lo script Apps Script reale NON è nel repo (il vecchio google-apps-script.gs è stato cancellato). Se manca si usa lo stub minimo in stubs/ (registro vuoto, upsert accettati);
 // i test che dipendono dal comportamento reale dello script vengono SALTATI e dichiarati dai runner. Con il file vero nella radice non si salta nulla.
-const GAS_FILE = path.join(ROOT, 'google-apps-script.gs'), GAS_REAL = fs.existsSync(GAS_FILE);
+// Il repository è pubblico: lo script vero si può tenere fuori e indicare con LC_GAS_FILE=/percorso/google-apps-script.gs.
+const GAS_FILE = process.env.LC_GAS_FILE ? path.resolve(process.env.LC_GAS_FILE) : path.join(ROOT, 'google-apps-script.gs'), GAS_REAL = fs.existsSync(GAS_FILE);
 function makeGas(initRegistry) {
   const ss = new FakeSpreadsheet(), reg = ss.insertSheet('Prenotazioni');
   if (initRegistry) { reg.rows = initRegistry.map(r => r.slice()); }
@@ -248,6 +251,7 @@ function makeGas(initRegistry) {
       formatDate: (d, tz, f) => { if (f !== 'yyyy-MM-dd') throw new Error('formato non simulato ' + f); const p = {}; for (const x of new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d)) p[x.type] = x.value; return p.year + '-' + p.month + '-' + p.day; },
       parseDate: (s, tz) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); return zoned(+m[1], +m[2], +m[3], tz); },
       computeHmacSha256Signature: (msg, secret) => Array.from(crypto.createHmac('sha256', secret).update(msg).digest()).map(b => (b > 127 ? b - 256 : b)),
+      getUuid: () => crypto.randomUUID(),
       sleep: () => {}
     },
     UrlFetchApp: { fetch(url, opts) {

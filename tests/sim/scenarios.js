@@ -428,9 +428,74 @@ test('X18 configurazione pubblica: niente URL iCal (token), chiusure e blocchi m
   eq(full.status, 200); assert(/ical\.booking\.com/.test(JSON.stringify(full.body.ical)) && full.body.apts.find(a => a.id === 'torre').blocked['2026-12-05'], 'con il login c\'è tutto');
 });
 
+/* ===================== prenotazioni manuali e pulizia del registro (richieste del titolare, ottobre 2026) ===================== */
+const riga = (gas, vals) => { const sh = gas.ss.getSheetByName('Prenotazioni'), n = sh.getLastRow() + 1; sh.getRange(n, 1, 1, vals.length).setValues([vals]); return n; };
+const aRiga = (gas, n) => gas.rows().find(x => x._row === n);
+test('X19 prenotazione manuale (telefono): riga senza numero → codice M…, MANUALE, CONFERMATA; il sito chiude le notti, Gestione la vede con la nota, l\'ospite entra con il codice', async () => {
+  const { gas } = await base(), sh = gas.ss.getSheetByName('Prenotazioni'), NOTA = 'Rossi, 300 € in contanti';
+  const n1 = riga(gas, ['', H.romeMidnight(2026, 10, 20), T, 2, 3, '', '', '', '', '', '', '', '', '', '', '', NOTA]);
+  const n2 = riga(gas, ['', '24/10/2026', '', 2, 2]);                                        // manca l'appartamento
+  const n3 = riga(gas, ['', '24/10/2026', 'La Columbera - Corte, Appartamento con 1 camere da letto', 2, '']);   // mancano le notti (valore del menu, senza virgolette)
+  const n4 = riga(gas, ['', '26/10/2026', T, 2, 2, 'BOOKING|', 'BOOKING']);                  // numero cancellato da una riga che ne aveva uno: non si indovina
+  await rapida(gas);
+  const r = aRiga(gas, n1), code = r['Numero Prenotazione'];
+  assert(/^M[0-9A-HJKMNP-TV-Z]{9}$/.test(code), 'codice: ' + code);
+  eq([r.FONTE, r.STATO, r.CHECK_OUT, r.ID_PRENOTAZIONE, r.NOTE], ['MANUALE', 'CONFERMATA', '2026-10-23', 'MANUALE|' + code, NOTA], 'niente «FONTE dedotta» nella nota');
+  for (const k of [n2, n3, n4]) eq(aRiga(gas, k)['Numero Prenotazione'], '', 'riga ' + k + ' incompleta o dubbia: resta com\'è');
+  eq((await H.busyDates('torre')).filter(d => d >= '2026-10-20' && d < '2026-10-24'), ['2026-10-20', '2026-10-21', '2026-10-22'], 'notti chiuse sul sito');
+  const adm = (await H.adminApi('adm', {})).body, g = adm.reg.find(x => x.codice === code);
+  eq([g.fonte, g.apt, g.da, g.a, g.ospiti, g.note], ['MANUALE', 'torre', '2026-10-20', '2026-10-23', 2, NOTA]);
+  assert(adm.reg.filter(x => x.fonte !== 'MANUALE').every(x => !('note' in x)), 'la nota solo per le prenotazioni manuali');
+  const m = await H.api('mie', { code: code.toLowerCase() }, { headers: { 'x-real-ip': '198.51.100.9' } });
+  eq(m.status, 200, JSON.stringify(m.body)); eq([m.body.soggiorno.da, m.body.soggiorno.a, m.body.soggiorno.origine, m.body.soggiorno.portale], ['2026-10-20', '2026-10-23', 'manuale', '']);
+  // giro dopo: stesso codice; la riga completata riceve il suo
+  sh.getRange(n3, 5).setValue(2); await rapida(gas);
+  eq(aRiga(gas, n1)['Numero Prenotazione'], code);
+  const r3 = aRiga(gas, n3); assert(/^M/.test(r3['Numero Prenotazione']) && r3['Numero Prenotazione'] !== code && r3.FONTE === 'MANUALE' && r3.CHECK_OUT === '2026-10-26', JSON.stringify(r3));
+  // un numero scritto a mano funziona come prima (FONTE dedotta dal formato)
+  const n5 = riga(gas, ['TEL1', '02/11/2026', T, 2, 2]); await rapida(gas);
+  eq([aRiga(gas, n5).FONTE, aRiga(gas, n5).STATO, aRiga(gas, n5).CHECK_OUT], ['MANUALE', 'CONFERMATA', '2026-11-04']);
+  // annullata a mano nel foglio (STATO = ANNULLATA): le notti tornano libere
+  sh.getRange(n1, 9).setValue('ANNULLATA'); await rapida(gas);
+  eq((await H.busyDates('torre')).filter(d => d >= '2026-10-20' && d < '2026-10-24'), []);
+});
+test('X20 pulizia notturna del registro: via le prenotazioni concluse da più di 7 giorni; l\'ultima resta finché non ne arriva un\'altra, così il sito non vede mai il foglio svuotarsi', async () => {
+  const { gas } = await base();
+  riga(gas, ['5555555555', '', '', '', '', 'BOOKING|5555555555', 'BOOKING', '', 'ANNULLATA', '', '2026-10-02T09:00:00.000Z', '2026-10-02T09:00:00.000Z', '', 0, '2026-10-02T09:00:00.000Z', '', 'annullata via email del 2026-10-02']);
+  riga(gas, ['6666666666', '01/10/2026', T, 2, '']);              // senza notti: per prudenza finisce un mese dopo il check-in
+  riga(gas, ['', '05/10/2026', '', '', '']);                      // senza codice: non si tocca
+  await rapida(gas);
+  const codici = () => gas.rows().map(r => String(r['Numero Prenotazione'] || '(vuota)')), pul = async iso => { clock.set(iso); return JSON.parse(JSON.stringify((await H.runGas(gas, 'pulizia')).registro)); };      // numeri storici come numeri; oggetti del VM dello script → copia
+  const registro = async () => { await H.sync(); const st = (await H.adminApi('sync_status', {})).body.registry; return [st.health, st.count, st.error || null]; };
+  eq(codici(), ['HMSEDESZCW', '6877180932', '6228870635', '5555555555', '6666666666', '(vuota)']);
+  // 18 ottobre: via quella finita il 4 e l'annullata (senza date) del 2; quella finita l'11 è al settimo giorno e resta
+  eq((await pul('2026-10-18T01:00:00Z')).codici, ['6877180932', '5555555555']);
+  eq(codici(), ['HMSEDESZCW', '6228870635', '6666666666', '(vuota)']);
+  eq((await pul('2026-10-19T01:00:00Z')).codici, ['HMSEDESZCW']); eq(codici(), ['6228870635', '6666666666', '(vuota)']);
+  const r = row(gas, 'BOOKING|6228870635'); eq([r.CHECK_OUT, Number(r['Numero Notti']), r.STATO], ['2026-11-22', 3, 'CONFERMATA'], 'le righe rimaste sono intatte');
+  eq(await registro(), ['OK', 2, null]);
+  // due prenotazioni manuali di fine novembre: il sito ne vede 4
+  clock.set('2026-11-01T09:00:00Z');
+  riga(gas, ['', '23/11/2026', C, 2, 2]); riga(gas, ['', '25/11/2026', C, 2, 3]); await rapida(gas);
+  const man = gas.rows().filter(x => x.FONTE === 'MANUALE').map(x => x['Numero Prenotazione']); eq(man.length, 2);
+  eq((await registro())[1], 4);
+  // spenta (ELIMINA_DOPO_GIORNI = 0) o lock occupato: non si cancella nulla
+  gas.props.ELIMINA_DOPO_GIORNI = '0'; eq((await pul('2026-12-10T01:00:00Z')).skipped, true); delete gas.props.ELIMINA_DOPO_GIORNI;
+  gas.lockState.otherHolds = true; eq((await pul('2026-12-10T01:00:00Z')).skipped, true); gas.lockState.otherHolds = false;
+  eq(codici().length, 5);
+  // 10 dicembre: sono tutte concluse da più di 7 giorni e non ce ne sono altre: resta l'ultima (fino al 28/11), il sito non vede il registro vuoto
+  const out = await H.runGas(gas, 'pulizia'); eq([out.registro.cancellate, out.trashed], [3, 0], 'anche la pulizia delle email gira');
+  eq(codici(), ['(vuota)', man[1]]);
+  eq(await registro(), ['OK', 1, null]);
+  // arriva una prenotazione nuova: la notte dopo l'ultima vecchia se ne va
+  riga(gas, ['', '20/12/2026', T, 2, 2]); await rapida(gas);
+  eq((await pul('2026-12-11T01:00:00Z')).codici, [man[1]]);
+  assert(codici().length === 2 && /^M/.test(codici()[1]) && codici()[1] !== man[1], codici().join(','));
+});
+
 /* ===================== esecuzione ===================== */
 // Test che dipendono dal comportamento REALE dello script Apps Script (lettura Gmail, righe del foglio, trigger): saltati se nel repo c'è solo lo stub
-const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16']);
+const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16', 'X19', 'X20']);
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0, skip = 0; const t0 = process.hrtime.bigint();      // cronometro reale: Date.now() è l'orologio simulato
   if (!H.GAS_REAL) console.log('ATTENZIONE: google-apps-script.gs non è nel repo: uso lo stub minimo e SALTO i test che richiedono lo script vero (rimettilo nella radice per la suite completa).\n');

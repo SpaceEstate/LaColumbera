@@ -533,8 +533,9 @@ if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
  for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro',t:String(e.summary||'').slice(0,60)});delete f.events}      // t: il titolo dell'evento (es. «Reserved», «Airbnb (Not available)»)
  const rows=(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA');
  for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
- // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu)
- const reg=rows.map(r=>({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti}));
+ // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu);
+ // per le prenotazioni manuali anche la nota del foglio (colonna NOTE: per esempio chi è l'ospite e quanto ha pagato)
+ const reg=rows.map(r=>Object.assign({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti},r.fonte==='MANUALE'?{note:r.note||''}:{}));
  // orizzonte: fin dove si prenota dal sito (regola fissa del motore di disponibilità), mostrato in Gestione → Regole di prenotazione
  return res.json({bk,ext,occupancy,sync,reg,msgNonLetti:await MSG.nonLettiHost().catch(()=>0),orizzonte:{mesi:AV.GUEST_MONTHS,ultimoGiorno:AV.maxBookingDate(Date.now())}})}
 // ---- Messaggi (Gestione): conversazioni, risposte, template, regole automatiche, messaggi programmati ----
