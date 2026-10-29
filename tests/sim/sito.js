@@ -9,6 +9,7 @@
 //  S6 immagini leggere per il telefono: nessuna foto pesante, ogni foto degli appartamenti ha la sua miniatura
 //  S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli del piè di pagina, numero di telefono
 //  S8 cache delle immagini (vercel.json)
+//  S9 scheda di prenotazione: segue la pagina, senza altezza massima né scorrimento interno; nessun prezzo fisso nell'HTML
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -101,6 +102,20 @@ test('S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli 
 test('S8 cache delle immagini: un giorno, con rinnovo in background (vercel.json)', () => {
   const v = JSON.parse(read('vercel.json')), h = v.headers.find(x => x.source === '/img/(.*)');
   assert(h && /max-age=86400/.test(h.headers.find(k => k.key === 'Cache-Control').value), 'intestazione Cache-Control per /img');
+});
+
+test('S9 scheda di prenotazione: segue la pagina (niente altezza massima, scorrimento interno né barra fissata); nessun prezzo fisso nell\'HTML', () => {
+  const css = read('css/main.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const regole = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => /\.book-card(?![\w-])|\.bk-quote(?![\w-])|#bk\b/.test(m[1]));
+  assert(regole.length > 3, 'regole della scheda trovate');
+  for (const [, sel, dec] of regole) assert(!/max-height|overflow(-y)?\s*:\s*(auto|scroll|hidden)|position\s*:\s*sticky/.test(dec), 'la scheda non deve scorrere dentro sé stessa: ' + sel.trim() + ' { ' + dec.trim() + ' }');
+  for (const f of ['torre.html', 'corte.html']) {
+    const h = read(f), price = /<div class="price"[^>]*>[\s\S]*?<\/div>/.exec(h);
+    assert(price && / hidden[ >]/.test(price[0]) && !/€\s?\d/.test(price[0]), f + ': la riga del prezzo parte nascosta e senza importo: ' + (price && price[0]));
+    assert(!/€\s?(120|180)\b/.test(h), f + ': importo fisso nella pagina');
+  }
+  const js = read('js/pages.js');
+  assert(!/booking-limit|notice-note|Prenotabile fino al/.test(js), 'niente note fisse su orizzonte e preavviso sotto il calendario');
 });
 
 (async () => {

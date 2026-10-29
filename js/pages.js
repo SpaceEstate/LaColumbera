@@ -116,7 +116,6 @@ async function apt(c){
   $('#ph-img').src=p.foto[0]||'';
   $('#apt-nome').textContent=short(p);
   $('#apt-sotto').textContent=p.sotto;
-  $('#pr').textContent=eur(p.base);
   $('#note').textContent=`Soggiorno minimo ${p.min} notti${(p.minPeriodi||[]).length?' (in alcuni periodi di più)':''} · fino a ${p.max} ospiti`;
   $('#desc').textContent=p.testo;
   $('#chips').innerHTML=[`fino a ${p.max} ospiti`,p.id==='torre'?'due livelli':'piano terra',`minimo ${p.min} notti`,'check-in autonomo'].map(x=>`<span>${esc(x)}</span>`).join('');
@@ -227,7 +226,8 @@ async function apt(c){
   }
   let busy=new Set(bz.dates);const today=iso(new Date()),RE_D=/^\d{4}-\d\d-\d\d$/;
   // preavviso minimo: il primo arrivo prenotabile lo calcola il SERVER (ora di Roma), il browser non fa conti sull'orologio.
-  // I giorni prima di quella data compaiono come non disponibili; l'avviso si vede solo se il titolare ha impostato almeno 1 giorno.
+  // I giorni prima di quella data compaiono come non disponibili; toccandone uno (con almeno 1 giorno di preavviso impostato) il messaggio dice il primo arrivo.
+  // Sotto il calendario non ci sono note fisse sul preavviso né sull'ultimo giorno prenotabile: le regole restano (giorni spenti, messaggi al clic, controlli del server).
   const first=bz.notice&&RE_D.test(bz.notice.primoArrivo||'')?bz.notice.primoArrivo:'',
     nt=first&&+bz.notice.giorni>0?+bz.notice.giorni:0,
     ntMsg=nt?`Prenotazioni online con almeno ${nt} ${nt===1?'giorno':'giorni'} di preavviso: il primo arrivo possibile è il ${fmtD(first)}.`:'';
@@ -235,6 +235,12 @@ async function apt(c){
   const lim={mesi:+(bz.limit&&bz.limit.mesi)||6,last:bz.limit&&RE_D.test(bz.limit.ultimoGiorno||'')?bz.limit.ultimoGiorno:''};
   if(!lim.last){const d=new Date();d.setMonth(d.getMonth()+lim.mesi);lim.last=iso(d)}
   const last=lim.last,mk=d=>d.getFullYear()*12+d.getMonth(),kLast=+last.slice(0,4)*12+(+last.slice(5,7)-1);
+  // Prezzo «da … a notte»: il più basso tra le notti ancora prenotabili della settimana in corso (da oggi a domenica, ora di Roma: dal primo arrivo
+  // ammesso, entro l'orizzonte, non occupate), con le stesse regole del totale (prezzo del giorno > prezzo di stagione > base). È il prezzo a notte
+  // senza supplementi per gli ospiti in più; il totale esatto resta quello calcolato scegliendo le date. Nessuna notte prenotabile: la riga non compare.
+  const oggi=oggiRoma(),dom=new Date(oggi+'T00:00:00Z');dom.setUTCDate(dom.getUTCDate()+(7-dom.getUTCDay())%7+1);      // il lunedì dopo: escluso
+  const notti=days(oggi,iso(dom)).filter(d=>d>=(first||oggi)&&d<=last&&!busy.has(d)),prezzi=notti.map(d=>np(p,d)).filter(v=>Number.isFinite(v)&&v>0);
+  if(prezzi.length){$('#pr').textContent=eur(Math.min(...prezzi));$('#price').hidden=false}
   let da='',a='',n=Math.min(2,p.max),stale=false,m=new Date();m.setDate(1);const k0=mk(m);
   box.innerHTML=`
   <ol class="bk-steps" data-testid="booking-steps" aria-label="Fasi della prenotazione"><li class="on" data-s="1"><span>1</span>Date</li><li data-s="2"><span>2</span>Dati</li><li data-s="3"><span>3</span>Pagamento</li></ol>
@@ -242,8 +248,6 @@ async function apt(c){
   <div class="bk-pane" id="p1">
     <div class="cal-head"><button type="button" class="cal-nav" id="pv" aria-label="Mese precedente">‹</button><b id="mt" data-testid="cal-month" aria-live="polite"></b><button type="button" class="cal-nav" id="nx" aria-label="Mese successivo">›</button></div>
     <div class="cal" id="cal" data-testid="calendar"></div>
-    <p class="book-note" data-testid="booking-limit">Prenotabile fino al ${esc(fmtD(last))}.</p>
-    ${ntMsg?`<p class="book-note" id="nt" data-testid="notice-note">${esc(ntMsg)}</p>`:''}
     <div class="bk-range"><div class="bk-box on" id="b-in"><span>Arrivo</span><b id="v-in" data-testid="booking-arrival">—</b></div><div class="bk-box" id="b-out"><span>Partenza</span><b id="v-out" data-testid="booking-departure">—</b></div></div>
     <div class="bk-guests"><div class="lab">Ospiti<small>massimo ${p.max}</small></div><div class="stepper"><button type="button" id="g-dec" aria-label="Un ospite in meno" data-testid="booking-guests-minus">−</button><b id="g-val" data-testid="booking-guests" aria-live="polite">${n}</b><button type="button" id="g-inc" aria-label="Un ospite in più" data-testid="booking-guests-plus">+</button></div></div>
     <div class="bk-quote">
@@ -303,8 +307,9 @@ async function apt(c){
   // passo 1 (date e ospiti) → passo 2 (dati e pagamento)
   const goStep=k=>{$('#p1').hidden=k!==1;$('#p2').hidden=k!==2;
     box.querySelectorAll('.bk-steps li').forEach(li=>{const s=+li.dataset.s;li.classList.toggle('on',s===k);li.classList.toggle('done',s<k);li.firstElementChild.textContent=s<k?'✓':String(s)});
-    $('.book-card').classList.toggle('step2',k===2);      // con il modulo aperto basta il riepilogo: la carta resta corta
-    if(window.matchMedia&&matchMedia('(max-width:960px)').matches)$('.book-card').scrollIntoView({behavior:'smooth',block:'start'})};
+    const card=$('.book-card');card.classList.toggle('step2',k===2);      // con il modulo aperto basta il riepilogo: la carta resta corta
+    // la scheda segue la pagina: cambiando passo torna in vista su telefono e, sugli schermi larghi, se il suo inizio è uscito dallo schermo
+    if(window.matchMedia&&matchMedia('(max-width:960px)').matches||card.getBoundingClientRect().top<0)card.scrollIntoView({behavior:'smooth',block:'start'})};
   $('#go').onclick=()=>{if(!a)return;msg('');
     const nn=days(da,a).length;
     $('#r-apt').textContent=short(p);$('#r-dates').textContent=`${fmtW(da)} → ${fmtW(a)} · ${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`;$('#r-tot').textContent=money(tot(p,da,a,n));$('#r-ann').textContent=annullo(da);

@@ -260,8 +260,18 @@ const dids=()=>{const seen=new Set();return(v,i)=>{const s=slug(v||'')||'voce-'+
 const luoghiOk=l=>{const id=dids();return l.slice(0,40).filter(x=>x&&dtx(x.t,90)).map((x,i)=>{const o={id:id(x.id||x.t,i),t:dtx(x.t,90),meta:(Array.isArray(x.meta)?x.meta:[]).map(m=>dtx(m,70)).filter(Boolean).slice(0,3),d:dtx(x.d,600),alt:dtx(x.alt||x.t,140),link:dlink(x.link),lt:dtx(x.lt,60),local:dimg(x.local)};
  const q=Array.isArray(x.quad)?x.quad.map(dimg).filter(Boolean).slice(0,4):[];if(q.length===4&&!o.local)o.quad=q;return o})};      // quad: le 4 foto dei locali convenzionati (una foto caricata le sostituisce)
 const convOk=l=>{const id=dids();return l.slice(0,40).filter(x=>x&&dtx(x.nome,80)).map((x,i)=>({id:id(x.id||x.nome,i),nome:dtx(x.nome,80),cat:dtx(x.cat,70),zona:dtx(x.zona,60),badge:dtx(x.badge,30),estate:!!x.estate,sito:/^https?:/i.test(String(x.sito||'').trim())?dlink(x.sito):'',maps:dtx(x.maps,160),d:dtx(x.d,600),foto:dimg(x.foto)}))};
-// foto caricate dalla Gestione e usate dalla configurazione (appartamenti, luoghi, convenzioni): quelle non più usate si cancellano dopo il salvataggio
-const blobUrls=c=>[...(c.apts||[]).flatMap(p=>p.foto||[]),...(c.luoghi||[]).map(x=>x.local),...(c.convenzioni||[]).map(x=>x.foto)].filter(u=>/blob\.vercel-storage\.com/.test(u||''));
+// ---- Homepage (index.html): testi e foto da Gestione → Sito → Home ----
+// Si salvano solo i campi cambiati (chiave → testo o indirizzo della foto); quelli che mancano restano quelli scritti in index.html, che sono il
+// testo di partenza. Campi e lunghezze massime in data/home.json; una chiave sconosciuta si scarta. Testi solo testo (la pagina li scrive come
+// testo, mai come HTML; spazi e righe compressi, lo spazio non separabile resta); foto solo dal sito (img/…) o caricate dalla Gestione (Vercel Blob).
+const HOME_K=new Map(require('../data/home.json').sezioni.flatMap(s=>s.campi).map(f=>[f.k,f]));
+const htx=(v,n)=>String(v).replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g,' ').replace(/ {2,}/g,' ').trim().slice(0,n);
+const homeOk=h=>{if(!h||typeof h!=='object'||Array.isArray(h))return undefined;const o={};
+ for(const[k,v]of Object.entries(h)){const f=HOME_K.get(k);if(!f||typeof v!=='string')continue;const x=f.tipo==='foto'?dimg(v):htx(v,f.max||200);if(x)o[k]=x}
+ return Object.keys(o).length?o:undefined};
+const homeFoto=c=>Object.entries((c&&c.home)||{}).filter(([k])=>(HOME_K.get(k)||{}).tipo==='foto').map(([,u])=>u);
+// foto caricate dalla Gestione e usate dalla configurazione (appartamenti, luoghi, convenzioni, home): quelle non più usate si cancellano dopo il salvataggio
+const blobUrls=c=>[...(c.apts||[]).flatMap(p=>p.foto||[]),...(c.luoghi||[]).map(x=>x.local),...(c.convenzioni||[]).map(x=>x.foto),...homeFoto(c)].filter(u=>/blob\.vercel-storage\.com/.test(u||''));
 // Versione della configurazione (chiave cfg:rev): la Gestione la riceve con cfg_admin e la rimanda al salvataggio. Si salva solo se è ancora quella
 // (nessun altro dispositivo ha salvato nel frattempo) e la si incrementa, in un solo passo (Lua). ARGV[2] vuoto = salvataggio senza controllo.
 const LUA_CFG_SET="local c=tonumber(redis.call('GET',KEYS[2]) or '0') or 0 if ARGV[2]~='' and tonumber(ARGV[2])~=c then return {0,c} end redis.call('SET',KEYS[1],ARGV[1]) return {1,redis.call('INCR',KEYS[2])}";
@@ -296,7 +306,7 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
 // Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali,
 // niente informazioni per gli ospiti (istruzioni, Wi-Fi: arrivano solo nell'area clienti, a chi ha il codice).
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
-if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,...p})=>p)})}
+if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,...p})=>p),home:homeOk(c0.home)||{}})}      // home: solo i testi e le foto della homepage, ricontrollati
 // Luoghi di interesse e Convenzioni modificati dalla Gestione (già puliti al salvataggio); null = valgono quelli di js/dintorni.js
 if(a==='dintorni'){const c0=(await jg('cfg'))||{};return res.json({luoghi:Array.isArray(c0.luoghi)?c0.luoghi:null,convenzioni:Array.isArray(c0.convenzioni)?c0.convenzioni:null})}
 if(a==='busy'){const id=String(req.query.id||'');
@@ -640,6 +650,8 @@ if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.er
  keepG('checkoutOra',v=>RE_HHMM.test(v)?v:'');keepG('infoGiorni',v=>infoGiorni({infoGiorni:v}));keepG('whatsapp',v=>String(v||'').replace(/[^\d+ ]/g,'').trim().slice(0,20));
  // Luoghi e Convenzioni: null = si torna a quelli di js/dintorni.js; non inviati (pagina di gestione non aggiornata) = restano quelli salvati
  for(const[k,f]of[['luoghi',luoghiOk],['convenzioni',convOk]]){const v=b[k]!==undefined?b[k]:old[k];if(Array.isArray(v))n[k]=f(v)}
+ // Home: non inviata (pagina di gestione non aggiornata) = resta quella salvata; vuota o null = tutto torna ai testi e alle foto di partenza
+ {const h=homeOk(b.home!==undefined?b.home:old.home);if(h)n.home=h}
  const w=await kv('EVAL',LUA_CFG_SET,'2','cfg','cfg:rev',JSON.stringify(n),rev);
  if(!Array.isArray(w)||+w[0]!==1)return res.status(409).json(CFG_CAMBIATA);      // un altro salvataggio è arrivato proprio adesso
  const keep=new Set(blobUrls(n));      // le foto tolte si cancellano solo a salvataggio riuscito

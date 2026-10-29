@@ -16,7 +16,7 @@ In alto c'è sempre il selettore **OPERATIVITÀ | SITO**. Su telefono, sotto il 
 | | **Adempimenti** | Alloggiati Web e ISTAT (come prima) |
 | | **Guest Card** | Emissione a mano e configurazione (come prima) |
 | Sito | **Appartamenti** | Testi, CIN e CIPAT, approfondimento, servizi, ospiti massimi, testi dell'area ospiti, foto |
-| | **Home · Chi siamo** | Il testo della home |
+| | **Home** | Tutti i testi e le foto della homepage, sezione per sezione (vedi §7 bis) |
 | | **Eventi** | Eventi inseriti a mano (si salvano subito) |
 | | **Luoghi e convenzioni** | Le schede delle pagine «Luoghi di interesse» e «Convenzioni» (nuovo) |
 | | **Regole di prenotazione** | Preavviso minimo, orari di check-in e check-out, Wi-Fi visibile da…, WhatsApp; fin dove si prenota |
@@ -87,13 +87,24 @@ Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», 
 - **Sicurezza**: il server salva solo testo (le pagine lo mostrano come testo, mai come HTML); i link solo `http(s)://…` o una pagina del sito (`eventi.html`); le foto solo `img/…` del sito o caricate su Blob. La pagina pubblica chiede le schede con `api/x?a=dintorni`, che restituisce solo quelle; se il server non risponde entro 1,5 secondi mostra quelle di partenza.
 - Le proposte «Cosa fare per stagione» restano in `js/dintorni.js`.
 
+## 7 bis. Home
+
+- Ogni testo visibile della homepage e le sue 4 foto (prima schermata, schede di Torre e di Corte, dimora e posizione), divisi come nella pagina: Prima schermata · Appartamenti · Scheda di Torre · Scheda di Corte · Informazioni pratiche · La dimora e la posizione · Prenotazione e contatti. L'elenco dei campi, con le lunghezze massime, è in `data/home.json`.
+- **Testo di partenza**: è quello scritto in `index.html` (anche per chi apre la pagina senza JavaScript e per i motori di ricerca). La Gestione lo legge da lì, quindi non c'è una seconda copia da tenere allineata. Nelle impostazioni (`cfg.home`) finiscono **solo i campi cambiati**: un campo svuotato o riportato al testo di partenza non si salva.
+- **Ripristina** riporta un testo o una foto (con la sua descrizione) a quelli di partenza; **Ripristina tutta la home** riporta tutta la home, senza toccare appartamenti, prezzi, calendari e il resto. Come sempre, vale dopo «Salva modifiche».
+- **Una sola fonte**: nome, sottotitolo e ospiti massimi degli appartamenti vengono da **Appartamenti → Testi** e compaiono anche nella home. Nei testi si usano come segnaposto: `{nome}` e `{max}`; nei contatti `{email}` e `{telefono}` diventano i collegamenti. Collegamenti e pulsanti portano sempre dove devono: dalla Gestione si cambia solo il loro testo.
+- **Foto**: «Sostituisci la foto» usa lo stesso caricamento delle altre foto (ridimensionata nel browser fino a 1600 px, salvata su Vercel Blob). La Gestione chiede la descrizione della nuova foto: finché manca, sul sito la foto resta senza descrizione (mai quella della foto di prima). La foto sostituita si cancella da Blob dopo un salvataggio riuscito, solo se nessun'altra sezione la usa. Le foto nuove non hanno le versioni ridotte per il telefono di quelle di partenza.
+- **Sul sito**: la home legge i campi cambiati con la stessa richiesta dei codici CIN/CIPAT (`api/x?a=cfg`, mai in cache) e li scrive come testo, mai come HTML. Finché la risposta non arriva si vedono per un istante i testi di partenza.
+- **Sicurezza**: il server accetta solo le chiavi di `data/home.json`, salva testo semplice tagliato alla lunghezza massima e foto solo `img/…` del sito o caricate su Blob; la configurazione pubblica contiene solo questi testi e foto. Una pagina di Gestione non aggiornata (che non manda `home`) non li cancella.
+- Il vecchio testo «Chi siamo» (`cfg.chi`) non compariva sul sito: resta salvato com'è e la sezione Home lo mostra, chiuso, per poterlo copiare.
+
 ## 8. Regole di prenotazione
 
 Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'arrivo da cui si vedono Wi-Fi e informazioni riservate, numero WhatsApp: come prima, ora in un'unica sezione. **Fin dove si prenota** (6 mesi) è una regola fissa del sistema di disponibilità (`GUEST_MONTHS` in `api/_avail.js`): si legge qui ma non si cambia dalla Gestione.
 
 ## 9. Dati salvati
 
-- `cfg`: stessi campi di prima; nuovi e facoltativi `luoghi` e `convenzioni` (assenti finché non li salvi). Nessun dato già salvato viene convertito o riscritto all'apertura.
+- `cfg`: stessi campi di prima; nuovi e facoltativi `luoghi`, `convenzioni` e `home` (assenti finché non li salvi; `home` contiene solo i campi della homepage cambiati). Nessun dato già salvato viene convertito o riscritto all'apertura o con un nuovo deploy.
 - `cfg:rev`: numero di versione delle impostazioni (nuovo; assente = 0).
 - `pul:info`: letti e note delle Pulizie, una voce per arrivo (nuovo): `mat` e `sing` (numero di letti matrimoniali e singoli, solo se almeno uno), `culla: true`, `nota`; `letto` m/s è la scelta di prima, che resta valida; `fuori: true` quando la prenotazione è stata tolta dal testo.
 - `bkh` (prenotazioni del sito): quando una prenotazione si annulla con il rimborso si aggiungono `annullata_da` (ospite o titolare) e `rimborso` (importo, stato, riferimento Stripe, data). Le altre prenotazioni non cambiano.

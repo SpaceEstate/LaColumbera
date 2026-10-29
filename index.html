@@ -41,26 +41,30 @@
 
 <main>
 
+  <!-- I testi e le foto con data-home / data-home-img si possono cambiare da Gestione → Sito → Home (campi in data/home.json): quelli scritti qui
+       sono i testi di partenza e restano se il campo non è stato cambiato. data-apt, data-apt-sotto e i segnaposto data-ph prendono nome,
+       sottotitolo e ospiti dalla configurazione degli appartamenti. Collegamenti, destinazioni e data-testid non dipendono dalla Gestione. -->
+
   <!-- 1 · HERO: che cos'è, dove si trova, che cosa la distingue, come si prenota.
        «Verifica disponibilità» apre la scelta dell'appartamento e porta al riquadro di prenotazione della sua pagina (torre.html#prenota, corte.html#prenota). -->
   <section class="hero" data-testid="hero" aria-labelledby="hero-title">
     <div class="hero-media">
-      <img src="img/torre/Copia%20di%20Soggiorno%202.jpg" srcset="img/home/torre-soggiorno-800.jpg 800w, img/home/torre-soggiorno-1200.jpg 1200w, img/torre/Copia%20di%20Soggiorno%202.jpg 1600w" sizes="100vw" width="1600" height="1200" alt="Il soggiorno dell'appartamento Torre: travi in legno a vista, tavolo da pranzo e scala in legno verso il livello superiore" fetchpriority="high" decoding="async">
+      <img src="img/torre/Copia%20di%20Soggiorno%202.jpg" srcset="img/home/torre-soggiorno-800.jpg 800w, img/home/torre-soggiorno-1200.jpg 1200w, img/torre/Copia%20di%20Soggiorno%202.jpg 1600w" sizes="100vw" width="1600" height="1200" alt="Il soggiorno dell'appartamento Torre: travi in legno a vista, tavolo da pranzo e scala in legno verso il livello superiore" fetchpriority="high" decoding="async" data-home-img="hero.img" data-home-alt="hero.alt">
     </div>
     <div class="wrap">
       <div class="hero-copy">
-        <h1 id="hero-title"><span class="hero-name">La Columbera</span><span class="sr-only">: </span><span class="hero-claim">una dimora storica del XV&nbsp;secolo, a due passi da Trento</span></h1>
-        <p class="hero-lead">Nel borgo di Ravina, due appartamenti indipendenti – Torre e Corte – uniscono il carattere di una casa antica al comfort di oggi.</p>
+        <h1 id="hero-title"><span class="hero-name" data-home="hero.name">La Columbera</span><span class="sr-only">: </span><span class="hero-claim" data-home="hero.claim">una dimora storica del XV&nbsp;secolo, a due passi da Trento</span></h1>
+        <p class="hero-lead" data-home="hero.lead">Nel borgo di Ravina, due appartamenti indipendenti – Torre e Corte – uniscono il carattere di una casa antica al comfort di oggi.</p>
         <div class="hero-actions">
           <details class="hero-book" data-testid="hero-book">
-            <summary class="btn btn-wine" data-testid="hero-cta-disponibilita">Verifica disponibilità</summary>
+            <summary class="btn btn-wine" data-testid="hero-cta-disponibilita"><span data-home="hero.cta">Verifica disponibilità</span></summary>
             <div class="hero-book-menu">
-              <p>Scegli l'appartamento per aprire il calendario:</p>
-              <a href="torre.html#prenota" data-testid="hero-book-torre"><b>Appartamento Torre</b><span>Su due livelli · fino a 5 ospiti</span></a>
-              <a href="corte.html#prenota" data-testid="hero-book-corte"><b>Appartamento Corte</b><span>Piano terra · fino a 4 ospiti</span></a>
+              <p data-home="hero.menu">Scegli l'appartamento per aprire il calendario:</p>
+              <a href="torre.html#prenota" data-testid="hero-book-torre"><b data-home="apts.titolo" data-apt="torre">Appartamento <span data-ph="nome">Torre</span></b><span data-apt-sotto="torre">Su due livelli · fino a 5 ospiti</span></a>
+              <a href="corte.html#prenota" data-testid="hero-book-corte"><b data-home="apts.titolo" data-apt="corte">Appartamento <span data-ph="nome">Corte</span></b><span data-apt-sotto="corte">Piano terra · fino a 4 ospiti</span></a>
             </div>
           </details>
-          <a class="hero-link" href="#appartamenti" data-testid="hero-cta-appartamenti">Scopri gli appartamenti</a>
+          <a class="hero-link" href="#appartamenti" data-testid="hero-cta-appartamenti"><span data-home="hero.link">Scopri gli appartamenti</span></a>
         </div>
       </div>
     </div>
@@ -70,45 +74,45 @@
   <section class="home-apts" id="appartamenti" data-testid="section-appartamenti" aria-labelledby="apts-title">
     <div class="wrap">
       <header class="home-head">
-        <p class="home-kicker">Gli appartamenti</p>
-        <h2 id="apts-title">Torre e Corte</h2>
-        <p>Due appartamenti indipendenti nella stessa dimora, ciascuno con il proprio accesso: Torre si sviluppa su due livelli, Corte è al piano terra.</p>
+        <p class="home-kicker" data-home="apts.kicker">Gli appartamenti</p>
+        <h2 id="apts-title" data-home="apts.title">Torre e Corte</h2>
+        <p data-home="apts.intro">Due appartamenti indipendenti nella stessa dimora, ciascuno con il proprio accesso: Torre si sviluppa su due livelli, Corte è al piano terra.</p>
       </header>
       <div class="home-apt-grid">
 
         <article class="home-apt card-link" data-testid="card-torre">
           <figure class="home-apt-media">
-            <img src="img/torre/Copia%20di%20Doppia%201.jpg" srcset="img/home/torre-camera-doppia-800.jpg 800w, img/torre/Copia%20di%20Doppia%201.jpg 1600w" sizes="(max-width: 699px) calc(100vw - 40px), (max-width: 1239px) calc(50vw - 60px), 552px" width="1600" height="1200" alt="Camera con due letti singoli e finestra rotonda nell'appartamento Torre" loading="lazy" decoding="async">
+            <img src="img/torre/Copia%20di%20Doppia%201.jpg" srcset="img/home/torre-camera-doppia-800.jpg 800w, img/torre/Copia%20di%20Doppia%201.jpg 1600w" sizes="(max-width: 699px) calc(100vw - 40px), (max-width: 1239px) calc(50vw - 60px), 552px" width="1600" height="1200" alt="Camera con due letti singoli e finestra rotonda nell'appartamento Torre" loading="lazy" decoding="async" data-home-img="torre.img" data-home-alt="torre.alt">
           </figure>
           <div class="home-apt-body">
-            <h3>Appartamento <span class="n">Torre</span></h3>
-            <p class="home-apt-lead">Due livelli e due camere da letto: la scelta per famiglie e piccoli gruppi.</p>
+            <h3 data-home="apts.titolo" data-apt="torre">Appartamento <span class="n" data-ph="nome">Torre</span></h3>
+            <p class="home-apt-lead" data-home="torre.lead">Due livelli e due camere da letto: la scelta per famiglie e piccoli gruppi.</p>
             <dl class="home-apt-facts">
-              <div><dt>Ospiti</dt><dd>Fino a 5</dd></div>
-              <div><dt>Spazi</dt><dd>Due livelli collegati da una scala in legno</dd></div>
-              <div><dt>Letti</dt><dd>Matrimoniale, due singoli e un letto aggiuntivo</dd></div>
-              <div><dt>Dettagli</dt><dd>Travi a vista, cucina con parete in sasso</dd></div>
+              <div><dt data-home="apts.l.ospiti">Ospiti</dt><dd data-home="apts.ospiti" data-apt="torre">Fino a <span data-ph="max">5</span></dd></div>
+              <div><dt data-home="apts.l.spazi">Spazi</dt><dd data-home="torre.spazi">Due livelli collegati da una scala in legno</dd></div>
+              <div><dt data-home="apts.l.letti">Letti</dt><dd data-home="torre.letti">Matrimoniale, due singoli e un letto aggiuntivo</dd></div>
+              <div><dt data-home="apts.l.dettagli">Dettagli</dt><dd data-home="torre.dettagli">Travi a vista, cucina con parete in sasso</dd></div>
             </dl>
             <p class="apt-codes" data-codici="torre" data-testid="card-torre-codici" hidden></p>
-            <a class="home-apt-cta stretched" href="torre.html" data-testid="card-torre-link">Scopri Torre <span aria-hidden="true">→</span></a>
+            <a class="home-apt-cta stretched" href="torre.html" data-testid="card-torre-link"><span data-home="apts.cta" data-apt="torre">Scopri <span data-ph="nome">Torre</span></span> <span aria-hidden="true">→</span></a>
           </div>
         </article>
 
         <article class="home-apt card-link" data-testid="card-corte">
           <figure class="home-apt-media">
-            <img src="img/corte/Copia%20di%20Camera%204.jpg" srcset="img/home/corte-camera-800.jpg 800w, img/corte/Copia%20di%20Camera%204.jpg 1600w" sizes="(max-width: 699px) calc(100vw - 40px), (max-width: 1239px) calc(50vw - 60px), 552px" width="1600" height="1200" alt="Camera matrimoniale dell'appartamento Corte, con pavimento a scacchi rosso e crema" loading="lazy" decoding="async">
+            <img src="img/corte/Copia%20di%20Camera%204.jpg" srcset="img/home/corte-camera-800.jpg 800w, img/corte/Copia%20di%20Camera%204.jpg 1600w" sizes="(max-width: 699px) calc(100vw - 40px), (max-width: 1239px) calc(50vw - 60px), 552px" width="1600" height="1200" alt="Camera matrimoniale dell'appartamento Corte, con pavimento a scacchi rosso e crema" loading="lazy" decoding="async" data-home-img="corte.img" data-home-alt="corte.alt">
           </figure>
           <div class="home-apt-body">
-            <h3>Appartamento <span class="n">Corte</span></h3>
-            <p class="home-apt-lead">Al piano terra, su un unico livello: la scelta per coppie e piccole famiglie.</p>
+            <h3 data-home="apts.titolo" data-apt="corte">Appartamento <span class="n" data-ph="nome">Corte</span></h3>
+            <p class="home-apt-lead" data-home="corte.lead">Al piano terra, su un unico livello: la scelta per coppie e piccole famiglie.</p>
             <dl class="home-apt-facts">
-              <div><dt>Ospiti</dt><dd>Fino a 4</dd></div>
-              <div><dt>Spazi</dt><dd>Camera e ambiente unico con zona pranzo, angolo cottura e living</dd></div>
-              <div><dt>Letti</dt><dd>Matrimoniale e letto a scomparsa in soggiorno</dd></div>
-              <div><dt>Dettagli</dt><dd>Travi in legno, pavimento a scacchi rosso e crema</dd></div>
+              <div><dt data-home="apts.l.ospiti">Ospiti</dt><dd data-home="apts.ospiti" data-apt="corte">Fino a <span data-ph="max">4</span></dd></div>
+              <div><dt data-home="apts.l.spazi">Spazi</dt><dd data-home="corte.spazi">Camera e ambiente unico con zona pranzo, angolo cottura e living</dd></div>
+              <div><dt data-home="apts.l.letti">Letti</dt><dd data-home="corte.letti">Matrimoniale e letto a scomparsa in soggiorno</dd></div>
+              <div><dt data-home="apts.l.dettagli">Dettagli</dt><dd data-home="corte.dettagli">Travi in legno, pavimento a scacchi rosso e crema</dd></div>
             </dl>
             <p class="apt-codes" data-codici="corte" data-testid="card-corte-codici" hidden></p>
-            <a class="home-apt-cta stretched" href="corte.html" data-testid="card-corte-link">Scopri Corte <span aria-hidden="true">→</span></a>
+            <a class="home-apt-cta stretched" href="corte.html" data-testid="card-corte-link"><span data-home="apts.cta" data-apt="corte">Scopri <span data-ph="nome">Corte</span></span> <span aria-hidden="true">→</span></a>
           </div>
         </article>
 
@@ -119,16 +123,16 @@
   <!-- 3 · INFORMAZIONI PRATICHE: solo dati confermati nel progetto (indirizzo e tempi da Come trovarci, parcheggio e servizi da data/default.json, arrivo dall'area clienti) -->
   <section class="home-info" id="informazioni" data-testid="section-info" aria-labelledby="info-title">
     <div class="wrap">
-      <h2 id="info-title">Informazioni pratiche</h2>
+      <h2 id="info-title" data-home="info.title">Informazioni pratiche</h2>
       <dl class="home-info-list">
-        <div><dt>Dove</dt><dd>Via Centrale 48, Ravina (Trento), a 4 minuti dall'uscita Trento Sud dell'A22.</dd></div>
-        <div><dt>Centro di Trento</dt><dd>Circa 5–10 minuti in auto; autobus urbani 12 e 14 dalla fermata Ravina Piazza.</dd></div>
-        <div><dt>Parcheggio</dt><dd>Pubblico e gratuito, in Via Val Gola 22, a 50 metri dalla dimora.</dd></div>
-        <div><dt>Arrivo</dt><dd>Check-in online prima dell'arrivo e ingresso autonomo.</dd></div>
-        <div><dt>Negli appartamenti</dt><dd>Wi-Fi, biancheria da letto e da bagno, cucina attrezzata.</dd></div>
-        <div><dt>Durante il soggiorno</dt><dd>Siamo a disposizione per informazioni e consigli su Trento e dintorni.</dd></div>
+        <div><dt data-home="info.dove.l">Dove</dt><dd data-home="info.dove.t">Via Centrale 48, Ravina (Trento), a 4 minuti dall'uscita Trento Sud dell'A22.</dd></div>
+        <div><dt data-home="info.centro.l">Centro di Trento</dt><dd data-home="info.centro.t">Circa 5–10 minuti in auto; autobus urbani 12 e 14 dalla fermata Ravina Piazza.</dd></div>
+        <div><dt data-home="info.parcheggio.l">Parcheggio</dt><dd data-home="info.parcheggio.t">Pubblico e gratuito, in Via Val Gola 22, a 50 metri dalla dimora.</dd></div>
+        <div><dt data-home="info.arrivo.l">Arrivo</dt><dd data-home="info.arrivo.t">Check-in online prima dell'arrivo e ingresso autonomo.</dd></div>
+        <div><dt data-home="info.inclusi.l">Negli appartamenti</dt><dd data-home="info.inclusi.t">Wi-Fi, biancheria da letto e da bagno, cucina attrezzata.</dd></div>
+        <div><dt data-home="info.soggiorno.l">Durante il soggiorno</dt><dd data-home="info.soggiorno.t">Siamo a disposizione per informazioni e consigli su Trento e dintorni.</dd></div>
       </dl>
-      <p class="home-more"><a class="home-link" href="mappa.html" data-testid="info-cta-mappa">Come raggiungerci <span aria-hidden="true">→</span></a></p>
+      <p class="home-more"><a class="home-link" href="mappa.html" data-testid="info-cta-mappa"><span data-home="info.link">Come raggiungerci</span> <span aria-hidden="true">→</span></a></p>
     </div>
   </section>
 
@@ -136,15 +140,15 @@
   <section class="home-place" id="dimora" data-testid="section-dimora" aria-labelledby="dimora-title">
     <div class="wrap home-place-grid">
       <div class="home-place-text">
-        <p class="home-kicker">La dimora e la posizione</p>
-        <h2 id="dimora-title">Cinque secoli di storia, a pochi minuti da Trento</h2>
-        <p>Nella dimora quattrocentesca, le travi in legno a vista, la parete in sasso della cucina di Torre e il pavimento a scacchi di Corte richiamano il carattere della casa; arredi, cucine e bagni sono quelli di oggi.</p>
-        <p id="ravina" data-testid="section-ravina">Da Ravina raggiungi il centro di Trento in pochi minuti, in auto o in autobus. In auto il Monte Bondone è a circa 20 minuti, il Lago di Toblino a 25 e il Lago di Garda a 40: una base comoda per scoprire il Trentino in ogni stagione.</p>
-        <p class="home-more"><a class="home-link" href="dintorni.html" data-testid="dimora-cta-dintorni">Luoghi di interesse nei dintorni <span aria-hidden="true">→</span></a></p>
+        <p class="home-kicker" data-home="place.kicker">La dimora e la posizione</p>
+        <h2 id="dimora-title" data-home="place.title">Cinque secoli di storia, a pochi minuti da Trento</h2>
+        <p data-home="place.storia">Nella dimora quattrocentesca, le travi in legno a vista, la parete in sasso della cucina di Torre e il pavimento a scacchi di Corte richiamano il carattere della casa; arredi, cucine e bagni sono quelli di oggi.</p>
+        <p id="ravina" data-testid="section-ravina" data-home="place.posizione">Da Ravina raggiungi il centro di Trento in pochi minuti, in auto o in autobus. In auto il Monte Bondone è a circa 20 minuti, il Lago di Toblino a 25 e il Lago di Garda a 40: una base comoda per scoprire il Trentino in ogni stagione.</p>
+        <p class="home-more"><a class="home-link" href="dintorni.html" data-testid="dimora-cta-dintorni"><span data-home="place.link">Luoghi di interesse nei dintorni</span> <span aria-hidden="true">→</span></a></p>
       </div>
       <figure class="home-place-fig">
-        <img src="img/Trento1.jpg" srcset="img/home/trento-piazza-duomo-800.jpg 800w, img/Trento1.jpg 1280w" sizes="(max-width: 899px) calc(100vw - 40px), 600px" width="1280" height="668" alt="Piazza Duomo a Trento: la Torre Civica, la fontana del Nettuno e il Duomo, con le montagne sullo sfondo" loading="lazy" decoding="async">
-        <figcaption>Piazza Duomo, nel centro di Trento</figcaption>
+        <img src="img/Trento1.jpg" srcset="img/home/trento-piazza-duomo-800.jpg 800w, img/Trento1.jpg 1280w" sizes="(max-width: 899px) calc(100vw - 40px), 600px" width="1280" height="668" alt="Piazza Duomo a Trento: la Torre Civica, la fontana del Nettuno e il Duomo, con le montagne sullo sfondo" loading="lazy" decoding="async" data-home-img="place.img" data-home-alt="place.alt">
+        <figcaption data-home="place.caption">Piazza Duomo, nel centro di Trento</figcaption>
       </figure>
     </div>
   </section>
@@ -153,15 +157,15 @@
   <section class="contact home-book" id="prenota" data-testid="section-contatti" aria-labelledby="book-title">
     <div class="wrap">
       <div class="inner">
-        <span class="section-eyebrow">Ti aspettiamo</span>
-        <h2 id="book-title">Scegli l'appartamento e verifica la disponibilità</h2>
-        <p>Nel calendario di ogni appartamento trovi le date libere; scelte le date, vedi subito il prezzo del soggiorno e prenoti online.</p>
+        <span class="section-eyebrow" data-home="book.kicker">Ti aspettiamo</span>
+        <h2 id="book-title" data-home="book.title">Scegli l'appartamento e verifica la disponibilità</h2>
+        <p data-home="book.text">Nel calendario di ogni appartamento trovi le date libere; scelte le date, vedi subito il prezzo del soggiorno e prenoti online.</p>
         <div class="home-book-options">
-          <a class="home-book-opt" href="torre.html#prenota" data-testid="cta-prenota-torre"><b>Appartamento Torre</b><span>Su due livelli · fino a 5 ospiti</span><span class="go">Verifica disponibilità <span aria-hidden="true">→</span></span></a>
-          <a class="home-book-opt" href="corte.html#prenota" data-testid="cta-prenota-corte"><b>Appartamento Corte</b><span>Piano terra · fino a 4 ospiti</span><span class="go">Verifica disponibilità <span aria-hidden="true">→</span></span></a>
+          <a class="home-book-opt" href="torre.html#prenota" data-testid="cta-prenota-torre"><b data-home="apts.titolo" data-apt="torre">Appartamento <span data-ph="nome">Torre</span></b><span data-apt-sotto="torre">Su due livelli · fino a 5 ospiti</span><span class="go"><span data-home="book.cta">Verifica disponibilità</span> <span aria-hidden="true">→</span></span></a>
+          <a class="home-book-opt" href="corte.html#prenota" data-testid="cta-prenota-corte"><b data-home="apts.titolo" data-apt="corte">Appartamento <span data-ph="nome">Corte</span></b><span data-apt-sotto="corte">Piano terra · fino a 4 ospiti</span><span class="go"><span data-home="book.cta">Verifica disponibilità</span> <span aria-hidden="true">→</span></span></a>
         </div>
-        <p class="home-book-terms">Pagamento online con carta. Annullamento gratuito fino a 7 giorni prima dell'arrivo, con rimborso totale.</p>
-        <p class="home-book-contact">Hai una domanda prima di prenotare? Scrivici a <a href="mailto:lacolumbera@gmail.com" data-testid="cta-email">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594" data-testid="cta-tel">+39&nbsp;351&nbsp;704&nbsp;3594</a>.</p>
+        <p class="home-book-terms" data-home="book.terms">Pagamento online con carta. Annullamento gratuito fino a 7 giorni prima dell'arrivo, con rimborso totale.</p>
+        <p class="home-book-contact" data-home="book.contact">Hai una domanda prima di prenotare? Scrivici a <a href="mailto:lacolumbera@gmail.com" data-ph="email" data-testid="cta-email">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594" data-ph="telefono" data-testid="cta-tel">+39&nbsp;351&nbsp;704&nbsp;3594</a>.</p>
       </div>
     </div>
   </section>

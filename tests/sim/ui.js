@@ -67,6 +67,8 @@ function bridge(w, log) {
   return async (url, init = {}) => {
     const u = new URL(String(url), w.location.href), a = u.searchParams.get('a');
     if (u.pathname.endsWith('/data/default.json')) return resp(200, fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8'));
+    // altri file del sito letti dagli script (es. la Gestione della home legge data/home.json e i testi di partenza da index.html)
+    if (!/\/api\//.test(u.pathname) && /\.(json|html)$/.test(u.pathname)) { const f = path.join(ROOT, decodeURIComponent(u.pathname).replace(/^\/+/, '')); return f.startsWith(ROOT + path.sep) && fs.existsSync(f) ? resp(200, fs.readFileSync(f, 'utf8')) : resp(404, '{}'); }
     if (u.pathname.endsWith('/api/adempimenti') && a && adp) {
       const headers = {}; for (const [k, v] of Object.entries(init.headers || {})) headers[k.toLowerCase()] = v;
       if (a === 'al_send' && adp.forceSend) { if (adp.forceSend.throw) throw new TypeError('Failed to fetch'); log.calls.push({ a, status: adp.forceSend.status, q: {} }); return resp(adp.forceSend.status, adp.forceSend.text); }
@@ -319,8 +321,8 @@ test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, info
   assert(/3 notti × €\s?180/.test(pay) && /€\s?540/.test(text(r.doc.querySelector('[data-testid=ga-pay-total]'))) && /Pagato online con carta il ven 2 ott 2026/.test(pay) && /imposta di soggiorno/i.test(pay), pay);
   assert(!/Mario|Rossi|mario@test\.it/.test(text(app)), 'nessun dato personale nella pagina');
   const mie = r.log.calls.find(x => x.a === 'mie' && x.status === 200); assert(mie, 'risposta del server');
-  const info = tabOf(r, 'info'), it = text(info), MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic';
-  assert.deepEqual(['ga-route', 'ga-arrivo-maps', 'ga-parcheggio-maps'].map(k => r.doc.querySelector('[data-testid=' + k + ']').getAttribute('href')), [MAPS, MAPS, MAPS], 'indicazioni e parcheggio: il link di Google Maps scelto dal titolare');
+  const info = tabOf(r, 'info'), it = text(info), MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)');
+  assert.deepEqual(['ga-route', 'ga-arrivo-maps', 'ga-parcheggio-maps'].map(k => r.doc.querySelector('[data-testid=' + k + ']').getAttribute('href')), [MAPS, MAPS, PARK], 'indicazioni: il punto scelto dal titolare; parcheggio: Via Val Gola 22');
   assert(/Regole della casa/.test(it) && /Niente feste <b>dopo<\/b> le 22/.test(it) && !info.querySelector('b b, li b'), 'testi della struttura come testo, mai HTML: ' + it);
   assert(/Carta il martedì/.test(it) && /Via Val Gola 22/.test(it) && /check-in online/.test(it), it);
   assert(!/segreta-torre/.test(it) && /dal mar 8 dic 2026/.test(text(r.doc.querySelector('[data-testid=ga-riservate-dal]'))), 'Wi-Fi non ancora visibile: ' + it);
@@ -546,17 +548,17 @@ test('U7 admin · da_verificare: segnalata, con nota; la conferma con sovrapposi
 
 /* ===================== preavviso minimo di prenotazione ===================== */
 const saveNotice = async (giorni, ora) => { const c = (await H.adminApi('cfg_admin', {})).body; Object.assign(c, { preavvisoGiorni: giorni, checkinOra: ora }); assert.equal((await H.adminApi('save', c)).status, 200); };
-test('U8 appartamento con preavviso: giorni entro il limite non selezionabili, avviso con il primo arrivo, messaggio chiaro al clic', async () => {
+test('U8 appartamento con preavviso: giorni entro il limite non selezionabili, nessuna nota fissa sotto il calendario, messaggio con il primo arrivo al clic', async () => {
   await setup(); await saveNotice(2, '15:00');
   clock.set('2026-10-15T09:00:00Z'); await H.sync();                               // 11:00 a Roma: il primo arrivo prenotabile è il 17/10
   const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => doc.querySelector('#cal .d'), 'calendario');
   const x = [...doc.querySelectorAll('#cal .d.x')].map(c => c.dataset.d);
   assert(x.includes('2026-10-15') && x.includes('2026-10-16') && !x.includes('2026-10-17'), 'giorni non selezionabili: ' + x.join(','));
-  const note = doc.querySelector('[data-testid=notice-note]');
-  assert(note && /almeno 2 giorni di preavviso/.test(text(note)) && /17 ott 2026/.test(text(note)), text(note));
+  // modifica voluta (29/10/2026): la nota fissa «Prenotazioni online con almeno … di preavviso» sotto il calendario non c'è più; la regola resta
+  assert(!doc.querySelector('[data-testid=notice-note]') && !/di preavviso/.test(text(doc.querySelector('[data-testid=booking-card]'))), 'nessuna nota fissa: ' + text(doc.querySelector('[data-testid=booking-card]')));
   doc.querySelector('#cal .d[data-d="2026-10-16"]').click();
-  assert(/almeno 2 giorni di preavviso/.test(text(doc.querySelector('#e'))) && !doc.querySelector('#cal .d.s'), 'messaggio al clic: ' + text(doc.querySelector('#e')));
+  assert(/almeno 2 giorni di preavviso/.test(text(doc.querySelector('#e'))) && /17 ott 2026/.test(text(doc.querySelector('#e'))) && !doc.querySelector('#cal .d.s'), 'messaggio al clic con il primo arrivo: ' + text(doc.querySelector('#e')));
   doc.querySelector('#cal .d[data-d="2026-10-17"]').click();
   assert(doc.querySelector('#cal .d.s[data-d="2026-10-17"]') && text(doc.querySelector('#e')) === '', 'il primo arrivo si seleziona e il messaggio sparisce');
 });
@@ -680,14 +682,15 @@ test('W2 prenotazione: errore del server (date non più libere) → messaggio ch
   assert(!$('#cal .d.s') && $('#cal .d[data-d="2026-10-21"].x'), 'date sbarrate e scelta azzerata');
   assert(log.calls.filter(c => c.a === 'busy').length >= 2, 'calendario riscaricato');
 });
-test('W3 orizzonte: si vede e si prenota al massimo 6 mesi avanti (pagina e server)', async () => {
+test('W3 orizzonte: si prenota al massimo 6 mesi avanti (pagina e server), senza la nota «Prenotabile fino al…» sotto il calendario', async () => {
   await setup();                                                                      // oggi = 2 ott 2026 → ultimo giorno 2 apr 2027
   const b = await H.busy('torre'); assert.equal(b.status, 200);
   assert.deepEqual(b.body.limit, { mesi: 6, ultimoGiorno: '2027-04-02' });
   assert(b.body.dates.includes('2027-04-02') && !b.body.dates.includes('2027-04-01'), 'dal 2 aprile la notte non è prenotabile, quella prima sì');
   const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s), month = () => text($('[data-testid=cal-month]')).toLowerCase();
   await waitFor(() => $('#cal .d'), 'calendario');
-  assert(/2 apr 2027/.test(text($('[data-testid=booking-limit]'))), text($('[data-testid=booking-limit]')));
+  // modifica voluta (29/10/2026): niente nota «Prenotabile fino al…»; il limite resta (mesi, giorni spenti, messaggio al clic, server)
+  assert(!$('[data-testid=booking-limit]') && !/Prenotabile fino/.test(text($('[data-testid=booking-card]'))), 'nessuna nota sull\'orizzonte');
   assert($('#pv').disabled && /ottobre 2026/.test(month()), 'indietro oltre il mese in corso non si va');
   for (let i = 0; i < 6; i++) { assert(!$('#nx').disabled, 'avanti possibile al mese ' + i); $('#nx').click(); }
   assert(/aprile 2027/.test(month()) && $('#nx').disabled, 'si ferma ad aprile 2027');
@@ -794,6 +797,28 @@ test('W29 prenotazione: prima di pagare si legge fino a quando si annulla gratis
   $('[data-testid=booking-back]').click();
   doc.querySelector('#cal .d[data-d="2026-10-05"]').click(); doc.querySelector('#cal .d[data-d="2026-10-08"]').click();
   assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Non rimborsabile: l’arrivo è tra meno di 7 giorni.');
+});
+test('W34 prezzo «da … a notte»: il più basso tra le notti prenotabili della settimana in corso (ora di Roma), con le regole del totale; nessun importo fisso; senza notti prenotabili la riga non c\'è', async () => {
+  await setup();      // venerdì 2 ottobre 2026, 11:00 a Roma: la settimana va fino a domenica 4; Torre è occupata il 2 e il 3 (Booking), Corte è libera
+  for (const f of ['torre.html', 'corte.html']) assert(!/€\s?(120|180)\b/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')), f + ': nessun prezzo scritto nella pagina');
+  const c = (await H.adminApi('cfg_admin', {})).body, T = c.apts.find(x => x.id === 'torre'), Co = c.apts.find(x => x.id === 'corte');
+  T.prices = { '2026-10-03': 90, '2026-10-04': 150, '2026-10-05': 80 };      // il 3 è occupato, il 5 è della settimana dopo: conta solo il 4
+  Co.periodi = [{ da: '2026-10-01', a: '2026-10-03', prezzo: 110 }];          // Corte: 2 e 3 ottobre a €110 (stagione), il 4 a €120 (base)
+  assert.equal((await H.adminApi('save', c)).status, 200);
+  const price = async id => { const { doc } = await load(id + '.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => doc.querySelector('#cal .d'), 'calendario ' + id); const el = doc.querySelector('#price'); return el.hidden ? null : text(el); };
+  assert.equal(await price('torre'), 'da €150 a notte', 'Torre: la sola notte libera della settimana (prezzo del giorno)');
+  assert.equal(await price('corte'), 'da €110 a notte', 'Corte: il prezzo di stagione, più basso della base');
+  // il prezzo cambia con quelli di Gestione: con 2 giorni di preavviso il primo arrivo è domenica 4 e per Corte resta la notte a €120
+  await saveNotice(2, '16:00');
+  assert.equal(await price('corte'), 'da €120 a notte', 'le notti prima del primo arrivo non contano');
+  // domenica sera con 1 giorno di preavviso: nella settimana non resta nessuna notte prenotabile → la riga non compare (mai un importo inventato)
+  await saveNotice(1, '16:00'); clock.set('2026-10-04T18:00:00Z'); await H.sync();
+  assert.equal(await price('corte'), null, 'nessuna notte prenotabile in settimana: nessun prezzo');
+  // disponibilità non verificabile (calendario di Booking fermo): nessun calendario e nessun prezzo
+  H.breakFeed('bookingTorre', { status: 500 }); tick(200); await H.sync();
+  const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => doc.querySelector('[data-testid=booking-offline]'), 'avviso');
+  assert(doc.querySelector('#price').hidden && text(doc.querySelector('#pr')) === '', 'senza disponibilità verificata nessun prezzo');
 });
 test('W5 servizi mancanti nella configurazione salvata: valgono quelli di default.json; un salvataggio da una pagina di gestione vecchia non li cancella', async () => {
   await setup();
@@ -1128,36 +1153,38 @@ test('W17 Gestione · Prenotazioni: sito e portali in un solo elenco, ricerca e 
 test('W18 Gestione · salvataggio: le modifiche non salvate restano segnalate in ogni sezione; se un altro dispositivo ha salvato nel frattempo non si sovrascrive nulla e si sceglie; Annulla; uscita con conferma', async () => {
   await setup();
   const A1 = await loadAdmin('#home'), B1 = await loadAdmin('#home');      // lo stesso titolare su due dispositivi
-  const chi = r => r.doc.querySelector('[data-testid=admin-chi]'), bar = r => r.doc.querySelector('[data-testid=admin-save-bar]');
+  // il campo è il titolo della home (prima era il testo «Chi siamo», che non compariva sul sito: la vista Home ora ha tutti i testi della homepage)
+  const chi = r => r.doc.querySelector('[data-testid="admin-home-hero.claim"]'), bar = r => r.doc.querySelector('[data-testid=admin-save-bar]'), saved = () => (JSON.parse(kv.exec(['GET', 'cfg'])).home || {})['hero.claim'];
+  await waitFor(() => chi(A1) && chi(B1), 'campi della home');
   assert(!bar(A1).classList.contains('show'), 'niente da salvare: la barra non c\'è');
   inp(A1, chi(A1), 'Testo dal telefono');
-  assert(bar(A1).classList.contains('show') && /Modifiche non salvate: Home · Chi siamo/.test(saveMsg(A1)));
+  assert(bar(A1).classList.contains('show') && /Modifiche non salvate: Home$/.test(saveMsg(A1)), saveMsg(A1));
   await goto(A1, '#calendario/torre', '[data-testid=admin-base-torre]');
   assert(bar(A1).classList.contains('show') && A1.doc.body.classList.contains('adm-dirty'), 'cambiando sezione la barra resta');
   inp(A1, A1.doc.querySelector('[data-testid=admin-base-torre]'), '190');
-  assert(/Home · Chi siamo, Calendario e prezzi · Torre/.test(saveMsg(A1)), 'dice dove sono le modifiche: ' + saveMsg(A1));
+  assert(/Home, Calendario e prezzi · Torre/.test(saveMsg(A1)), 'dice dove sono le modifiche: ' + saveMsg(A1));
   await goto(A1, '#messaggi', '[data-testid=msg-root]');
   assert(A1.doc.body.classList.contains('adp-active') && A1.doc.body.classList.contains('adm-dirty'), 'anche nei Messaggi (che salvano da soli) la barra resta');
   // l'altro dispositivo salva per primo
   inp(B1, chi(B1), 'Testo dal computer'); await salva(B1);
   A1.doc.querySelector('[data-testid=admin-save]').click();
   await waitFor(() => /altro dispositivo/.test(saveMsg(A1)), 'conflitto');
-  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).chi, 'Testo dal computer', 'quello del computer resta');
+  assert.equal(saved(), 'Testo dal computer', 'quello del computer resta');
   assert(A1.doc.querySelector('[data-testid=admin-cfg-reload]') && A1.doc.querySelector('[data-testid=admin-cfg-force]'), 'si sceglie: ricarica o salva comunque');
   A1.log.confirmAnswer = true; A1.doc.querySelector('[data-testid=admin-cfg-force]').click();
   await waitFor(() => /Salvato/.test(saveMsg(A1)), 'salvato comunque');
-  const st = JSON.parse(kv.exec(['GET', 'cfg'])); assert.deepEqual([st.chi, st.apts.find(a => a.id === 'torre').base], ['Testo dal telefono', 190]);
+  const st = JSON.parse(kv.exec(['GET', 'cfg'])); assert.deepEqual([st.home['hero.claim'], st.apts.find(a => a.id === 'torre').base], ['Testo dal telefono', 190]);
   // adesso è il computer a essere indietro: «Ricarica» porta le impostazioni salvate e lascia perdere le sue
   inp(B1, chi(B1), 'Ancora dal computer'); B1.doc.querySelector('[data-testid=admin-save]').click();
   await waitFor(() => B1.doc.querySelector('[data-testid=admin-cfg-reload]'), 'conflitto sul computer');
   B1.log.confirmAnswer = true; B1.doc.querySelector('[data-testid=admin-cfg-reload]').click();
-  await waitFor(() => chi(B1).value === 'Testo dal telefono' && !B1.doc.body.classList.contains('adm-dirty'), 'ricaricato');
+  await waitFor(() => chi(B1) && chi(B1).value === 'Testo dal telefono' && !B1.doc.body.classList.contains('adm-dirty'), 'ricaricato');
   inp(B1, chi(B1), 'Prova da annullare'); B1.doc.querySelector('[data-testid=admin-undo]').click();
-  await waitFor(() => chi(B1).value === 'Testo dal telefono' && !bar(B1).classList.contains('dirty'), 'Annulla: tornano le impostazioni salvate');
+  await waitFor(() => chi(B1) && chi(B1).value === 'Testo dal telefono' && !bar(B1).classList.contains('dirty'), 'Annulla: tornano le impostazioni salvate');
   inp(B1, chi(B1), 'Non salvato'); B1.log.confirmAnswer = false; const n = B1.log.confirms.length;
   B1.doc.querySelector('[data-testid=admin-logout]').click();
   assert(B1.log.confirms.length === n + 1 && /modifiche non salvate/.test(B1.log.confirms[n]) && chi(B1), 'uscire chiede conferma; «no» = si resta');
-  assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).chi, 'Testo dal telefono');
+  assert.equal(saved(), 'Testo dal telefono');
 });
 test('W19 Gestione · Luoghi e convenzioni: si parte dalle schede del sito; si modificano, aggiungono, spostano, tolgono; la pagina pubblica le mostra (solo testo, link sicuri); «Ripristina» torna a quelle di partenza', async () => {
   await setup();
@@ -1219,12 +1246,18 @@ test('W24 Luoghi e stagioni: Garda, Val di Non, meli in fiore, Bondone d\'estate
 test('W25 Come trovarci: indirizzo, parcheggio e fermata con i pulsanti per il navigatore; mappa con legenda; auto, treno e aereo passo per passo; autobus con orari e foto; aiuto al telefono', async () => {
   await setup();
   const { doc } = await load('mappa.html', { scripts: ['js/site.js', 'js/mappa.js'] }), $ = s => doc.querySelector(s), href = s => $(s).getAttribute('href');
-  // modifica voluta (29/10/2026): casa e parcheggio aprono il link di Google Maps scelto dal titolare (cercati per indirizzo portavano gli ospiti nel punto sbagliato)
-  const MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic';
+  // la casa apre il link di Google Maps scelto dal titolare (cercata per indirizzo portava gli ospiti nel punto sbagliato);
+  // il parcheggio (correzione voluta, 29/10/2026) ha le sue indicazioni stradali fino a Via Val Gola 22, non l'ingresso della casa
+  const MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)');
   assert.equal(href('[data-testid=mappa-naviga]'), MAPS, 'navigatore fino alla struttura');
-  assert.equal(href('[data-testid=mappa-naviga-parcheggio]'), MAPS, 'navigatore fino al parcheggio');
   assert.equal(href('[data-testid=mappa-google]'), MAPS, 'la mappa su Google Maps');
-  assert(!/google\.com\/maps\/(dir|search)\/\?api=1&(amp;)?(destination|query)=Via%20(Centrale|Val%20Gola)/.test(fs.readFileSync(path.join(ROOT, 'mappa.html'), 'utf8')), 'nessun link per indirizzo verso casa o parcheggio');
+  for (const s of ['[data-testid=mappa-naviga-parcheggio]', '[data-testid=mappa-auto-parcheggio]']) {
+    const u = new URL(href(s));
+    assert(u.origin === 'https://www.google.com' && u.pathname === '/maps/dir/' && u.searchParams.get('api') === '1' && u.searchParams.get('destination') === 'Via Val Gola 22, 38123 Ravina (Trento)', s + ': destinazione ' + href(s));
+    assert.equal(href(s), PARK, s); assert.notEqual(href(s), MAPS, s + ': il parcheggio non porta all\'ingresso della casa');
+  }
+  const park = [...doc.querySelectorAll('main a')].filter(a => /parcheggio/i.test(text(a)));
+  assert(park.length === 2 && park.every(a => a.getAttribute('href') === PARK), 'ogni «Naviga al parcheggio» porta al parcheggio: ' + park.map(a => a.getAttribute('href')).join(' | '));
   assert.equal(href('[data-testid=mappa-vai-bus]'), '#bus'); assert($('#bus[data-testid=bus-section]'), 'la sezione autobus ha ancora l\'indirizzo #bus (link da Luoghi, Eventi e Convenzioni)');
   for (const f of ['dintorni.html', 'eventi.html', 'convenzioni.html']) assert(fs.readFileSync(path.join(ROOT, f), 'utf8').includes('href="mappa.html#bus"'), f);
   assert($('[data-testid=mappa-svg] svg title') && /Trento Sud/.test(text($('[data-testid=mappa-svg] svg title'))), 'la mappa disegnata c\'è');
@@ -1240,6 +1273,125 @@ test('W25 Come trovarci: indirizzo, parcheggio e fermata con i pulsanti per il n
   for (const n of ['12', '14']) { const c = $('[data-testid=bus-line-' + n + '-card]'); assert(c && /maps\/search\/\?api=1&query=Fermata%20Ravina%20Piazza/.test(c.getAttribute('href')) && c.querySelector('img').dataset.local === 'img/bus-' + n + '.jpg', 'linea ' + n + ': foto e fermata'); }
   assert.equal(href('[data-testid=mappa-chiama]'), 'tel:+393517043594', 'aiuto al telefono');
   const ext = [...doc.querySelectorAll('main a[href^="http"]')]; assert(ext.length >= 8 && ext.every(a => a.target === '_blank' && /noopener/.test(a.rel)), 'i link esterni si aprono a parte, senza accesso alla pagina');
+});
+/* ===================== Gestione → Sito → Home: testi e foto della homepage ===================== */
+const HOME_SCHEMA = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'home.json'), 'utf8'));
+const HOME_PARTENZA = 'una dimora storica del XV secolo, a due passi da Trento';
+// caricamento di una foto come nel browser: jsdom non disegna, quindi l'immagine e il canvas del ridimensionamento sono finti (la prova vera è nel browser)
+const fintaFoto = r => {
+  r.w.URL.createObjectURL = () => 'blob:prova';
+  r.w.Image = class { set src(v) { this.width = 2000; this.height = 1500; setTimeout(() => this.onload && this.onload(), 0); } };
+  r.w.HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} });
+  r.w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/jpeg;base64,' + Buffer.from('foto di prova').toString('base64');
+};
+test('W35 Gestione · Home: ogni campo di data/home.json parte dal testo della pagina; testi e foto cambiati si salvano, restano a un nuovo accesso e compaiono nella home come testo; gli altri restano quelli di partenza; si ripristina senza toccare il resto', async () => {
+  await setup();
+  const cfg = () => JSON.parse(kv.exec(['GET', 'cfg']) || 'null') || {}, campi = HOME_SCHEMA().sezioni.flatMap(x => x.campi);
+  const c0 = (await H.adminApi('cfg_admin', {})).body; c0.apts.find(x => x.id === 'torre').prices = { '2026-10-20': 199 }; assert.equal((await H.adminApi('save', c0)).status, 200);
+  let r = await loadAdmin('#home'); const f = k => r.doc.querySelector('[data-testid="admin-home-' + k + '"]'), prev = k => r.doc.querySelector('[data-testid="admin-home-preview-' + k + '"]').getAttribute('src');
+  await waitFor(() => f('hero.claim'), 'campi della home');
+  // ogni campo c'è: i testi con il testo di partenza scritto in index.html, le foto con anteprima e caricamento
+  const pagina = new r.w.DOMParser().parseFromString(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), 'text/html');
+  for (const c of campi) {
+    if (c.tipo === 'foto') { assert.equal(prev(c.k), pagina.querySelector('img[data-home-img="' + c.k + '"]').getAttribute('src'), 'foto di partenza ' + c.k); assert(r.doc.querySelector('[data-testid="admin-home-up-' + c.k + '"]'), 'caricamento ' + c.k); continue; }
+    assert(f(c.k), 'campo ' + c.k); assert.equal(+f(c.k).getAttribute('maxlength'), c.max, 'lunghezza massima ' + c.k);
+  }
+  assert.equal(f('hero.claim').value, HOME_PARTENZA);
+  assert.equal(f('hero.alt').value, pagina.querySelector('img[data-home-img="hero.img"]').getAttribute('alt'));
+  assert.deepEqual(['apts.titolo', 'apts.ospiti', 'apts.cta', 'book.contact'].map(k => f(k).value), ['Appartamento {nome}', 'Fino a {max}', 'Scopri {nome}', 'Hai una domanda prima di prenotare? Scrivici a {email} o chiamaci al {telefono}.'], 'segnaposto al posto dei dati degli appartamenti e dei collegamenti');
+  assert(!r.doc.querySelector('[data-testid=admin-home-reset-all]') && /Nessun campo cambiato/.test(text(r.doc.querySelector('[data-testid=admin-home-count]'))));
+  // testi: anche con un tag (resta testo) e con i segnaposto; riscrivere il testo di partenza non conta come modifica
+  inp(r, f('hero.claim'), 'Una casa antica <img src=x onerror="window.__xss=1"> a Ravina');
+  inp(r, f('apts.titolo'), '{nome}, appartamento');
+  inp(r, f('book.contact'), 'Scrivi a {email} oppure chiama {telefono}');
+  inp(r, f('torre.lead'), 'Due piani e due camere.');
+  inp(r, f('info.title'), 'Da sapere');
+  inp(r, f('place.title'), 'Cinque secoli di storia, a pochi minuti da Trento');
+  assert(/Modifiche non salvate: Home$/.test(saveMsg(r)), saveMsg(r));
+  assert(/Campi cambiati: 5/.test(text(r.doc.querySelector('[data-testid=admin-home-count]'))), 'il conteggio segue le modifiche: ' + text(r.doc.querySelector('[data-testid=admin-home-count]')));
+  assert(f('hero.claim').closest('.home-f').classList.contains('is-custom') && !r.doc.querySelector('[data-testid="admin-home-reset-hero.claim"]').hidden && r.doc.querySelector('[data-testid="admin-home-reset-place.title"]').hidden, 'cambiato / testo di partenza');
+  // foto: lo stesso caricamento delle altre foto della Gestione (api/x?a=up); finché non c'è la descrizione la Gestione la chiede
+  fintaFoto(r);
+  const up = r.doc.querySelector('[data-testid="admin-home-up-hero.img"]');
+  Object.defineProperty(up, 'files', { value: [new r.w.File(['x'], 'nuova.jpg', { type: 'image/jpeg' })], configurable: true }); chg(r, up);
+  await waitFor(() => /^https:\/\/teststore\.public\.blob\.vercel-storage\.com\/foto\/home\//.test(prev('hero.img')), 'anteprima della foto caricata');
+  const nuova = prev('hero.img');
+  assert(r.doc.querySelector('[data-testid="admin-home-alt-warn-hero.img"]') && f('hero.alt').value === '', 'foto nuova: la descrizione va scritta');
+  assert.equal(f('hero.claim').value, 'Una casa antica <img src=x onerror="window.__xss=1"> a Ravina', 'i testi già cambiati restano dopo il caricamento');
+  inp(r, f('hero.alt'), 'Il soggiorno con la scala in legno');
+  assert(r.doc.querySelector('[data-testid="admin-home-alt-warn-hero.img"]').hidden, 'descrizione scritta: l\'avviso sparisce');
+  await salva(r);
+  const h1 = cfg().home;
+  assert.deepEqual(Object.keys(h1).sort(), ['apts.titolo', 'book.contact', 'hero.alt', 'hero.claim', 'hero.img', 'info.title', 'torre.lead'], 'si salvano solo i campi cambiati: ' + Object.keys(h1));
+  assert.equal(h1['hero.img'], nuova);
+  // nuovo accesso: i campi cambiati ci sono ancora
+  r = await loadAdmin('#home'); await waitFor(() => f('hero.claim'), 'campi della home');
+  assert.deepEqual([f('hero.claim').value, prev('hero.img'), f('hero.alt').value], [h1['hero.claim'], nuova, 'Il soggiorno con la scala in legno']);
+  assert(/Campi cambiati: 7/.test(text(r.doc.querySelector('[data-testid=admin-home-count]'))), text(r.doc.querySelector('[data-testid=admin-home-count]')));
+  // la home pubblica: testi come testo (il tag non diventa un elemento), segnaposto con i dati veri e i collegamenti, foto nuova; il resto com'era
+  const home = await load('index.html', { scripts: ['js/site.js'] }), $h = q => home.doc.querySelector(q);
+  await waitFor(() => /Una casa antica/.test(text($h('.hero-claim'))), 'testi della home');
+  assert.equal(text($h('.hero-claim')), 'Una casa antica <img src=x onerror="window.__xss=1"> a Ravina'); assert(!$h('.hero-claim img') && !home.w.__xss, 'il tag resta testo');
+  assert.equal(text($h('[data-testid=card-torre] h3')), 'Torre, appartamento'); assert(text($h('[data-testid=card-torre] h3 .n')) === 'Torre', 'il nome resta nel suo stile');
+  assert.equal(text($h('[data-testid=hero-book-corte] b')), 'Corte, appartamento', 'anche nella scelta della prima schermata');
+  const ct = $h('[data-home="book.contact"]'); assert.equal(text(ct), 'Scrivi a lacolumbera@gmail.com oppure chiama +39 351 704 3594');
+  assert(ct.querySelector('a[href="mailto:lacolumbera@gmail.com"][data-testid=cta-email]') && ct.querySelector('a[href="tel:+393517043594"][data-testid=cta-tel]'), 'i collegamenti restano con la loro destinazione');
+  assert.deepEqual([text($h('[data-home="torre.lead"]')), text($h('#info-title'))], ['Due piani e due camere.', 'Da sapere']);
+  const im = $h('img[data-home-img="hero.img"]'); assert.deepEqual([im.getAttribute('src'), im.hasAttribute('srcset'), im.getAttribute('alt')], [nuova, false, 'Il soggiorno con la scala in legno']);
+  for (const k of ['hero.lead', 'place.title', 'corte.lead', 'book.terms']) assert.equal(text($h('[data-home="' + k + '"]')), text(pagina.querySelector('[data-home="' + k + '"]')), 'testo di partenza: ' + k);
+  assert($h('img[data-home-img="torre.img"]').hasAttribute('srcset'), 'le foto non cambiate restano con le loro versioni per il telefono');
+  assert.equal($h('[data-testid=hero-book-torre]').getAttribute('href'), 'torre.html#prenota', 'destinazioni invariate');
+  // ripristino di un testo e della foto (con la sua descrizione): gli altri cambiamenti e il resto delle impostazioni restano
+  global.__blobDel = [];
+  r.doc.querySelector('[data-testid="admin-home-reset-hero.claim"]').click(); await waitFor(() => f('hero.claim').value === HOME_PARTENZA, 'testo di partenza');
+  r.doc.querySelector('[data-testid="admin-home-reset-hero.img"]').click(); await waitFor(() => prev('hero.img') === 'img/torre/Copia%20di%20Soggiorno%202.jpg', 'foto di partenza');
+  await salva(r);
+  assert.deepEqual(Object.keys(cfg().home).sort(), ['apts.titolo', 'book.contact', 'info.title', 'torre.lead']);
+  assert.deepEqual(global.__blobDel, [nuova], 'la foto non più usata si cancella dopo il salvataggio');
+  // tutta la home: tornano i testi di partenza; appartamenti e prezzi non cambiano
+  r.log.confirmAnswer = true; r.doc.querySelector('[data-testid=admin-home-reset-all]').click();
+  await waitFor(() => f('torre.lead').value === text(pagina.querySelector('[data-home="torre.lead"]')), 'tutto ripristinato'); await salva(r);
+  const fin = cfg(); assert(!fin.home, 'nessun campo della home salvato'); assert.deepEqual(fin.apts.find(x => x.id === 'torre').prices, { '2026-10-20': 199 }, 'i prezzi restano');
+});
+test('W36 Home · server: solo i campi di data/home.json, testi solo testo e tagliati alla lunghezza massima, foto solo dal sito o caricate; la configurazione pubblica ha solo testi e foto della home; una Gestione non aggiornata non li cancella; la foto sostituita si cancella solo se nessun altro la usa', async () => {
+  await setup();
+  const B = 'https://teststore.public.blob.vercel-storage.com/foto/home/', stored = () => JSON.parse(kv.exec(['GET', 'cfg'])).home;
+  let c = (await H.adminApi('cfg_admin', {})).body;
+  c.home = { 'hero.claim': '  Titolo\n  nuovo  ', 'hero.lead': 'x'.repeat(1000), 'hero.name': 42, 'hero.img': 'javascript:alert(1)', 'torre.img': 'http://altro.example/x.jpg', 'place.img': 'img/../segreto.jpg', 'corte.img': B + 'f-90.jpg', sconosciuto: 'x', 'book.cta': '   ' };
+  assert.equal((await H.adminApi('save', c)).status, 200);
+  assert.deepEqual(stored(), { 'hero.claim': 'Titolo nuovo', 'hero.lead': 'x'.repeat(400), 'corte.img': B + 'f-90.jpg' }, 'campi sconosciuti, foto da altri siti o con «..» e valori non testuali scartati');
+  const pub = (await H.api('cfg', {}, { method: 'GET' })).body, chiavi = new Set(HOME_SCHEMA().sezioni.flatMap(x => x.campi).map(x => x.k));
+  assert.deepEqual(pub.home, stored(), 'la home pubblica è quella salvata, ricontrollata'); assert(Object.keys(pub.home).every(k => chiavi.has(k)));
+  assert(!/infoRiservate|infoOspiti/.test(JSON.stringify(pub)) && !pub.apts.some(a => 'blocked' in a), 'nessun dato riservato nella configurazione pubblica');
+  // una Gestione non aggiornata (non manda «home») non cancella i testi salvati
+  c = (await H.adminApi('cfg_admin', {})).body; delete c.home; assert.equal((await H.adminApi('save', c)).status, 200); assert.equal(stored()['hero.claim'], 'Titolo nuovo');
+  // foto sostituita: si cancella dopo il salvataggio, ma non se la usa anche un appartamento
+  global.__blobDel = []; c = (await H.adminApi('cfg_admin', {})).body; c.home['corte.img'] = B + 'f-91.jpg'; assert.equal((await H.adminApi('save', c)).status, 200);
+  assert.deepEqual(global.__blobDel, [B + 'f-90.jpg']);
+  global.__blobDel = []; c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(x => x.id === 'corte').foto.push(B + 'f-91.jpg'); c.home['corte.img'] = B + 'f-92.jpg'; assert.equal((await H.adminApi('save', c)).status, 200);
+  assert.deepEqual(global.__blobDel, [], 'usata anche nella galleria di Corte: resta');
+  // un salvataggio rifiutato (versione superata) non cambia e non cancella nulla
+  global.__blobDel = []; c = (await H.adminApi('cfg_admin', {})).body; c.home = null; c.rev = 0; assert.equal((await H.adminApi('save', c)).status, 409); assert.deepEqual(global.__blobDel, []); assert(stored()['corte.img']);
+  // null = tutto torna ai testi e alle foto di partenza
+  c = (await H.adminApi('cfg_admin', {})).body; c.home = null; assert.equal((await H.adminApi('save', c)).status, 200); assert.equal(stored(), undefined);
+  // senza accesso non si salva
+  const no = await H.api('save', Object.assign({}, c, { home: { 'hero.claim': 'intruso' } })); assert.equal(no.status, 401); assert.equal(stored(), undefined);
+});
+test('W37 home: ogni testo visibile e ogni foto della pagina si cambiano dalla Gestione (data-home) o vengono dagli appartamenti; stessi campi di data/home.json; destinazioni fisse', async () => {
+  const doc = new JSDOM(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')).window.document, main = doc.querySelector('main');
+  const campi = new Set(HOME_SCHEMA().sezioni.flatMap(x => x.campi).map(x => x.k)), usate = new Set(), fissi = [];
+  const w = doc.createTreeWalker(main, 4); let n;
+  while ((n = w.nextNode())) {
+    if (!n.nodeValue.trim()) continue;
+    const el = n.parentElement;
+    if (el.closest('[aria-hidden="true"],.sr-only')) continue;      // frecce decorative e il «:» per i lettori di schermo
+    if (!el.closest('[data-home],[data-apt-sotto],[data-codici]')) fissi.push(n.nodeValue.trim());
+  }
+  assert.deepEqual(fissi, [], 'testi visibili che la Gestione non può cambiare: ' + fissi.join(' | '));
+  for (const im of main.querySelectorAll('img')) assert(im.dataset.homeImg && im.dataset.homeAlt, 'foto che la Gestione non può cambiare: ' + im.getAttribute('src'));
+  main.querySelectorAll('[data-home]').forEach(e => usate.add(e.dataset.home)); main.querySelectorAll('img[data-home-img]').forEach(e => { usate.add(e.dataset.homeImg); usate.add(e.dataset.homeAlt); });
+  assert.deepEqual([...usate].sort(), [...campi].sort(), 'la pagina e data/home.json hanno gli stessi campi');
+  assert(![...main.querySelectorAll('a[data-home]')].length, 'i collegamenti non sono campi: si cambia il testo dentro, mai la destinazione');
 });
 test('W20 Gestione · Regole di prenotazione: preavviso, orari e area ospiti insieme; fin dove si prenota (6 mesi, regola fissa) e notti minime con il rimando al calendario', async () => {
   await setup();

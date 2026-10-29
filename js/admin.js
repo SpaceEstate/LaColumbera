@@ -1,6 +1,6 @@
 // La Columbera · Pannello di gestione, in due aree (selettore in alto, sempre visibile):
 //  OPERATIVITÀ — Oggi · Calendario e prezzi · Prenotazioni · Pulizie · Messaggi · Adempimenti · Guest Card
-//  SITO        — Appartamenti · Home · Chi siamo · Eventi · Luoghi e convenzioni · Regole di prenotazione · Sistema
+//  SITO        — Appartamenti · Home · Eventi · Luoghi e convenzioni · Regole di prenotazione · Sistema
 // Le sezioni vivono in file separati, caricati prima di questo: js/admin-operativita.js (Oggi, Prenotazioni, Guest Card), js/admin-calendario.js,
 // js/admin-pulizie.js, js/admin-sito.js; Messaggi in js/admin-messaggi.js, Adempimenti in js/adempimenti.js e js/istat.js. Ognuno si registra in window.LCAdmParts
 // e riceve da qui lo stato e le utilità comuni (oggetto A).
@@ -68,7 +68,7 @@ const syncIssues=()=>{const s=D.sync;if(!s)return 0;
 // [indirizzo, nome, cosa contiene (si legge nel menu laterale)]
 const SEZ={
   op:[['oggi','Oggi','arrivi, partenze, cose da fare'],['calendario','Calendario e prezzi','notti, prezzi, blocchi'],['prenotazioni','Prenotazioni','elenco, dettagli, codici'],['pulizie','Pulizie','entrate, uscite, letti'],['messaggi','Messaggi','ospiti, template, automatici'],['adempimenti','Adempimenti','Alloggiati Web, ISTAT'],['guestcard','Guest Card','Trentino Guest Card']],
-  sito:[['appartamenti','Appartamenti','testi, foto, area ospiti'],['home','Home · Chi siamo','testo della home'],['eventi','Eventi','eventi in programma'],['luoghi','Luoghi e convenzioni','schede dei dintorni'],['regole','Regole di prenotazione','preavviso, orari, area ospiti'],['sistema','Sistema','Sincronizzazione, pagamenti, email']]};
+  sito:[['appartamenti','Appartamenti','testi, foto, area ospiti'],['home','Home','testi e foto della home'],['eventi','Eventi','eventi in programma'],['luoghi','Luoghi e convenzioni','schede dei dintorni'],['regole','Regole di prenotazione','preavviso, orari, area ospiti'],['sistema','Sistema','Sincronizzazione, pagamenti, email']]};
 const ALL=[...SEZ.op,...SEZ.sito],areaOf=s=>SEZ.sito.some(x=>x[0]===s)?'sito':'op';
 const AUTO=new Set(['messaggi','adempimenti']);      // salvano da sole: la barra «Salva modifiche» non serve (compare solo se restano modifiche in sospeso altrove)
 const route=()=>{const[s,sub,arg]=(location.hash||'#oggi').slice(1).split('/');return{s:s||'oggi',sub:sub||'',arg:arg||''}};

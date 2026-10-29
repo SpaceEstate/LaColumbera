@@ -90,12 +90,43 @@ window.lcCodici = function(p, cipatStruttura){
   if(cipat) o.push('CIPAT: <b>' + esc(cipat) + '</b>');
   return o.join(' · ');
 };
-// Schede degli appartamenti nella home (e ovunque ci sia un elemento con data-codici="<id appartamento>")
+// Home: testi e foto cambiati da Gestione → Sito → Home (c.home: solo i campi cambiati, gli altri restano quelli scritti nella pagina) e i dati
+// degli appartamenti dalla loro configurazione (nome, sottotitolo, ospiti: una sola fonte). Tutto come testo, mai HTML; foto solo dal sito o
+// caricate dalla Gestione. Segnaposto: {nome} e {max} dell'appartamento dell'elemento (data-apt), {email} e {telefono} i collegamenti già nella pagina.
+window.lcHome = function(c){
+  if(!c) return;
+  var h = c.home && typeof c.home === 'object' ? c.home : {}, apts = {};
+  (c.apts || []).forEach(function(p){ if(p && p.id) apts[p.id] = p; });
+  var txt = function(k){ return typeof h[k] === 'string' && h[k].trim() ? h[k] : null; };
+  var okImg = function(u){ u = String(u || '').trim(); return /^(img\/[\w\-./]+\.(jpe?g|png|webp)|https:\/\/[\w-]+\.public\.blob\.vercel-storage\.com\/[\w\-./]+)$/i.test(u) && u.indexOf('..') < 0 ? u : ''; };
+  var dati = function(el){ var p = apts[el.getAttribute('data-apt')]; return p ? { nome: String(p.nome || p.id).replace('La Columbera ', ''), max: p.max ? String(p.max) : '' } : {}; };
+  document.querySelectorAll('[data-home]').forEach(function(el){
+    var tpl = txt(el.getAttribute('data-home')), ph = {}, v = dati(el);
+    el.querySelectorAll('[data-ph]').forEach(function(x){ var n = x.getAttribute('data-ph'); if(!ph[n]) ph[n] = x; });
+    if(!tpl){ Object.keys(ph).forEach(function(n){ if(v[n]) ph[n].textContent = v[n]; }); return; }      // testo di partenza: solo i dati dell'appartamento
+    if(!Object.keys(ph).length){ el.textContent = tpl; return; }
+    var frag = document.createDocumentFragment();
+    tpl.split(/(\{[a-z]+\})/).forEach(function(s){
+      var m = /^\{([a-z]+)\}$/.exec(s);
+      if(m && ph[m[1]]){ var n = ph[m[1]].cloneNode(true); if(v[m[1]]) n.textContent = v[m[1]]; frag.appendChild(n); }      // l'elemento della pagina (link compresi)
+      else if(s) frag.appendChild(document.createTextNode(s));
+    });
+    el.textContent = ''; el.appendChild(frag);
+  });
+  document.querySelectorAll('[data-apt-sotto]').forEach(function(el){ var p = apts[el.getAttribute('data-apt-sotto')]; if(p && typeof p.sotto === 'string' && p.sotto.trim()) el.textContent = p.sotto; });
+  document.querySelectorAll('img[data-home-img]').forEach(function(im){
+    var u = okImg(h[im.getAttribute('data-home-img')]), alt = txt(im.getAttribute('data-home-alt'));
+    if(u){ im.removeAttribute('srcset'); im.removeAttribute('sizes'); im.src = u; im.alt = alt || ''; }      // foto nuova senza descrizione: alt vuoto, mai quello della foto di prima
+    else if(alt) im.alt = alt;
+  });
+};
+// Schede degli appartamenti nella home (e ovunque ci sia un elemento con data-codici="<id appartamento>") e contenuti della home: una sola richiesta
 (function(){
-  var els = document.querySelectorAll('[data-codici]');
-  if(!els.length || !window.fetch) return;
+  var els = document.querySelectorAll('[data-codici]'), home = document.querySelector('[data-home],[data-home-img],[data-apt-sotto]');
+  if((!els.length && !home) || !window.fetch) return;
   fetch('api/x?a=cfg').then(function(r){ return r.ok ? r.json() : null; }).then(function(c){
     if(!c || !c.apts) return;
+    if(home) window.lcHome(c);
     els.forEach(function(el){
       var p = c.apts.filter(function(x){ return x.id === el.dataset.codici; })[0], t = p ? window.lcCodici(p, c.cipat) : '';
       if(t){ el.innerHTML = t; el.hidden = false; }

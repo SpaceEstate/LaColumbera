@@ -1,4 +1,4 @@
-// La Columbera · Gestione → SITO: Appartamenti (testi, foto, area ospiti), Home · Chi siamo, Eventi, Luoghi e convenzioni,
+// La Columbera · Gestione → SITO: Appartamenti (testi, foto, area ospiti), Home (testi e foto della homepage), Eventi, Luoghi e convenzioni,
 // Regole di prenotazione, Sistema (sincronizzazione, pagamenti ed email, calendari iCal).
 // Si registra in window.LCAdmParts: stato e utilità comuni arrivano da js/admin.js (oggetto A).
 (window.LCAdmParts=window.LCAdmParts||[]).push(function(A){
@@ -43,7 +43,71 @@ A.view.appartamenti=vApp;
 A.after.appartamenti=r=>{if(r.arg==='foto')phRender(A.idx(V.appApt))};
 
 // ---------- Home ----------
-A.view.home=()=>`<div class="admin-card"><h2>Home · Chi siamo</h2><div class="field"><label for="achi">Testo della sezione «Chi siamo»</label><textarea id="achi" rows="8" data-b="c:chi" data-testid="admin-chi">${esc(S().chi)}</textarea></div></div>`;
+// Tutti i testi e le foto di index.html, sezione per sezione (campi e lunghezze in data/home.json). Il testo e la foto di partenza sono quelli
+// scritti nella pagina: la Gestione li legge da index.html, così non esiste una seconda copia da tenere allineata. Nelle impostazioni (S.home)
+// vanno solo i campi cambiati; svuotare un campo o riscrivere il testo di partenza lo riporta com'era. Nome, sottotitolo e ospiti degli
+// appartamenti restano in Appartamenti → Testi (una sola fonte). Il vecchio testo «Chi siamo» (S.chi) non compariva sul sito: resta salvato com'è.
+const HOME={campi:null,def:null,err:'',p:null};
+const hid=k=>'hk-'+k.replace(/\W/g,'-');
+const HS=()=>{const h=S().home;return h&&typeof h==='object'&&!Array.isArray(h)?h:(S().home={})};
+const hv=k=>{const v=HS()[k];return typeof v==='string'&&v.trim()?v:null};      // il valore cambiato, oppure null (= quello di partenza)
+// testo di partenza di un elemento della pagina: i segnaposto (data-ph) diventano {nome}, {max}, {email}, {telefono}
+const hser=el=>[...el.childNodes].map(n=>n.nodeType===3?n.nodeValue:n.nodeType===1?(n.dataset.ph?'{'+n.dataset.ph+'}':hser(n)):'').join('');
+function homeDefaults(sezioni,html){const doc=new DOMParser().parseFromString(html,'text/html'),q=s=>doc.querySelector(s),d={};
+  for(const f of sezioni.flatMap(s=>s.campi)){const a='"'+f.k+'"';
+    if(f.tipo==='foto'){const im=q('img[data-home-img='+a+']');d[f.k]=im?im.getAttribute('src')||'':'';continue}
+    const el=q('[data-home='+a+']'),im=el?null:q('img[data-home-alt='+a+']');
+    d[f.k]=(el?hser(el):im?im.getAttribute('alt')||'':'').replace(/[ \t\r\n\f]+/g,' ').trim()}
+  return d}
+const homeLoad=()=>HOME.p||(HOME.p=Promise.all([fetch('data/home.json').then(r=>{if(!r.ok)throw Error();return r.json()}),fetch('index.html').then(r=>{if(!r.ok)throw Error();return r.text()})])
+  .then(([j,html])=>{HOME.campi=j.sezioni;HOME.def=homeDefaults(j.sezioni,html);HOME.err=''})
+  .catch(()=>{HOME.err='Non riesco a leggere i testi e le foto della home: controlla la connessione e riprova.';HOME.p=null}));
+const homeRender=()=>{const y=window.scrollY;A.body();window.scrollTo(0,y)};
+const PH={nome:'{nome} = il nome dell\'appartamento',max:'{max} = gli ospiti massimi dell\'appartamento',email:'{email} = il collegamento a lacolumbera@gmail.com',telefono:'{telefono} = il collegamento al numero di telefono'};
+function homeCampo(f,vuoto){const v=hv(f.k),val=v!=null?v:vuoto?'':HOME.def[f.k]||'',id=hid(f.k),max=+f.max||200,on=v!=null;
+  const nota=[(f.ph||[]).map(x=>PH[x]).filter(Boolean).join(' · '),f.nota].filter(Boolean).join(' ');
+  return `<div class="field home-f${on?' is-custom':''}"><label for="${id}">${esc(f.l)} <small class="home-badge"${on?'':' hidden'}>· cambiato</small></label>
+   ${+f.righe?`<textarea id="${id}" rows="${+f.righe}" maxlength="${max}" data-hk="${esc(f.k)}" data-testid="admin-home-${esc(f.k)}">${esc(val)}</textarea>`
+     :`<input id="${id}" maxlength="${max}" data-hk="${esc(f.k)}" value="${esc(val)}"${vuoto&&!on?' placeholder="Descrivi la nuova foto"':''} data-testid="admin-home-${esc(f.k)}">`}
+   ${nota?`<small class="home-hint">${esc(nota)}</small>`:''}
+   <button type="button" class="link-btn home-reset" data-act="homeReset" data-k="${esc(f.k)}"${on?'':' hidden'} data-testid="admin-home-reset-${esc(f.k)}">Ripristina il testo di partenza</button></div>`}
+function homeFoto(f,alt){const u=hv(f.k),src=u||HOME.def[f.k]||'',id=hid(f.k),senzaAlt=u&&alt&&hv(alt.k)==null;
+  return `<div class="dl-body home-foto" data-testid="admin-home-foto-${esc(f.k)}"><div class="dl-foto">${src?`<img src="${esc(src)}" alt="" data-testid="admin-home-preview-${esc(f.k)}">`:''}<span class="dl-ph">Nessuna foto</span>
+    <label class="upload-btn">Sostituisci la foto<input type="file" accept="image/*" class="home-up" data-k="${esc(f.k)}" data-testid="admin-home-up-${esc(f.k)}"></label>
+    ${u?`<button type="button" class="stato-select" data-act="homeReset" data-k="${esc(f.k)}" data-testid="admin-home-reset-${esc(f.k)}">Ripristina la foto di partenza</button>`:''}
+    <small id="${id}-msg" role="status">${u?'Foto caricata dalla Gestione.':'Foto di partenza del sito.'} Le foto vengono ridimensionate automaticamente.</small></div>
+   <div><p class="adm-h4">${esc(f.l)}</p>${alt?homeCampo(alt,u&&senzaAlt):''}${senzaAlt?'<p class="form-err" data-testid="admin-home-alt-warn-'+esc(f.k)+'">Scrivi la descrizione della nuova foto: finché manca, sul sito la foto resta senza descrizione per chi usa un lettore di schermo.</p>':''}</div></div>`}
+const homeSez=s=>`<details class="admin-card home-sez" open data-testid="admin-home-sez-${esc(s.id)}"><summary><h3>${esc(s.titolo)}</h3></summary>
+  ${s.campi.filter(f=>!f.di).map(f=>f.tipo==='foto'?homeFoto(f,s.campi.find(x=>x.k===f.alt)):homeCampo(f)).join('')}</details>`;
+const homeConta=()=>{const n=Object.keys(HS()).filter(k=>hv(k)!=null).length;
+  return n?`Campi cambiati: <b>${n}</b>. <button type="button" class="link-btn" data-act="homeResetAll" data-testid="admin-home-reset-all">Ripristina tutta la home</button>`:'Nessun campo cambiato: la home mostra i testi e le foto di partenza.'};
+function vHome(){
+  if(!HOME.def)return `<div class="admin-card" data-testid="admin-home"><h2>Home</h2><p class="book-note" data-testid="admin-home-wait">${esc(HOME.err||'Carico i testi e le foto della home…')}</p>${HOME.err?'<button type="button" class="btn btn-line" data-act="homeRetry">Riprova</button>':''}</div>`;
+  const chi=String(S().chi||'').trim();
+  return `<div class="admin-card" data-testid="admin-home"><div class="adm-head"><h2>Home</h2><a class="btn btn-line" href="index.html" target="_blank" rel="noopener">Vedi la home ↗</a></div>
+   <p class="book-note">Tutti i testi e le foto della home, sezione per sezione. Ogni campo parte dal testo che si vede adesso sul sito: cambialo e premi «Salva modifiche». «Ripristina» riporta il testo o la foto di partenza. Collegamenti e pulsanti portano sempre dove devono: qui si cambia solo il loro testo. Nome, sottotitolo e numero massimo di ospiti degli appartamenti si cambiano in <a href="#appartamenti">Appartamenti → Testi</a> e valgono anche per la home.</p>
+   <p class="book-note" data-testid="admin-home-count">${homeConta()}</p>
+   ${chi?`<details class="home-chi" data-testid="admin-home-chi"><summary>Testo «Chi siamo» salvato in passato</summary><p class="book-note">Questo testo non compariva sul sito e resta salvato com'è. Se ti serve, copialo nel campo che preferisci.</p><p>${esc(chi)}</p></details>`:''}</div>
+   ${HOME.campi.map(homeSez).join('')}`}
+A.view.home=vHome;
+A.after.home=()=>{if(!HOME.def&&!HOME.err)homeLoad().then(()=>{if(A.route().s==='home')homeRender()})};
+A.onInput.push(el=>{if(!el.dataset.hk)return false;const k=el.dataset.hk,v=el.value,h=HS(),d=String(HOME.def&&HOME.def[k]||'');
+  if(!v.trim()||v.trim()===d.trim())delete h[k];else h[k]=v;
+  const on=hv(k)!=null,box=el.closest('.home-f');if(box){box.classList.toggle('is-custom',on);box.querySelectorAll('.home-badge,.home-reset').forEach(x=>{x.hidden=!on})}
+  const warn=el.closest('.home-foto')&&el.closest('.home-foto').querySelector('[data-testid^="admin-home-alt-warn-"]');if(warn)warn.hidden=on;      // descrizione della foto nuova scritta: l'avviso sparisce
+  const cnt=$('[data-testid=admin-home-count]');if(cnt)cnt.innerHTML=homeConta();
+  A.markDirty();return true});
+// nuova foto: stesso caricamento delle altre foto della Gestione (ridimensionata qui, salvata su Vercel Blob da api/x?a=up); la foto di prima,
+// se nessun'altra sezione la usa, il server la cancella solo dopo un salvataggio riuscito. Va registrato prima del gestore «change» qui sotto.
+A.onChange.push(el=>{if(!el.classList||!el.classList.contains('home-up'))return false;const f=el.files&&el.files[0];if(!f)return true;
+  const k=el.dataset.k,box=el.closest('.dl-foto'),msg=$('#'+hid(k)+'-msg');if(box)box.classList.add('is-loading');if(msg)msg.textContent='Carico la foto…';
+  resize(f).then(img=>A.api('up',{id:'home',img})).then(r=>{HS()[k]=r.url;A.markDirty();homeRender();const m=$('#'+hid(k)+'-msg');if(m)m.textContent='Foto caricata: scrivi la descrizione e ricordati di salvare.'})
+    .catch(x=>{if(box)box.classList.remove('is-loading');if(msg)msg.textContent=(x&&x.message)||'Foto non caricata: riprova.'});
+  el.value='';return true});
+Object.assign(A.act,{
+  homeReset:a=>{const k=a.dataset.k,f=(HOME.campi||[]).flatMap(s=>s.campi).find(x=>x.k===k);delete HS()[k];if(f&&f.alt)delete HS()[f.alt];A.markDirty();homeRender()},      // con la foto torna anche la sua descrizione
+  homeResetAll:()=>{if(!confirm('Riportare tutti i testi e le foto della home a quelli di partenza? Appartamenti, prezzi, calendari e le altre impostazioni non cambiano.'))return;S().home={};A.markDirty();homeRender()},
+  homeRetry:()=>{HOME.err='';A.body()}});
 
 // ---------- Eventi (si salvano subito) ----------
 A.view.eventi=()=>{const EV=A.EV;return `<div class="admin-card" data-testid="admin-events"><h2>Eventi a Trento</h2><p class="book-note">Gli eventi principali sono estratti automaticamente. Qui puoi aggiungere eventi speciali: compaiono subito nella pagina «Eventi» del sito.</p>

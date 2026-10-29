@@ -419,7 +419,10 @@ test('X18 configurazione pubblica: niente URL iCal (token), chiusure e blocchi m
   await base();
   const cfg = JSON.parse(kv.exec(['GET', 'cfg'])); cfg.closed = { corte: false }; cfg.apts.find(a => a.id === 'torre').blocked = { '2026-12-05': true }; kv.exec(['SET', 'cfg', JSON.stringify(cfg)]);
   const pub = await H.api('cfg', {}, { method: 'GET' });
-  eq(pub.status, 200); eq(Object.keys(pub.body).sort(), ['apts', 'chi', 'cipat']);
+  eq(pub.status, 200); eq(Object.keys(pub.body).sort(), ['apts', 'chi', 'cipat', 'home']);
+  // home (aggiunta voluta, 29/10/2026): solo i testi e le foto della homepage cambiati da Gestione → Sito → Home, qui nessuno
+  const homeKeys = new Set(require('../../data/home.json').sezioni.flatMap(s => s.campi).map(f => f.k));
+  assert(pub.body.home && typeof pub.body.home === 'object' && Object.keys(pub.body.home).every(k => homeKeys.has(k)), 'home: solo campi della homepage');
   assert(pub.body.apts.every(a => !('blocked' in a)), 'nessun blocco manuale');
   for (const k of ['ical.booking.com', 'airbnb.com/calendar', 'TOKEN', 'ATOK', 'CTOK']) assert(!pub.text.includes(k), 'nel testo pubblico compare ' + k);
   assert(pub.body.apts.length === 2 && pub.body.apts[0].foto.length > 0 && pub.body.apts[0].base > 0, 'restano i dati che servono alle pagine');

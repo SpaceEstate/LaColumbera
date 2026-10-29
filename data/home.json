@@ -1,0 +1,77 @@
+{
+ "_info": "Contenuti della homepage modificabili da Gestione → Sito → Home. Ogni chiave corrisponde a un elemento di index.html con data-home (testi) o data-home-img (foto, con data-home-alt per la descrizione): il testo e la foto di partenza sono quelli scritti in index.html, nella configurazione si salvano solo i campi cambiati. max = lunghezza massima (il server tronca). I segnaposto tra graffe vengono dalla pagina: {nome} e {max} dai dati dell'appartamento (Gestione → Appartamenti), {email} e {telefono} sono i collegamenti di contatto.",
+ "sezioni": [
+  {"id": "hero", "titolo": "Prima schermata", "campi": [
+   {"k": "hero.img", "tipo": "foto", "l": "Foto principale", "alt": "hero.alt"},
+   {"k": "hero.alt", "l": "Descrizione della foto", "max": 200, "di": "hero.img"},
+   {"k": "hero.name", "l": "Nome", "max": 60},
+   {"k": "hero.claim", "l": "Titolo", "max": 160},
+   {"k": "hero.lead", "l": "Descrizione", "max": 400, "righe": 3},
+   {"k": "hero.cta", "l": "Pulsante principale", "max": 40},
+   {"k": "hero.menu", "l": "Testo sopra la scelta dell'appartamento", "max": 120},
+   {"k": "hero.link", "l": "Collegamento agli appartamenti", "max": 60}
+  ]},
+  {"id": "apts", "titolo": "Appartamenti: sezione e schede", "campi": [
+   {"k": "apts.kicker", "l": "Occhiello", "max": 60},
+   {"k": "apts.title", "l": "Titolo", "max": 120},
+   {"k": "apts.intro", "l": "Introduzione", "max": 400, "righe": 3},
+   {"k": "apts.titolo", "l": "Nome di ogni appartamento", "max": 60, "ph": ["nome"], "nota": "Vale per le schede, per la scelta nella prima schermata e per quella in fondo alla pagina."},
+   {"k": "apts.l.ospiti", "l": "Etichetta della riga «Ospiti»", "max": 30},
+   {"k": "apts.ospiti", "l": "Riga «Ospiti»", "max": 60, "ph": ["max"]},
+   {"k": "apts.l.spazi", "l": "Etichetta della riga «Spazi»", "max": 30},
+   {"k": "apts.l.letti", "l": "Etichetta della riga «Letti»", "max": 30},
+   {"k": "apts.l.dettagli", "l": "Etichetta della riga «Dettagli»", "max": 30},
+   {"k": "apts.cta", "l": "Collegamento di ogni scheda", "max": 60, "ph": ["nome"]}
+  ]},
+  {"id": "torre", "titolo": "Scheda di Torre", "campi": [
+   {"k": "torre.img", "tipo": "foto", "l": "Foto della scheda", "alt": "torre.alt"},
+   {"k": "torre.alt", "l": "Descrizione della foto", "max": 200, "di": "torre.img"},
+   {"k": "torre.lead", "l": "Frase in evidenza", "max": 300, "righe": 2},
+   {"k": "torre.spazi", "l": "Spazi", "max": 200},
+   {"k": "torre.letti", "l": "Letti", "max": 200},
+   {"k": "torre.dettagli", "l": "Dettagli", "max": 200}
+  ]},
+  {"id": "corte", "titolo": "Scheda di Corte", "campi": [
+   {"k": "corte.img", "tipo": "foto", "l": "Foto della scheda", "alt": "corte.alt"},
+   {"k": "corte.alt", "l": "Descrizione della foto", "max": 200, "di": "corte.img"},
+   {"k": "corte.lead", "l": "Frase in evidenza", "max": 300, "righe": 2},
+   {"k": "corte.spazi", "l": "Spazi", "max": 200},
+   {"k": "corte.letti", "l": "Letti", "max": 200},
+   {"k": "corte.dettagli", "l": "Dettagli", "max": 200}
+  ]},
+  {"id": "info", "titolo": "Informazioni pratiche", "campi": [
+   {"k": "info.title", "l": "Titolo", "max": 80},
+   {"k": "info.dove.l", "l": "Voce 1 (posizione) · titolo", "max": 40},
+   {"k": "info.dove.t", "l": "Voce 1 (posizione) · testo", "max": 300},
+   {"k": "info.centro.l", "l": "Voce 2 (centro di Trento) · titolo", "max": 40},
+   {"k": "info.centro.t", "l": "Voce 2 (centro di Trento) · testo", "max": 300},
+   {"k": "info.parcheggio.l", "l": "Voce 3 (parcheggio) · titolo", "max": 40},
+   {"k": "info.parcheggio.t", "l": "Voce 3 (parcheggio) · testo", "max": 300},
+   {"k": "info.arrivo.l", "l": "Voce 4 (arrivo) · titolo", "max": 40},
+   {"k": "info.arrivo.t", "l": "Voce 4 (arrivo) · testo", "max": 300},
+   {"k": "info.inclusi.l", "l": "Voce 5 (negli appartamenti) · titolo", "max": 40},
+   {"k": "info.inclusi.t", "l": "Voce 5 (negli appartamenti) · testo", "max": 300},
+   {"k": "info.soggiorno.l", "l": "Voce 6 (durante il soggiorno) · titolo", "max": 40},
+   {"k": "info.soggiorno.t", "l": "Voce 6 (durante il soggiorno) · testo", "max": 300},
+   {"k": "info.link", "l": "Collegamento a «Come trovarci»", "max": 60}
+  ]},
+  {"id": "place", "titolo": "La dimora e la posizione", "campi": [
+   {"k": "place.img", "tipo": "foto", "l": "Foto", "alt": "place.alt"},
+   {"k": "place.alt", "l": "Descrizione della foto", "max": 200, "di": "place.img"},
+   {"k": "place.caption", "l": "Didascalia della foto", "max": 120},
+   {"k": "place.kicker", "l": "Occhiello", "max": 60},
+   {"k": "place.title", "l": "Titolo", "max": 160},
+   {"k": "place.storia", "l": "La dimora", "max": 600, "righe": 4},
+   {"k": "place.posizione", "l": "La posizione e i dintorni", "max": 600, "righe": 4},
+   {"k": "place.link", "l": "Collegamento a «Luoghi di interesse»", "max": 60}
+  ]},
+  {"id": "book", "titolo": "Prenotazione e contatti", "campi": [
+   {"k": "book.kicker", "l": "Occhiello (in corsivo)", "max": 60},
+   {"k": "book.title", "l": "Titolo", "max": 160},
+   {"k": "book.text", "l": "Testo", "max": 400, "righe": 3},
+   {"k": "book.cta", "l": "Pulsante delle due schede", "max": 40},
+   {"k": "book.terms", "l": "Pagamento e annullamento", "max": 300, "righe": 2, "nota": "L'annullamento gratuito fino a 7 giorni prima dell'arrivo è la regola applicata dal sito: il testo deve dire la stessa cosa."},
+   {"k": "book.contact", "l": "Contatti", "max": 300, "righe": 2, "ph": ["email", "telefono"]}
+  ]}
+ ]
+}

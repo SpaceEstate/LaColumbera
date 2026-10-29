@@ -207,7 +207,7 @@ p{margin:0 0 1em}
 .hero-book-menu a{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:center;padding:12px 16px;border:1px solid var(--line);border-radius:12px;background:#fff;transition:border-color .2s ease,background .2s ease}
 .hero-book-menu a::after{content:"→";grid-column:2;grid-row:1 / span 2;color:var(--wine);font-weight:700}
 .hero-book-menu b{font-family:var(--serif);font-weight:400;font-size:1.15rem;line-height:1.25}
-.hero-book-menu span{font-size:.86rem;color:var(--muted)}
+.hero-book-menu a>span{font-size:.86rem;color:var(--muted)}
 .hero-book-menu a:hover{border-color:var(--wine);background:var(--paper)}
 .hero-link{display:inline-flex;align-items:center;min-height:52px;color:#FBF3E2;font-weight:600;letter-spacing:.02em;text-decoration:underline;text-decoration-color:rgba(251,243,226,.5);text-decoration-thickness:1px;text-underline-offset:6px;transition:text-decoration-color .2s ease}
 .hero-link:hover{text-decoration-color:currentColor}
@@ -486,12 +486,8 @@ section{position:relative;padding:clamp(80px,10vw,140px) 0}
 .book-note{font-size:.85rem;color:var(--muted);margin:8px 0 4px}
 .book-note a{color:var(--wine);text-decoration:underline;overflow-wrap:anywhere}
 .book-card h3{font-size:1.3rem;margin-bottom:6px}
-@media(min-width:961px){
-  /* schermi larghi: la carta resta in vista e, se è più alta della finestra, scorre al suo interno; la barra con importo e pulsante resta in fondo */
-  .book-card{--bk-pad:clamp(22px,2.6vw,32px);position:sticky;top:96px;max-height:calc(100vh - 116px);overflow-y:auto;scrollbar-width:thin;padding-bottom:0}
-  .bk-quote{position:sticky;bottom:0;z-index:2;margin-left:calc(var(--bk-pad) * -1);margin-right:calc(var(--bk-pad) * -1);padding:14px var(--bk-pad) var(--bk-pad)}
-  #p2,#bk>.offline-note,#bk>.form-ok,#bk>.book-note{padding-bottom:var(--bk-pad)}
-}
+/* La scheda segue lo scorrimento della pagina su tutti gli schermi, come prima del 27/10/2026: niente altezza massima né scorrimento
+   interno, il calendario si vede intero e importo e pulsante stanno in fondo alla scheda (non più fissati sopra le ultime righe). */
 
 /* ---------- PRENOTAZIONE: passi, date, ospiti, importo ---------- */
 [hidden]{display:none!important}
@@ -1362,6 +1358,21 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 .ric-di-nuovo summary{cursor:pointer;color:var(--wine);font-weight:700}
 @media (max-width:520px){.ric-dati{grid-template-columns:minmax(0,1fr);gap:2px}.ric-dati dd{margin-bottom:6px}}
 @media (max-width:760px){.pul-mov{grid-template-columns:minmax(0,1fr) auto}.pul-k{grid-column:1;grid-row:1}.pul-inc{grid-column:2;grid-row:1}.pul-d,.pul-letto,.pul-nota{grid-column:1/-1}.pul-nota{font-size:16px}}
+
+/* ===== Gestione · Home: testi e foto della homepage (sezioni apribili; le foto usano gli stessi riquadri di Luoghi e convenzioni) ===== */
+.home-sez>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.home-sez>summary::-webkit-details-marker{display:none}
+.home-sez>summary h3{margin:0}
+.home-sez>summary::after{content:"";flex:0 0 auto;width:9px;height:9px;border-right:2px solid var(--wine);border-bottom:2px solid var(--wine);transform:rotate(45deg);transition:transform .2s ease}
+.home-sez[open]>summary{margin-bottom:14px}
+.home-sez[open]>summary::after{transform:rotate(-135deg)}
+.home-sez>summary:focus-visible{outline:3px solid var(--wine);outline-offset:4px;border-radius:6px}
+.home-hint{display:block;margin-top:5px;font-size:.8rem;line-height:1.4;color:var(--muted)}
+.home-f.is-custom input,.home-f.is-custom textarea{border-color:rgba(122,46,57,.55)}
+.home-badge{color:var(--wine)}
+.home-foto{margin:4px 0 18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.home-foto .adm-h4{margin-top:0}
+.home-chi summary{cursor:pointer;font-weight:600;color:var(--wine)}
 
 /* ===== Gestione · Luoghi e convenzioni ===== */
 .dl-list{display:flex;flex-direction:column;gap:14px;margin:12px 0 16px}
