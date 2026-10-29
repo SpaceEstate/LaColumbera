@@ -1609,11 +1609,16 @@ table.mx td.mx-multi{background:rgba(122,46,57,.16);color:var(--wine);font-weigh
 .msg-vars{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 16px}
 .msg-vars .adm-chip{text-transform:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem}
 .msg-tpl,.msg-rule{border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px;background:#fff}
-.msg-rule.on{border-color:rgba(63,93,82,.45);box-shadow:inset 4px 0 0 #3f5d52}
+.msg-rule.on,.msg-tpl.on{border-color:rgba(63,93,82,.45);box-shadow:inset 4px 0 0 #3f5d52}
 .msg-rule-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
 .msg-rule-top .msg-check{margin:0}
 .msg-rule-name{flex:1 1 220px;font:inherit;font-weight:700;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
-.msg-prev{white-space:pre-wrap;background:var(--paper);border:1px dashed var(--gold);border-radius:12px;padding:12px;font-family:inherit;font-size:.9rem;margin:8px 0 0}
+/* invio automatico scelto nel template: il menu su tutta la riga, giorni e ora sotto */
+.msg-ta{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px}
+.msg-ta .fields-grid .field:first-child{grid-column:1/-1;max-width:440px}
+.msg-ta .book-note{margin:4px 0 0}
+.msg-ta-tit{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--wine);margin:0 0 6px}      /* come le etichette dei campi */
+.msg-ta-list{margin:0 0 8px;padding-left:20px;font-size:.9rem;line-height:1.5}
 @media (max-width:520px){.msg-rule .fields-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){
   .msg-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who when" "last last"}

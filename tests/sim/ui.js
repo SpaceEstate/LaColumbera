@@ -908,7 +908,7 @@ test('W12 Gestione · Area ospiti: testi per gli ospiti in ogni appartamento, ch
   assert(/entro le 10:30/.test(text(g.doc.querySelector('[data-testid=mie-card-' + c.code + ']'))) && !g.doc.querySelector('[data-testid=ga-wa]'), 'check-out mostrato, WhatsApp nascosto');
 });
 
-test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta con un template, programmazione; template compilati per Airbnb; regola automatica e «salta»', async () => {
+test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta con un template, programmazione; template (senza «Compila per una prenotazione»); regola automatica e «salta»; invio automatico scelto nel template', async () => {
   await setup(); regAirbnb();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
   await H.api('msg_send', { code: c.code, t: c.t, testo: 'Buongiorno, c\'è il parcheggio? <b>grazie</b>' });
@@ -930,14 +930,11 @@ test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta
   $('[data-testid=msg-testo]').value = 'Promemoria programmato';
   $('[data-testid=msg-prog-open]').click(); $('[data-testid=msg-quando]').value = '2026-10-03T10:00'; $('[data-testid=msg-prog-ok]').click();
   await waitFor(() => /Programmato per/.test(text($('[data-testid=msg-out]'))), 'programmato');
-  // template: compila per la prenotazione Airbnb (testo da incollare nella chat di Airbnb)
+  // template: «Compila per una prenotazione» non c'è più (il testo per Booking e Airbnb si prepara dalla scheda della prenotazione, W17);
+  // modifica voluta dell'interfaccia: prima qui si compilava il template per la prenotazione Airbnb. Di partenza nessun template parte da solo.
   await goto(r, '#messaggi/template', '[data-testid=msg-tpl]');
-  const box = [...r.doc.querySelectorAll('.msg-tpl')].find(x => /area ospiti/.test(x.querySelector('[data-tf=nome]').value)); assert(box, 'template per Booking e Airbnb');
-  const i = box.dataset.i;
-  const sel = r.doc.querySelector('[data-tprev="' + i + '"]'); sel.value = 'HMSEDESZCW';
-  $('[data-testid=msg-tpl-fill-' + i + ']').click();
-  await waitFor(() => !$('[data-testid=msg-tpl-prev-' + i + ']').hidden, 'anteprima');
-  assert(/area-clienti\.html#k=HMSEDESZCW/.test(text($('[data-testid=msg-tpl-prev-' + i + ']'))), text($('[data-testid=msg-tpl-prev-' + i + ']')));
+  assert(!$('[data-tprev]') && !$('[data-act=tplFill]') && !/Compila per una prenotazione/.test(text($('[data-testid=msg-tpl]'))) && /Prepara e copia/.test(text($('[data-testid=msg-tpl]'))), 'niente «Compila per una prenotazione»');
+  const sels = [...r.doc.querySelectorAll('[data-ta=quando]')]; assert(sels.length === r.doc.querySelectorAll('.msg-tpl').length && sels.every(x => x.value === ''), 'invio automatico: «No» per tutti');
   set(r.doc.querySelector('[data-tf=nome][data-i="0"]'), 'Benvenuto rinominato'); $('[data-testid=msg-tpl-save]').click();
   await waitFor(() => /Template salvati/.test(text($('[data-testid=msg-tpl-out]'))), 'salvati');
   assert.equal(JSON.parse(kv.exec(['GET', 'msg:tpl']))[0].nome, 'Benvenuto rinominato');
@@ -955,6 +952,34 @@ test('W13 Gestione · Messaggi: casella con i non letti, conversazione, risposta
   const sk = await waitFor(() => r2.doc.querySelector('[data-testid=msg-skip-' + reg.id + '-' + c.code + ']'), 'prossimo invio');
   sk.click(); await waitFor(() => /saltato/.test(text(r2.doc.querySelector('[data-testid=msg-next-' + reg.id + '-' + c.code + ']'))), 'saltato');
   assert.equal(kv.exec(['GET', 'msg:fatto:' + reg.id + ':' + c.code]), 'saltato');
+  // invio automatico scelto nel template: la regola fatta in Automatici si vede nel suo template; «Promemoria» 3 giorni prima del check-in alle 18
+  await goto(r2, '#messaggi/template', '[data-testid=msg-tpl]');
+  const $2 = s => r2.doc.querySelector(s), chg2 = (el, v) => { el.value = v; el.dispatchEvent(new r2.w.Event('change', { bubbles: true })); };
+  const iT = re => [...r2.doc.querySelectorAll('.msg-tpl')].findIndex(x => re.test(x.querySelector('[data-tf=nome]').value)), iB = iT(/^Benvenuto rinominato/), iP = iT(/^Promemoria/);
+  assert.deepEqual([$2('[data-testid=msg-tpl-quando-' + iB + ']').value, $2('[data-testid=msg-tpl-n-' + iB + ']').value], ['prima', '2'], 'la regola di Automatici nel suo template');
+  assert($2('[data-testid=msg-tpl-' + iB + ']').classList.contains('on') && !$2('[data-testid=msg-tpl-' + iP + ']').classList.contains('on'));
+  chg2($2('[data-testid=msg-tpl-quando-' + iP + ']'), 'prima');
+  chg2(await waitFor(() => $2('[data-testid=msg-tpl-n-' + iP + ']'), 'quanti giorni'), '3'); chg2($2('[data-testid=msg-tpl-ora-' + iP + ']'), '18:00');
+  assert(/3 giorni prima del check-in, alle 18:00/.test(text($2('[data-testid=msg-tpl-auto-' + iP + ']'))) && $2('[data-testid=msg-tpl-' + iP + ']').classList.contains('on'), text($2('[data-testid=msg-tpl-auto-' + iP + ']')));
+  $2('[data-testid=msg-tpl-save]').click();
+  await waitFor(() => /Template salvati/.test(text($2('[data-testid=msg-tpl-out]'))), 'template salvati con il loro invio');
+  let rr = JSON.parse(kv.exec(['GET', 'msg:auto'])); const pro = rr.find(x => x.tpl === 'promemoria');
+  assert(pro, JSON.stringify(rr)); assert.deepEqual([rr.length, pro.attiva, pro.base, pro.giorni, pro.ora, pro.apt, pro.nottiMin, pro.ritardo], [2, true, 'arrivo', -3, '18:00', '', 0, false]);
+  assert.equal(rr.find(x => x.id === reg.id).dal, reg.dal, 'la regola di Automatici resta com\'era');
+  const nx = await (goto(r2, '#messaggi/automatici', '[data-testid=msg-next-' + pro.id + '-' + c.code + ']').then(() => $2('[data-testid=msg-next-' + pro.id + '-' + c.code + ']')));
+  assert(/7 dic/.test(text(nx)) && /Promemoria/.test(text(nx)), 'tra i prossimi invii: ' + text(nx));
+  // «No» spegne la regola (resta in Automatici, spenta); eliminare un template toglie anche il suo invio automatico
+  await goto(r2, '#messaggi/template', '[data-testid=msg-tpl-quando-' + iP + ']');
+  assert.deepEqual([$2('[data-testid=msg-tpl-quando-' + iP + ']').value, $2('[data-testid=msg-tpl-n-' + iP + ']').value, $2('[data-testid=msg-tpl-ora-' + iP + ']').value], ['prima', '3', '18:00'], 'salvato');
+  chg2($2('[data-testid=msg-tpl-quando-' + iP + ']'), '');
+  assert(!$2('[data-testid=msg-tpl-n-' + iP + ']') && !$2('[data-testid=msg-tpl-' + iP + ']').classList.contains('on') && /Non parte da solo/.test(text($2('[data-testid=msg-tpl-auto-' + iP + ']'))));
+  r2.log.confirmAnswer = true; $2('[data-testid=msg-tpl-del-' + iB + ']').click();
+  assert(/Benvenuto rinominato/.test(r2.log.confirms[r2.log.confirms.length - 1]) && /Si toglie anche il suo invio automatico/.test(r2.log.confirms[r2.log.confirms.length - 1]), r2.log.confirms.join(' | '));
+  $2('[data-testid=msg-tpl-save]').click();
+  await waitFor(() => /Template salvati/.test(text($2('[data-testid=msg-tpl-out]'))), 'salvati di nuovo');
+  rr = JSON.parse(kv.exec(['GET', 'msg:auto']));
+  assert.deepEqual(rr.map(x => [x.id, x.attiva]), [[pro.id, false]], 'spenta; quella del template eliminato non c\'è più');
+  assert(!JSON.parse(kv.exec(['GET', 'msg:tpl'])).some(x => x.id === 'benvenuto'), 'template eliminato');
 });
 
 /* ===================== Gestione in due aree: Operatività | Sito (js/admin.js e sezioni) ===================== */
@@ -1303,6 +1328,39 @@ test('W30 Gestione · Pulizie: si sceglie cosa va nel testo — una prenotazione
   const c2 = $2('[data-testid="admin-pul-inc-' + kd + '-esce"]'); c2.checked = true; chg(r2, c2);
   await waitFor(() => !kv.exec(['HGET', 'pul:info', kd]), 'rimessa: senza letti né nota la voce si toglie');
   assert(/Lunedì 5 ottobre/.test($2('[data-testid=admin-pul-txt-torre]').textContent) && $2('[data-testid="admin-pul-warn-' + kd + '"]'), 'di nuovo nel testo, con l\'avviso');
+});
+test('W31 Gestione · Messaggi → Template: un template nuovo parte da solo già dal primo salvataggio; con più regole o con i filtri si vede il riepilogo e si modifica in Automatici; uscire senza salvare chiede', async () => {
+  await setup();
+  assert.equal((await H.adminApi('msg_auto_save', { regole: [{ id: 'g1', nome: 'Grazie Torre', attiva: true, tpl: 'grazie', base: 'partenza', giorni: 1, ora: '11:00', apt: 'torre' },
+    { id: 'g2', nome: 'Grazie lunghi', attiva: false, tpl: 'grazie', base: 'partenza', giorni: 2, ora: '09:00', nottiMin: 5 }] })).status, 200);
+  const r = await loadAdmin('#messaggi/template'), $ = s => r.doc.querySelector(s);
+  await waitFor(() => $('[data-testid=msg-tpl]'), 'template');
+  const iG = [...r.doc.querySelectorAll('.msg-tpl')].findIndex(x => /^Grazie/.test(x.querySelector('[data-tf=nome]').value)), box = $('[data-testid=msg-tpl-auto-' + iG + ']');
+  assert(!box.querySelector('[data-ta]') && /1 giorno dopo il check-out, alle 11:00 · solo Torre/.test(text(box)) && /2 giorni dopo il check-out, alle 09:00 · soggiorni di almeno 5 notti · spenta/.test(text(box)), text(box));
+  assert.equal($('[data-testid=msg-tpl-auto-link-' + iG + ']').getAttribute('href'), '#messaggi/automatici');
+  // template nuovo che parte appena la prenotazione è confermata: template e regola nello stesso salvataggio
+  $('[data-testid=msg-tpl-add]').click();
+  const k = r.doc.querySelectorAll('.msg-tpl').length - 1;
+  inp(r, $('[data-tf=nome][data-i="' + k + '"]'), 'Come arrivare'); inp(r, $('[data-tf=testo][data-i="' + k + '"]'), 'Ciao {nome}, ecco come arrivare alla Columbera.');
+  chg(r, $('[data-testid=msg-tpl-quando-' + k + ']'), 'conferma');
+  assert(!$('[data-testid=msg-tpl-n-' + k + ']') && !$('[data-testid=msg-tpl-ora-' + k + ']') && /appena la prenotazione è confermata/.test(text($('[data-testid=msg-tpl-auto-' + k + ']'))));
+  assert.equal(r.doc.activeElement, $('[data-testid=msg-tpl-quando-' + k + ']'), 'il focus resta sul menu');
+  // uscire senza salvare chiede conferma; «no» = si resta e le modifiche restano
+  r.log.confirmAnswer = false; $('[data-testid=msg-tpl-auto-link-' + iG + ']').click(); await sleep(30);
+  assert(/modifiche non salvate/.test(r.log.confirms.pop()) && r.w.location.hash === '#messaggi/template' && $('[data-testid=msg-tpl-quando-' + k + ']').value === 'conferma', 'si resta');
+  $('[data-testid=msg-tpl-save]').click();
+  await waitFor(() => /Template salvati/.test(text($('[data-testid=msg-tpl-out]'))), 'salvati');
+  const tpl = JSON.parse(kv.exec(['GET', 'msg:tpl'])), nuovo = tpl.find(x => x.nome === 'Come arrivare'), rr = JSON.parse(kv.exec(['GET', 'msg:auto']));
+  assert(nuovo && /^t[0-9a-z]+$/.test(nuovo.id), JSON.stringify(tpl));
+  assert.deepEqual(rr.map(x => [x.id === nuovo.id ? '' : x.id, x.tpl, x.base, x.attiva, x.nome, x.apt, x.nottiMin]).map(x => x.slice(1)),
+    [['grazie', 'partenza', true, 'Grazie Torre', 'torre', 0], ['grazie', 'partenza', false, 'Grazie lunghi', '', 5], [nuovo.id, 'conferma', true, 'Come arrivare', '', 0]], JSON.stringify(rr));
+  // la prossima prenotazione confermata lo riceve alla sincronizzazione; quelle confermate prima no (niente arretrati)
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code)); await H.sync();
+  const th = (await H.adminApi('msg_thread', { code: c.code })).body;
+  assert(th.messaggi.some(m => m.da === 'auto' && /^Ciao Mario, ecco come arrivare alla Columbera\.$/.test(m.testo)), JSON.stringify(th.messaggi));
+  // dopo il salvataggio si esce senza domande
+  const n = r.log.confirms.length; $('[data-testid=msg-tpl-auto-link-' + iG + ']').click();
+  await waitFor(() => $('[data-testid=msg-auto]'), 'Automatici'); assert.equal(r.log.confirms.length, n);
 });
 test('W22 email dei messaggi: «Rispondi» dell\'ospite apre l\'area già sui Messaggi, senza codice; «Rispondi» del titolare apre la conversazione (anche passando dal login)', async () => {
   await setup();

@@ -26,7 +26,7 @@ Riepilogo per il titolare del lavoro fatto in quattro fasi sul branch `claude/ec
 - **Oggi**: cosa c'è da fare, chi arriva e chi parte oggi e domani, gli invii automatici, i prossimi 7 giorni e un semaforo unico per sincronizzazione, pagamenti ed email.
 - **Calendario e prezzi**: tocchi le notti (anche «dal… al…») e in un colpo cambi prezzo, blocchi o fissi un minimo di notti.
 - **Prenotazioni**: sito, Booking e Airbnb in un solo elenco con ricerca; nel dettaglio il codice e un messaggio pronto da copiare nella chat del portale.
-- **Messaggi**: conversazioni, template, messaggi automatici (es. il giorno prima dell'arrivo) e programmati. Quando un ospite scrive ti arriva un'email con il testo e «Rispondi», che apre la conversazione.
+- **Messaggi**: conversazioni, template, messaggi automatici (es. il giorno prima dell'arrivo) e programmati. In ogni template scegli se parte da solo (appena la prenotazione è confermata, oppure qualche giorno prima o dopo il check-in o il check-out) o se lo usi a mano. Quando un ospite scrive ti arriva un'email con il testo e «Rispondi», che apre la conversazione.
 - **Pulizie**: per il periodo che scegli, un testo per Corte e uno per Torre con entrate, uscite, ospiti, notti e letti (matrimoniale o singoli), da copiare e mandare a chi fa le pulizie. Senza nomi degli ospiti. Con la spunta «Nel testo» togli le prenotazioni lette male o doppie; quelle che si accavallano sono segnalate.
 - **Luoghi e Convenzioni** ora si modificano dalla Gestione.
 - **Annulla e rimborsa** nel dettaglio della prenotazione, in qualsiasi momento (rimborso totale su Stripe, notti libere, foglio, email all'ospite). Quando annulla l'ospite ti arriva un'email.
@@ -70,4 +70,4 @@ Nessun altro servizio esterno è stato aggiunto (DeepL solo se imposti la chiave
 
 ## Prove automatiche
 
-`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 25, preavviso 12, sicurezza 21, messaggi 12, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 80. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.
+`tests/sim/` (Redis finto con Lua vero, Stripe, email, foglio e DeepL finti, browser simulato): scenari 15 ok (18 saltati, vedi sopra), pagamenti 25, preavviso 12, sicurezza 21, messaggi 13, sito 8, ISTAT 30, adempimenti 40, informativa 5, interfaccia 81. Tutte verdi a ogni fase. I test cambiati di proposito perché controllavano una struttura dell'interfaccia cambiata sono dichiarati nei messaggi di commit.

@@ -159,6 +159,35 @@ test('M4  template: predefiniti, salvataggio, variabili (prenotazione del sito e
   eq((await H.adminApi('msg_tpl', {})).body.templates.length, 2, 'nulla cambiato');
 });
 
+test('M13 template con il loro invio automatico (Gestione → Template): insieme in un salvataggio, anche un template nuovo; tolto un template si tolgono le sue regole; un errore non cambia nulla', async () => {
+  await base();
+  let r = (await H.adminApi('msg_tpl', {})).body; eq(r.regole, [], 'il caricamento dei template porta anche le regole');
+  eq((await H.api('msg_tpl_auto_save', { templates: [], regole: [] }, as())).status, 401, 'solo il titolare');
+  const T = [{ id: 'benvenuto', nome: 'Benvenuto', testo: 'Ciao {nome}!' }, { id: 'tnuovo1', nome: 'Come arrivare', testo: 'Ecco come arrivare.' }];
+  r = await H.adminApi('msg_tpl_auto_save', { templates: T, regole: [{ id: '', nome: 'Come arrivare', attiva: true, tpl: 'tnuovo1', base: 'conferma', nuova: true }, { nome: 'Promemoria', attiva: true, tpl: 'benvenuto', base: 'arrivo', giorni: -2, ora: '10:00', apt: 'boh' }] });
+  eq(r.status, 200, JSON.stringify(r.body));
+  eq(r.body.templates.map(x => x.id), ['benvenuto', 'tnuovo1'], 'l\'id scelto dalla pagina resta');
+  eq(r.body.regole.map(x => [x.tpl, x.base, x.giorni, x.ora, x.apt, x.attiva, 'nuova' in x]), [['tnuovo1', 'conferma', 0, '', '', true, false], ['benvenuto', 'arrivo', -2, '10:00', '', true, false]]);
+  eq(JSON.parse(kv.exec(['GET', 'msg:tpl'])), r.body.templates); eq(JSON.parse(kv.exec(['GET', 'msg:auto'])), r.body.regole);
+  const [ra, rb] = r.body.regole;
+  // un salvataggio che cambia solo i testi non tocca le regole (né da quando valgono)
+  clock.advance(60 * MIN);
+  r = await H.adminApi('msg_tpl_auto_save', { templates: [T[0], Object.assign({}, T[1], { testo: 'Ecco la strada.' })], regole: [ra, Object.assign({}, rb, { ora: '18:00' })] });
+  eq(r.status, 200); eq(r.body.regole[0].dal, ra.dal, 'invariata: stesso «dal»'); assert(r.body.regole[1].dal > rb.dal, 'cambiata l\'ora: vale da adesso');
+  // una regola con un template che non c'è: 400 e nulla cambia
+  const prima = [kv.exec(['GET', 'msg:tpl']), kv.exec(['GET', 'msg:auto'])];
+  r = await H.adminApi('msg_tpl_auto_save', { templates: [T[0]], regole: [ra] });
+  eq(r.status, 400); assert(/scegli un template/.test(r.body.err), r.body.err);
+  eq([kv.exec(['GET', 'msg:tpl']), kv.exec(['GET', 'msg:auto'])], prima, 'né i template né le regole');
+  // tolto il template con la sua regola: si salva (con «Salva template» da solo sarebbe rifiutato, 409)
+  eq((await H.adminApi('msg_tpl_save', { templates: [T[0]] })).status, 409);
+  r = await H.adminApi('msg_tpl_auto_save', { templates: [T[0]], regole: [rb] });
+  eq(r.status, 200); eq(r.body.templates.map(x => x.id), ['benvenuto']); eq(r.body.regole.map(x => x.id), [rb.id]);
+  // corpo grande (molti template lunghi) accettato come per «Salva template»
+  const lunghi = Array.from({ length: 12 }, (_, i) => ({ id: 'l' + i, nome: 'Lungo ' + i, testo: 'x'.repeat(1900) }));
+  eq((await H.adminApi('msg_tpl_auto_save', { templates: lunghi.concat([T[0]]), regole: [rb] })).status, 200);
+});
+
 test('M5  regole automatiche: partono all\'ora giusta (fuso di Trento), una volta sola anche con due sincronizzazioni insieme; mai per le annullate', async () => {
   await base();
   const c = await confermata(), d = await confermata({ da: '2026-12-20', a: '2026-12-23', email: 'altra@esempio.it' });

@@ -1,6 +1,6 @@
 # Messaggi, template, messaggi automatici e traduzione – La Columbera
 
-Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M11) e `tests/sim/ui.js` (U4j, W13).
+Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M13) e `tests/sim/ui.js` (U4j, W13, W31).
 
 ---
 
@@ -9,7 +9,7 @@ Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), templ
 | Prenotazione | Chat nel sito | Come si comunica |
 |---|---|---|
 | Fatta sul sito e **confermata** | Sì: scheda **Messaggi** dell'area ospiti | Ospite e titolare si scrivono nel sito; i messaggi automatici arrivano lì |
-| Booking.com / Airbnb (dal foglio) | No | L'ospite usa la chat della piattaforma. In Gestione → Messaggi → **Template** il titolare compila un testo per quella prenotazione e lo copia nella chat di Booking o Airbnb (per esempio il link all'area ospiti) |
+| Booking.com / Airbnb (dal foglio) | No | L'ospite usa la chat della piattaforma. Nella scheda della prenotazione (Gestione → Prenotazioni) il titolare sceglie un template, «Prepara e copia» lo compila per quella prenotazione e lo incolla nella chat di Booking o Airbnb (per esempio il link all'area ospiti). I messaggi automatici non arrivano a questi ospiti |
 | Annullata o non confermata | No | La conversazione già fatta resta leggibile in Gestione, ma non si scrive più |
 
 - **Solo testo**, al massimo 2000 caratteri. Si mostra sempre come testo: niente HTML; gli indirizzi `http(s)://…` diventano link (si aprono in un'altra scheda).
@@ -25,14 +25,14 @@ Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), templ
   - «Inserisci un template» lo compila per questa prenotazione;
   - «Traduci anche in …» (se l'ospite usa l'area in inglese o tedesco e la traduzione è attiva);
   - «Programma l'invio…» manda il messaggio al giorno e all'ora scelti.
-- **Template:** testi pronti con le variabili qui sotto. «Compila e copia» li riempie per una prenotazione (del sito o di Booking/Airbnb) e copia il risultato. Un template usato da una regola automatica non si può cancellare finché la regola lo usa.
+- **Template:** testi pronti con le variabili qui sotto. Per ogni template si sceglie l'**invio automatico** (paragrafo 3): «No, lo uso a mano», «Appena la prenotazione è confermata», oppure N giorni prima o dopo il check-in o il check-out (o il giorno stesso), all'ora scelta. Nella scelta c'è il caso semplice, una regola per tutti gli appartamenti; se un template ha più regole o una regola con i filtri (appartamento, notti) si vede il riepilogo e si modifica in Automatici. «No» spegne la regola, che resta in Automatici. Eliminare un template toglie anche le sue regole, nello stesso salvataggio (chiede conferma). Il testo per una prenotazione di Booking o Airbnb si prepara dalla scheda della prenotazione («Prepara e copia»): «Compila per una prenotazione» qui non c'è più.
 - **Automatici:**
   - le regole;
   - i prossimi invii (7 giorni) con «Salta» per un singolo invio;
   - i messaggi programmati a mano (con «Annulla»);
   - le impostazioni.
 
-Messaggi, template e regole **si salvano subito** (pulsanti «Salva template», «Salva regole», «Salva impostazioni»): sono separati dalla configurazione del sito, la barra «Salva modifiche» non li tocca.
+Messaggi, template e regole **si salvano subito** (pulsanti «Salva template», che salva i template con il loro invio automatico, «Salva regole», «Salva impostazioni»): sono separati dalla configurazione del sito, la barra «Salva modifiche» non li tocca. Se si passa a un'altra vista dei Messaggi con modifiche non salvate, la pagina chiede conferma.
 
 ### Variabili dei template
 
@@ -50,13 +50,13 @@ Messaggi, template e regole **si salvano subito** (pulsanti «Salva template», 
 
 ## 3. Messaggi automatici
 
-Una regola è: template + **momento** + filtri.
+Una regola è: template + **momento** + filtri. Si crea in Automatici («+ Nuova regola») oppure direttamente nel template («Invio automatico»): è la stessa regola, visibile in entrambi i posti.
 
 | Momento | Quando parte |
 |---|---|
-| Alla conferma | Appena la prenotazione è confermata (pagamento ricevuto) |
-| N giorni prima dell'arrivo / il giorno dell'arrivo / N giorni dopo l'arrivo | Quel giorno, all'ora scelta (ora di Trento, ora legale compresa) |
-| N giorni prima della partenza / il giorno della partenza / N giorni dopo la partenza | Idem (es. «grazie e recensione» il giorno dopo) |
+| Appena la prenotazione è confermata | Appena il pagamento è ricevuto |
+| N giorni prima del check-in / il giorno del check-in / N giorni dopo il check-in | Quel giorno, all'ora scelta (ora di Trento, ora legale compresa) |
+| N giorni prima del check-out / il giorno del check-out / N giorni dopo il check-out | Idem (es. «grazie e recensione» il giorno dopo) |
 
 Filtri: appartamento, soggiorni di almeno N notti.
 
@@ -131,8 +131,8 @@ Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi ema
 2. Deve arrivarti l'email «Nuovo messaggio da …» con il testo. Premi **Rispondi**: si apre la conversazione in Gestione (se il dispositivo non ha l'accesso, prima la password).
 3. Rispondi; all'ospite arriva l'email con la tua risposta: il suo **Rispondi** apre l'area ospiti già sulla scheda Messaggi, senza codice. In Gestione compare «✓✓ letto».
 4. Con `DEEPL_API_KEY`: area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
-5. Automatici: regola «Alla conferma» con il template «Benvenuto», attiva → nuova prenotazione di prova → dopo la sincronizzazione successiva il messaggio è nella conversazione.
-6. Template → «Per Booking.com e Airbnb» → compila per una prenotazione del foglio → incolla il testo nella chat della piattaforma (il link apre l'area ospiti).
+5. Template → «Benvenuto» → Invio automatico «Appena la prenotazione è confermata» → «Salva template» → nuova prenotazione di prova → dopo la sincronizzazione successiva il messaggio è nella conversazione. In Automatici la stessa regola compare attiva.
+6. Prenotazioni → una prenotazione del foglio (Booking o Airbnb) → «Messaggio da mandare»: «Per Booking.com e Airbnb» → «Prepara e copia» → incolla il testo nella chat della piattaforma (il link apre l'area ospiti).
 
 ## 10. Limiti noti
 

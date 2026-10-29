@@ -35,7 +35,7 @@ const deny=(res,r)=>{if(r.retryAfter)res.setHeader('Retry-After',String(r.retryA
 // La Guest Card restituita all'ospite: solo ciò che serve a mostrarla (niente risposta grezza del sistema TGC, email mascherata)
 const cardOut=k=>k?{gc_id:k.gc_id||'',stato:k.stato||'',valid_from:k.valid_from,valid_to:k.valid_to,ospiti:k.ospiti,email:maskEmail(k.email)}:null;
 // Azioni che accettano un corpo grande (solo admin): per tutte le altre il corpo oltre 20 KB è rifiutato
-const BIG_BODY=new Set(['save','up','msg_tpl_save','ricevuta_invia']);
+const BIG_BODY=new Set(['save','up','msg_tpl_save','msg_tpl_auto_save','ricevuta_invia']);
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 // supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
@@ -545,11 +545,12 @@ if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet
  if(!chatOk({origine:'sito',stato:bk.stato}))return res.status(409).json({err:'Si può scrivere solo alle prenotazioni confermate'});
  try{if(a==='msg_prog_add')return res.json(await MSG.programma(bk.code,b.testo,b.quando));
   return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false?null:await MSG.linguaDi(bk.code),booking:bk,site:siteOf(req)}))}catch(e){return msgErr(res,e)}}
-if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI});
+if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI,regole:await MSG.regole()});      // con le regole: l'invio automatico si sceglie anche nel template
 if(a==='msg_tpl_save')try{return res.json({templates:await MSG.salvaTemplates(b.templates)})}catch(e){return msgErr(res,e)}
 if(a==='msg_auto'){const bks=await E.bkAll(),by=new Map(bks.map(x=>[x.code,x]));
  return res.json({regole:await MSG.regole(),templates:await MSG.templates(),prossimi:await MSG.prossimi(bks,7),programmati:(await MSG.programmati()).map(p=>Object.assign({},p,{nome:(by.get(p.code)||{}).nome||'',apt:(by.get(p.code)||{}).id||''})),impostazioni:await MSG.impostazioni(),traduzione:TR.attiva()})}
 if(a==='msg_auto_save')try{return res.json({regole:await MSG.salvaRegole(b.regole,((await cfg(req)).apts||[]).map(p=>p.id))})}catch(e){return msgErr(res,e)}
+if(a==='msg_tpl_auto_save')try{return res.json(await MSG.salvaInsieme(b.templates,b.regole,((await cfg(req)).apts||[]).map(p=>p.id)))}catch(e){return msgErr(res,e)}      // template con i loro invii automatici
 if(a==='msg_salta')try{await MSG.salta(b.regola,b.code,b.salta!==false);return res.json({ok:1})}catch(e){return msgErr(res,e)}
 if(a==='msg_prog_del'){await MSG.annullaProgrammato(b.id);return res.json({ok:1})}
 if(a==='msg_imp_save')try{return res.json(await MSG.salvaImpostazioni(b))}catch(e){return msgErr(res,e)}

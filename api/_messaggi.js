@@ -219,7 +219,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
 
   /* ---------- template ---------- */
   async function templates() { const t = await jget('msg:tpl'); return Array.isArray(t) ? t : DEFAULT_TPL.map(x => Object.assign({}, x)); }
-  async function salvaTemplates(list) {
+  function normTemplates(list) {
     if (!Array.isArray(list) || list.length > 50) throw err(400, 'Elenco dei template non valido (al massimo 50)');
     const out = [], ids = new Set();
     for (const x of list) {
@@ -228,6 +228,10 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
       let id = cleanId(x.id) || newId(); if (ids.has(id)) id = newId(); ids.add(id);
       out.push({ id, nome, testo });
     }
+    return out;
+  }
+  async function salvaTemplates(list) {
+    const out = normTemplates(list), ids = new Set(out.map(t => t.id));
     const usato = (await regole()).find(r => !ids.has(r.tpl));
     if (usato) throw err(409, 'Il template usato dalla regola «' + usato.nome + '» non c\'è più: cambia prima la regola (Messaggi automatici)');
     await kv('SET', 'msg:tpl', JSON.stringify(out));
@@ -255,8 +259,20 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   // ritardo = se la prenotazione arriva quando il momento è già passato, il messaggio parte subito (ma mai dopo che non ha più senso).
   async function regole() { const r = await jget('msg:auto'); return Array.isArray(r) ? r : []; }
   async function salvaRegole(list, aptIds) {
+    const out = normRegole(list, aptIds, new Set((await templates()).map(t => t.id)), new Map((await regole()).map(r => [r.id, r])));
+    await kv('SET', 'msg:auto', JSON.stringify(out));
+    return out;
+  }
+  // Template e loro invii automatici insieme (Gestione → Messaggi → Template): le regole possono indicare un template nuovo dello stesso
+  // salvataggio (con l'id scelto dalla pagina) e un template tolto si porta via le sue regole nello stesso momento
+  async function salvaInsieme(listT, listR, aptIds) {
+    const tpl = normTemplates(listT), reg = normRegole(listR, aptIds, new Set(tpl.map(t => t.id)), new Map((await regole()).map(r => [r.id, r])));
+    await kvp([['SET', 'msg:tpl', JSON.stringify(tpl)], ['SET', 'msg:auto', JSON.stringify(reg)]]);
+    return { templates: tpl, regole: reg };
+  }
+  function normRegole(list, aptIds, tpls, old) {
     if (!Array.isArray(list) || list.length > 30) throw err(400, 'Elenco delle regole non valido (al massimo 30)');
-    const tpls = new Set((await templates()).map(t => t.id)), old = new Map((await regole()).map(r => [r.id, r])), out = [], ids = new Set();
+    const out = [], ids = new Set();
     for (const x of list) {
       const nome = pulisci(x && x.nome, 80) || 'Messaggio automatico', base = BASI.includes(x.base) ? x.base : '';
       if (!base) throw err(400, 'Regola «' + nome + '»: scegli quando inviarla');
@@ -268,7 +284,6 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
       const prev = old.get(id), attiva = x.attiva === true, stessa = prev && prev.attiva && prev.base === base && prev.giorni === giorni && prev.ora === ora;
       out.push({ id, nome, attiva, tpl: x.tpl, base, giorni, ora, apt: aptIds.includes(x.apt) ? x.apt : '', nottiMin: Math.max(0, Math.min(60, parseInt(x.nottiMin, 10) || 0)), ritardo: x.ritardo === true, dal: attiva ? (stessa ? prev.dal : now()) : 0 });
     }
-    await kv('SET', 'msg:auto', JSON.stringify(out));
     return out;
   }
   const dueOf = (r, b) => {
@@ -385,7 +400,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   }
 
   return { versione, perOspite, daOspite, perHost, daHost, inbox, nonLettiHost, nonLettiOspite, linguaDi, impostazioni, salvaImpostazioni, templates, salvaTemplates, testiDaTemplate,
-    regole, salvaRegole, prossimi, salta, programmati, programma, annullaProgrammato, esegui, pulizia };
+    regole, salvaRegole, salvaInsieme, prossimi, salta, programmati, programma, annullaProgrammato, esegui, pulizia };
 }
 
 module.exports = { makeMessaggi, riempi, VARIABILI, DEFAULT_TPL, MAX_TESTO, pulisci };
