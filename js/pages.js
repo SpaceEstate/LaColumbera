@@ -136,7 +136,7 @@ async function apt(c){
   if(other){
     $('#other-title').textContent=short(other);
     $('#other-name').textContent=short(other);
-    $('#other-sub').textContent=other.sotto+'. Nella stessa dimora storica a Ravina, con lo stesso carattere e gli stessi comfort.';
+    $('#other-sub').textContent=other.sotto+'. Nella stessa dimora, con spazi diversi: scegli quello più adatto a te.';
     $('#other-link').href=other.id+'.html';
   }
 
@@ -154,7 +154,9 @@ async function apt(c){
   th.querySelectorAll('img').forEach(im=>im.addEventListener('error',()=>{im.src=im.dataset.full},{once:true}));
   const goTo=i=>{cur=(i+N)%N;gm.src=p.foto[cur];[cur+1,cur-1].forEach(k=>{if(N>1)new Image().src=p.foto[(k+N)%N]});$('#g-count').textContent=`${cur+1} / ${N}`;
     th.querySelectorAll('button').forEach((b,j)=>b.classList.toggle('on',j===cur));
-    const act=th.querySelector(`[data-i="${cur}"]`);act&&act.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})};
+    // l'anteprima attiva va al centro della striscia muovendo SOLO la striscia (scroll-behavior:smooth nel CSS): scrollIntoView spostava anche la pagina
+    // e, all'apertura con il link torre.html#prenota / corte.html#prenota (dalla home), su telefono riportava dalla prenotazione alla galleria
+    const act=th.querySelector(`[data-i="${cur}"]`);if(act){const a=act.getBoundingClientRect(),s=th.getBoundingClientRect();th.scrollLeft+=a.left+a.width/2-(s.left+s.width/2)}};
   goTo(0);
   if(N<2){$('#g-prev').style.display=$('#g-next').style.display='none';th.style.display='none'}
   $('#g-prev').onclick=()=>goTo(cur-1);

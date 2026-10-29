@@ -27,6 +27,19 @@
     });
   }
 
+  // Home · «Verifica disponibilità»: la scelta dell'appartamento (<details>) si richiude con Esc o toccando fuori;
+  // all'apertura, se non è tutta sullo schermo (schermi bassi), la pagina scorre quel tanto che basta per vederla
+  document.querySelectorAll('details.hero-book').forEach(d => {
+    d.addEventListener('toggle', () => {
+      const m = d.open && d.querySelector('.hero-book-menu'), r = m && m.getBoundingClientRect();
+      if(r && r.bottom > window.innerHeight) window.scrollBy({top: r.bottom - window.innerHeight + 16, behavior: window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    });
+    document.addEventListener('click', e => { if(d.open && !d.contains(e.target)) d.open = false; });
+    document.addEventListener('keydown', e => {
+      if(e.key === 'Escape' && d.open){ d.open = false; d.querySelector('summary').focus(); }
+    });
+  });
+
   // Reveal on scroll
   const revealEls = document.querySelectorAll('[data-reveal]');
   if('IntersectionObserver' in window && revealEls.length){

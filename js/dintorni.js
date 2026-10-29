@@ -13,24 +13,24 @@
 
   // ---------- Luoghi di interesse ----------
   var LUOGHI=[
-    {id:'centro',t:'Centro storico di Trento',meta:['5 min in auto','MUSE, Piazza Duomo, Castello Buonconsiglio'],
+    {id:'centro',t:'Centro storico di Trento',meta:['5\u201310 min in auto','MUSE, Piazza Duomo, Castello Buonconsiglio'],
      d:'Il salotto della città: fontana del Nettuno, palazzi affrescati, il Duomo di San Vigilio e il moderno MUSE di Renzo Piano.',
      local:'img/Trento1.jpg',alt:'Piazza Duomo, Trento',link:'https://www.visittrento.it',lt:'visittrento.it'},
     {id:'toblino',t:'Lago di Toblino',meta:['25 min','castello sull\u2019acqua'],
-     d:'Uno dei paesaggi più fotografati del Trentino: il castello di Toblino su un istmo che entra nel lago.',
+     d:'Il castello di Toblino sorge su un istmo che entra nel lago, nella Valle dei Laghi.',
      alt:'Castel Toblino sul lago di Toblino',link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
     {id:'bondone',t:'Monte Bondone',meta:['20 min','ciclabile · sci · sentieri'],
      d:'La montagna di Trento: percorsi facili in estate, piste da sci in inverno, panorami sulla città e sulla valle dell\u2019Adige.',
      alt:'Monte Bondone',link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
-    {id:'cantine',t:'Cantine e produttori locali',meta:['2-15 min','vino · miele · formaggi'],
-     d:'Le cantine di Ravina e della Valle dell\u2019Adige: Trentodoc, Teroldego, Nosiola. Chiedeteci per visite guidate e degustazioni.',
+    {id:'cantine',t:'Cantine e produttori locali',meta:['2\u201315 min','vino · miele · formaggi'],
+     d:'Le cantine di Ravina e della Valle dell\u2019Adige: Trentodoc, Teroldego, Nosiola. Chiedici consiglio per visite e degustazioni.',
      alt:'Vigneti e vini del Trentino',link:VT+'gusto/vini-del-trentino',lt:'Vini del Trentino'},
     {id:'garda',t:'Lago di Garda (sponda trentina)',meta:['40 min','Riva, Torbole, Arco'],
-     d:'La parte più selvaggia del Garda: falesie per l\u2019arrampicata, windsurf, kite e passeggiate sul lungolago.',
+     d:'La sponda trentina del Garda: falesie per l\u2019arrampicata, windsurf, kite e passeggiate sul lungolago.',
      alt:'Lago di Garda Trentino',link:'https://www.gardatrentino.it',lt:'gardatrentino.it',
      og:VT+'guida/natura/laghi/lago-di-garda-trentino_md_2263'},      // gardatrentino.it non ha una foto di copertina
     {id:'ciclabile',t:'Ciclabile della Valle dell\u2019Adige',meta:['parte da 5 min','fino a Verona'],
-     d:'Piatta e panoramica, attraversa vigneti e frutteti. Da qui potete raggiungere in bici Trento centro, Rovereto o scendere verso il Garda.',
+     d:'Piatta e panoramica, attraversa vigneti e frutteti. Da Ravina puoi raggiungere in bici il centro di Trento, Rovereto o scendere verso il Garda.',
      alt:'Ciclabile lungo l\u2019Adige',link:VT+'guida/attivita-outdoor/ciclabili',lt:'Piste ciclabili del Trentino'},
     {id:'val-di-non',t:'Val di Non e Val di Sole',meta:['45 min','mele · rafting · canyon'],
      d:'Frutteti a perdita d\u2019occhio, canyon del Rio Sass, rafting sul Noce e i castelli della Val di Non.',
@@ -54,7 +54,7 @@
     {id:'forst-biergarten',nome:'La Torre · Biergarten Forst',cat:'Birreria · Giardino',zona:'Nei dintorni',badge:'Solo estate',estate:true,sito:'https://www.forst.it/it/locali/la-torre-biergarten-forst/',maps:'La Torre Biergarten Forst, Trento',
      d:'Il giardino estivo all\u2019aperto: birre Forst alla spina, piatti tirolesi e lunghe serate sotto gli alberi. Aperto nella bella stagione.'},
     {id:'bisto',nome:'Bistò',cat:'Bistrot · Cucina & drink',zona:'Nei dintorni',sito:'',maps:'Bistò, Trento',
-     d:'Bistrot moderno dove la cucina di stagione incontra una drink list curata: perfetto per una cena diversa dal solito.'},
+     d:'Bistrot moderno con cucina di stagione e una drink list curata.'},
     {id:'palestra-juta',nome:'Palestra Juta',cat:'Sport · Fitness',zona:'Nei dintorni',sito:'https://www.palestra-trento-juta.it/palestra-a-ravina/',maps:'Palestra Juta, Trento',
      d:'Per chi non rinuncia all\u2019allenamento in vacanza: sala attrezzi e corsi a pochi minuti dalla struttura.'}
   ];
@@ -77,15 +77,15 @@
     ],
     estate:[
       // d'estate non si scia: scheda e foto del Giardino Botanico Alpino delle Viote (la pagina delle piste resta per l'inverno)
-      {t:'Monte Bondone e le Viotte',m:'20 min · giugno – settembre',alt:'Giardino Botanico Alpino delle Viote, Monte Bondone',
-       d:'Le camminate sulle Tre Cime del Bondone e il Giardino Botanico Le Viotte, tra i più belli d\u2019Europa.',
+      {t:'Monte Bondone e le Viote',m:'20 min · giugno – settembre',alt:'Giardino Botanico Alpino delle Viote, Monte Bondone',
+       d:'Camminate sulle Tre Cime del Bondone e il Giardino Botanico Alpino delle Viote.',
        link:VT+'giardino-botanico-alpino-viote-del-monte-bondone_md_2363',lt:'visittrentino.info'},
       {t:'Lago di Toblino e Valle dei Laghi',m:'25 min',alt:'Castel Toblino sul lago',
        d:'Il castello sull\u2019acqua, una passeggiata lungolago e una sosta nelle cantine della valle.',
        link:VT+'guida/da-vedere/castelli/castel-toblino_md_2454',lt:'Scheda ufficiale'},
       // foto: le Feste Vigiliane, la festa dell'estate in centro a Trento (il link resta la pagina Eventi del sito)
       {t:'Gli eventi dell\u2019estate a Trento',m:'sempre aggiornato',alt:'Feste Vigiliane in centro a Trento',
-       d:'Festival, concerti e appuntamenti estivi in città: nella pagina Eventi trovi tutti gli appuntamenti in programma, sempre aggiornati.',
+       d:'Festival, concerti e appuntamenti estivi in città: nella pagina Eventi trovi quelli in programma.',
        link:'eventi.html',lt:'Vai agli eventi in programma',og:'https://www.visittrentino.info/en/guide/what-to-do/events/feste-vigiliane_e_91856516'}
     ],
     autunno:[
@@ -93,7 +93,7 @@
        d:'Cantine aperte, Trentodoc e Teroldego: l\u2019autunno è la stagione giusta per conoscere i produttori della Valle dell\u2019Adige.',
        link:'https://www.tastetrentino.it/',lt:'Strade dei Vini e dei Sapori'},
       {t:'Foliage e castagnate',m:'ottobre – novembre',alt:'Trentino in autunno',
-       d:'Boschi dorati sulle colline sopra Trento, castagne nei borghi e il fascino lento dell\u2019autunno trentino.',
+       d:'Boschi dorati sulle colline sopra Trento e castagnate nei borghi.',
        link:VT+'esperienze/speciale-autunno',lt:'Trentino in autunno'},
       {t:'I musei di Trento',m:'10 min',alt:'MUSE, Museo delle Scienze di Trento',
        d:'MUSE, Buonconsiglio e Gallerie: la cultura al caldo quando l\u2019aria si fa frizzante.',
@@ -104,12 +104,12 @@
        d:'Piste sopra Trento con vista sulla valle dell\u2019Adige, sci in notturna e ciaspolate nella neve.',
        link:'https://www.visittrentino.info/it/trentino/aree-sciistiche/trento-e-monte-bondone_md_2236',lt:'visittrentino.info'},
       {t:'I Mercatini di Natale di Trento',m:'10 min · fine novembre – 6 gennaio',alt:'Mercatino di Natale di Trento',
-       d:'Tra i mercatini più amati d\u2019Italia: casette di legno, luci e profumi in Piazza Fiera e dintorni.',
+       d:'Casette di legno, luci e prodotti tipici in Piazza Fiera e nelle piazze vicine.',
        link:'https://natale.visittrento.it/mercatino',lt:'natale.visittrento.it',
        og:'https://natale.visittrento.it/wp-content/uploads/2024/10/natale-a-trento-mercatino-ph-marco.gober_.jpg'},
       // foto: la pagina ufficiale di Trento a Natale (la copertina di visittrento.it non è invernale)
       {t:'Trento d\u2019inverno: musei e portici',m:'10 min',alt:'Trento in inverno',
-       d:'Il centro storico d\u2019inverno ha un fascino speciale: musei, cioccolata calda e shopping sotto i portici.',
+       d:'D\u2019inverno il centro storico si visita tra musei, caffè e negozi sotto i portici.',
        link:'https://www.visittrento.it',lt:'visittrento.it',og:'https://natale.visittrento.it/en/trento-city-of-christmas'}
     ]
   };
