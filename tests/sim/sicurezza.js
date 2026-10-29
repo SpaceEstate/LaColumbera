@@ -375,6 +375,15 @@ test('S20 Pulizie: scelta dei letti e nota solo con il login, chiave e testi con
   kv.exec(['HSET', 'pul:info', 'VECCHIA1', JSON.stringify({ letto: 'm', nota: '', a: '2026-07-01' }), 'GUASTA', 'non json']);
   const o = (await H.adminApi('pul_info', {})).body; eq(Object.keys(o).sort(), ['cal:torre:2026-10-02']); eq(kv.exec(['HGET', 'pul:info', 'VECCHIA1']), null, 'soggiorno finito da oltre 60 giorni: tolto');
 });
+test('S21 Pulizie · «Nel testo»: si toglie una prenotazione dal testo solo con il login e solo con un vero sì (true); rimessa senza letti né nota, la voce sparisce', async () => {
+  await base();
+  eq((await H.api('pul_set', { k: 'HMSEDESZCW', fuori: true })).status, 401);
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', fuori: true, a: '2026-10-11' })).status, 200);
+  eq(JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])), { letto: '', nota: '', a: '2026-10-11', fuori: true });
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: 'm', fuori: true, a: '2026-10-11' })).status, 200); eq(JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])), { letto: 'm', nota: '', a: '2026-10-11', fuori: true }, 'letti e «fuori» insieme');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: 'm', fuori: 'sì', a: '2026-10-11' })).status, 200); eq(JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])), { letto: 'm', nota: '', a: '2026-10-11' }, 'solo true toglie dal testo');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', fuori: 1 })).status, 200); eq(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), null);
+});
 
 /* ===================== esecuzione ===================== */
 (async () => {

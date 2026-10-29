@@ -15,7 +15,7 @@ const chip=s=>`<span class="stato ${esc(s)}">${esc(STATO[s]||s)}</span>`;
 function soggiorni(){const D=A.D,out=[],sito=new Set();
   (D.bk||[]).filter(x=>x.stato==='confermata'||x.stato==='da_verificare').forEach(x=>{sito.add(String(x.code).toUpperCase());out.push({code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,nome:x.nome,fonte:'Sito',stato:x.stato})});
   (D.reg||[]).forEach(r=>{if(r.fonte==='SITO'||sito.has(String(r.codice).toUpperCase()))return;out.push({code:r.codice,id:r.apt,da:r.da,a:r.a,ospiti:r.ospiti,nome:'',fonte:FONTE[r.fonte]||'Altro',stato:'confermata',portale:1})});
-  (D.ext||[]).forEach(e=>{if(e.src==='Foglio'||out.some(o=>o.id===e.id&&o.da===e.da))return;out.push({code:'',id:e.id,da:e.da,a:e.a,ospiti:0,nome:'',fonte:e.src||'Calendario',stato:'calendario'})});
+  (D.ext||[]).forEach(e=>{if(e.src==='Foglio'||out.some(o=>o.id===e.id&&o.da===e.da))return;out.push({code:'',id:e.id,da:e.da,a:e.a,ospiti:0,nome:'',fonte:e.src||'Calendario',stato:'calendario',cal:e.t||''})});      // cal: il titolo dell'evento nel calendario
   return out.sort((x,y)=>x.da<y.da?-1:x.da>y.da?1:0)}
 A.soggiorni=soggiorni;
 const chi=x=>x.nome||(x.code?x.fonte+' · '+fmtCode(x.code):x.fonte+' (solo calendario)');

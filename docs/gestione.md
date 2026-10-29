@@ -73,7 +73,8 @@ Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», 
 1. Scegli il periodo (Dal / al, oppure «7 giorni», «14 giorni», «Un mese»; di partenza le prossime due settimane, al massimo tre mesi).
 2. Per ogni appartamento, giorno per giorno: chi **esce** (ospiti, entro l'orario di check-out) e chi **entra** (ospiti, notti, dall'orario di check-in); «cambio» quando nello stesso giorno uno esce e uno entra. Le prenotazioni sono le stesse di Oggi: sito, Booking e Airbnb dal foglio, calendari iCal.
 3. Per ogni arrivo scegli **Matrimoniale** o **Singoli** (toccarla di nuovo la toglie) e, se serve, una **nota** (culla, letto aggiuntivo…). Si salvano subito, senza «Salva modifiche» (KV `pul:info`; la voce si toglie da sola 60 giorni dopo la partenza).
-4. Sotto ogni appartamento c'è il testo pronto: **Copia il testo** e incollalo nella chat con chi fa le pulizie (da telefono anche «Condividi…»). Nel testo non ci sono nomi, email, telefoni né codici: solo giorni, orari, persone, notti e letti. I nomi li vedi solo tu, nella pagina.
+4. **Nel testo**: ogni entrata e uscita ha la spunta. Togliila a una prenotazione letta male o doppia (per esempio un blocco del calendario di Airbnb, o la stessa prenotazione arrivata dal foglio e dal calendario con date diverse): esce dal testo con la sua entrata e la sua uscita, resta nella pagina in grigio («Tolta dal testo») e la scelta vale anche le volte successive. **⚠ Si sovrappone a…** segnala due prenotazioni dello stesso appartamento che si accavallano (arrivare il giorno in cui un altro parte va bene): di solito una delle due è da togliere. Per le prenotazioni viste solo nel calendario compare anche il titolo dell'evento («Reserved», «Airbnb (Not available)», «CLOSED - Not available»), che aiuta a capire cos'è.
+5. Sotto ogni appartamento c'è il testo pronto: **Copia il testo** e incollalo nella chat con chi fa le pulizie (da telefono anche «Condividi…»). Nel testo non ci sono nomi, email, telefoni né codici: solo giorni, orari, persone, notti e letti. I nomi li vedi solo tu, nella pagina.
 5. Un arrivo senza scelta compare come «letti da confermare»; una prenotazione vista solo nel calendario iCal (senza numero di ospiti) come «ospiti da confermare».
 
 ## 7. Luoghi e convenzioni
@@ -92,7 +93,7 @@ Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'ar
 
 - `cfg`: stessi campi di prima; nuovi e facoltativi `luoghi` e `convenzioni` (assenti finché non li salvi). Nessun dato già salvato viene convertito o riscritto all'apertura.
 - `cfg:rev`: numero di versione delle impostazioni (nuovo; assente = 0).
-- `pul:info`: letti e note delle Pulizie, una voce per arrivo (nuovo).
+- `pul:info`: letti e note delle Pulizie, una voce per arrivo (nuovo); `fuori: true` quando la prenotazione è stata tolta dal testo.
 - `bkh` (prenotazioni del sito): quando una prenotazione si annulla con il rimborso si aggiungono `annullata_da` (ospite o titolare) e `rimborso` (importo, stato, riferimento Stripe, data). Le altre prenotazioni non cambiano.
 - `ric`: richieste di ricevuta, una voce per prenotazione (nuovo), cancellate 30 giorni dopo l'invio.
 - Dati personali nuovi solo per la ricevuta (chiesta dall'ospite): vedi `docs/gdpr/inventario-trattamenti.md` (T6e).

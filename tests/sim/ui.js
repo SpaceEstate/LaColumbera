@@ -1276,6 +1276,34 @@ test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrat
   assert(r2.doc.querySelector('#adm-nav a.on[href="#pulizie"]'), 'voce di menu in Operatività');
 });
 
+test('W30 Gestione · Pulizie: si sceglie cosa va nel testo — una prenotazione letta male o doppia si toglie con «Nel testo» (entrata e uscita insieme, resta in grigio, la scelta si salva); chi si sovrappone è segnalato', async () => {
+  await setup();
+  const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
+  H.setFeed('bookingTorre', [H.bookingEv('BK1', '2026-10-02', '2026-10-04'), H.bookingEv('DOPPIA', '2026-10-05', '2026-10-08')]); tick(200); await H.sync();      // la stessa notte letta due volte
+  const r = await loadAdmin('#pulizie'), $ = s => r.doc.querySelector(s), txt = () => $('[data-testid=admin-pul-txt-torre]').textContent, kd = 'cal:torre:2026-10-05';
+  const w = await waitFor(() => $('[data-testid="admin-pul-warn-' + kd + '"]'), 'avviso di sovrapposizione'), w1 = $('[data-testid=admin-pul-warn-' + c1 + ']');
+  assert(/Si sovrappone a Mario Rossi \(4 ottobre → 7 ottobre\)/.test(text(w)) && w1 && /Booking \(solo calendario: «CLOSED - Not available»\) \(5 ottobre → 8 ottobre\)/.test(text(w1)), text(w) + ' | ' + text(w1));
+  assert(!$('[data-testid="admin-pul-warn-cal:torre:2026-10-02"]'), 'arrivare il giorno in cui un altro parte non è una sovrapposizione');
+  assert.equal(r.doc.querySelectorAll('[data-testid=admin-pul-torre] .pul-warn').length, 4, 'avvisi solo sulle due che si accavallano (entrata e uscita di ciascuna)');
+  assert(/Lunedì 5 ottobre\n• entra: ospiti da confermare, 3 notti/.test(txt()) && /Giovedì 8 ottobre\n• esce: ospiti da confermare/.test(txt()), 'prima anche la doppia è nel testo');
+  const chk = $('[data-testid="admin-pul-inc-' + kd + '-entra"]'); assert(chk.checked, 'di partenza è nel testo');
+  chk.checked = false; chg(r, chk);
+  await waitFor(() => kv.exec(['HGET', 'pul:info', kd]), 'scelta salvata');
+  assert.deepEqual(JSON.parse(kv.exec(['HGET', 'pul:info', kd])), { letto: '', nota: '', a: '2026-10-08', fuori: true });
+  assert(!/Lunedì 5 ottobre|Giovedì 8 ottobre/.test(txt()), 'fuori dal testo l\'entrata e l\'uscita: ' + txt());
+  assert(/Domenica 4 ottobre — cambio\n• esce: ospiti da confermare\n• entra: 3 ospiti, 3 notti/.test(txt()) && /Mercoledì 7 ottobre\n• esce: 3 ospiti/.test(txt()), txt());
+  assert(!$('[data-testid=admin-pul-warn-' + c1 + ']') && !$('[data-testid="admin-pul-warn-' + kd + '"]'), 'niente più avvisi');
+  const grigie = [...r.doc.querySelectorAll('[data-testid=admin-pul-torre] .pul-mov.fuori')];
+  assert(grigie.length === 2 && grigie.every(x => /Tolta dal testo/.test(text(x))) && !$('[data-testid="admin-pul-inc-' + kd + '-esce"]').checked, 'entrata e uscita restano in grigio, senza spunta');
+  assert(/2 uscite · 2 entrate · 2 tolte dal testo/.test(text($('[data-testid=admin-pul-torre] .adm-sub'))), text($('[data-testid=admin-pul-torre] .adm-sub')));
+  assert.equal(r.doc.activeElement, $('[data-testid="admin-pul-inc-' + kd + '-entra"]'), 'il focus resta sulla spunta');
+  // riaprendo la pagina è ancora fuori; rimessa dall'uscita, torna nel testo e la voce si toglie
+  const r2 = await loadAdmin('#pulizie'), $2 = s => r2.doc.querySelector(s);
+  await waitFor(() => $2('[data-testid="admin-pul-inc-' + kd + '-esce"]') && !$2('[data-testid="admin-pul-inc-' + kd + '-esce"]').checked, 'scelta ricaricata');
+  const c2 = $2('[data-testid="admin-pul-inc-' + kd + '-esce"]'); c2.checked = true; chg(r2, c2);
+  await waitFor(() => !kv.exec(['HGET', 'pul:info', kd]), 'rimessa: senza letti né nota la voce si toglie');
+  assert(/Lunedì 5 ottobre/.test($2('[data-testid=admin-pul-txt-torre]').textContent) && $2('[data-testid="admin-pul-warn-' + kd + '"]'), 'di nuovo nel testo, con l\'avviso');
+});
 test('W22 email dei messaggi: «Rispondi» dell\'ospite apre l\'area già sui Messaggi, senza codice; «Rispondi» del titolare apre la conversazione (anche passando dal login)', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));

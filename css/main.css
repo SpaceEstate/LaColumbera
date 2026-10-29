@@ -1364,17 +1364,23 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 .pul-q .adm-chip{text-transform:none}
 .pul-day{border-top:1px solid var(--line);padding-top:4px;margin-top:6px}
 .pul-day .adm-h4{margin:12px 0 6px;text-transform:none}
-.pul-mov{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px 12px;align-items:center;padding:8px 0}
+.pul-mov{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:8px 0}
+.pul-inc{grid-column:3;grid-row:1;display:flex;align-items:center;gap:6px;font-size:.84rem;font-weight:700;color:var(--ink);cursor:pointer;white-space:nowrap}
+.pul-inc input{width:18px;height:18px;accent-color:var(--wine);margin:0}
+.pul-warn{display:block;margin-top:4px;font-size:.8rem;font-weight:700;color:#9a5b00;overflow-wrap:anywhere}
+.pul-off{display:block;margin-top:2px;font-size:.8rem;font-weight:700;color:var(--muted)}
+.pul-mov.fuori .pul-k,.pul-mov.fuori .pul-d{opacity:.5}
+.pul-mov.fuori .pul-letto,.pul-mov.fuori .pul-nota{display:none}
 .pul-k{justify-self:start;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;font-weight:800;border-radius:999px;padding:4px 10px}
 .pul-k.esce{background:rgba(108,95,85,.12);color:var(--muted)}
 .pul-k.entra{background:rgba(122,46,57,.12);color:var(--wine)}
 .pul-d{min-width:0;font-weight:600;color:var(--ink)}
 .pul-d small{display:block;font-weight:500;color:var(--muted);overflow-wrap:anywhere}
-.pul-letto{grid-column:2;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pul-letto{grid-column:2/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pul-letto button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font:600 .86rem var(--sans);color:var(--ink);cursor:pointer}
 .pul-letto button.on{background:var(--wine);border-color:var(--wine);color:#fff}
 .pul-ask{font-size:.78rem;font-weight:700;color:#9a5b00}
-.pul-nota{grid-column:2;width:100%;font:inherit;font-size:.92rem;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--paper);color:var(--ink)}
+.pul-nota{grid-column:2/-1;width:100%;font:inherit;font-size:.92rem;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--paper);color:var(--ink)}
 .pul-txt{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-size:.9rem;line-height:1.55;background:var(--paper);border:1px dashed var(--line);border-radius:14px;padding:14px 16px;margin:0 0 12px;color:var(--ink)}
 /* Gestione → Prenotazioni → Ricevuta: i dati per intestarla, come li ha scritti l'ospite */
 .ric-dati{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:6px 16px;margin:6px 0 12px;font-size:.95rem}
@@ -1383,7 +1389,7 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 .ric-di-nuovo{margin:10px 0}
 .ric-di-nuovo summary{cursor:pointer;color:var(--wine);font-weight:700}
 @media (max-width:520px){.ric-dati{grid-template-columns:minmax(0,1fr);gap:2px}.ric-dati dd{margin-bottom:6px}}
-@media (max-width:760px){.pul-mov{grid-template-columns:1fr}.pul-letto,.pul-nota{grid-column:1}.pul-nota{font-size:16px}}
+@media (max-width:760px){.pul-mov{grid-template-columns:minmax(0,1fr) auto}.pul-k{grid-column:1;grid-row:1}.pul-inc{grid-column:2;grid-row:1}.pul-d,.pul-letto,.pul-nota{grid-column:1/-1}.pul-nota{font-size:16px}}
 
 /* ===== Gestione · Luoghi e convenzioni ===== */
 .dl-list{display:flex;flex-direction:column;gap:14px;margin:12px 0 16px}

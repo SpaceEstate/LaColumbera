@@ -530,7 +530,7 @@ if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede i
 if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
   bk=(await E.bkAll()).filter(x=>!(x.stato==='in_attesa'&&Date.parse(x.creato)<t40)).sort((x,y)=>String(x.creato).localeCompare(String(y.creato))),
   occupancy=await E.adminOccupancy(config,{fresh:false}),sync=await E.syncState(config,{events:true}),ext=[];
- for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro'});delete f.events}
+ for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro',t:String(e.summary||'').slice(0,60)});delete f.events}      // t: il titolo dell'evento (es. «Reserved», «Airbnb (Not available)»)
  const rows=(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA');
  for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
  // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu)
@@ -561,9 +561,9 @@ if(a==='pul_info'){const h=(await kv('HGETALL','pul:info'))||[],e=Array.isArray(
  if(vecchie.length)await kv('HDEL','pul:info',...vecchie).catch(()=>{});
  return res.json(o)}
 if(a==='pul_set'){const k=String(b.k||'').trim();if(!/^[A-Za-z0-9:._-]{3,80}$/.test(k))return res.status(400).json({err:'Prenotazione non valida'});
- const letto=b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'';
- if(!letto&&!nota){await kv('HDEL','pul:info',k);return res.json({ok:1})}
- await kv('HSET','pul:info',k,JSON.stringify({letto,nota,a:partenza}));return res.json({ok:1,letto,nota})}
+ const letto=b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'',fuori=b.fuori===true;      // fuori: tolta dal testo per le pulizie
+ if(!letto&&!nota&&!fuori){await kv('HDEL','pul:info',k);return res.json({ok:1})}
+ await kv('HSET','pul:info',k,JSON.stringify(Object.assign({letto,nota,a:partenza},fuori?{fuori:true}:{})));return res.json({ok:1,letto,nota,fuori})}
 if(a==='msg_fill'){ // un template compilato per una prenotazione del sito o del foglio (anteprima, testo da copiare nella chat di Booking o Airbnb)
  const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase(),{live:false});
  if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
