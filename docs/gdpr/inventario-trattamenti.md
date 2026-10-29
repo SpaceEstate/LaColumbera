@@ -113,7 +113,7 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 | Richieste di ricevuta (`ric`) | **30 giorni dopo l'invio**; 12 mesi se mai inviata (pulizia alla lettura dell'elenco in Gestione) | Il file della ricevuta non si conserva: parte solo in allegato |
 | Checkout abbandonati (`in_attesa`) | Eliminati dopo **3 giorni**, alla prima sincronizzazione utile | `bkPurgePending` |
 | Hold sulle notti | Circa 35 minuti (`holdTtlSec` 2110 s) | Contengono solo codice e date |
-| Token di accesso (solo hash) | Fino a check-out + 30 giorni; sessione 4 ore | Prompt 2 |
+| Token di accesso (solo hash) | Su KV fino a check-out + 30 giorni; aprono l'area solo fino a check-out + 7 giorni (si controlla la data a ogni accesso), poi servono solo a dire «Il soggiorno è finito»; sessione 4 ore | Prompt 2; area a 7 giorni dal 29/10/2026 |
 | Contatori del rate limit | 10–30 minuti per IP; 24 ore per codice | |
 | Guest Card (`gc:<codice>`, `gc:manual`) | **Nessuna scadenza** (`gc:manual`: ultime 300 voci) | Periodo da decidere [DA COMPLETARE] |
 | Copia del registro (`reg`) e dei calendari (`ics:*`) | 90 giorni, sovrascritti a ogni aggiornamento | |

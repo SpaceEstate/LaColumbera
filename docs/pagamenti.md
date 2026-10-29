@@ -58,7 +58,7 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 
 ## Ricevuta su richiesta
 
-Il sito non emette documenti fiscali (servirebbe un servizio a pagamento). L'ospite chiede la ricevuta dall'area clienti con nome, codice fiscale (controllato; facoltativo per chi non risiede in Italia) e indirizzo; a te arriva un'email con i dati. La emetti come fai di solito, poi da Gestione → Prenotazioni → dettaglio → «Ricevuta» carichi il PDF e parte all'ospite in allegato. All'area ospiti tornano solo lo stato e l'email mascherata, mai i dati inseriti; i dati si cancellano 30 giorni dopo l'invio (richieste mai evase: dopo un anno). Al massimo 5 richieste valide al giorno per prenotazione.
+Il sito non emette documenti fiscali (servirebbe un servizio a pagamento). L'ospite chiede la ricevuta dall'area clienti con nome, codice fiscale (controllato; facoltativo per chi non risiede in Italia) e indirizzo; a te arriva un'email con i dati. La emetti come fai di solito, poi da Gestione → Prenotazioni → dettaglio → «Ricevuta» carichi il PDF e parte all'ospite in allegato. All'area ospiti tornano solo lo stato e l'email mascherata, mai i dati inseriti; i dati si cancellano 30 giorni dopo l'invio (richieste mai evase: dopo un anno). Al massimo 5 richieste valide al giorno per prenotazione. La richiesta si fa dall'area clienti, che resta aperta fino a 7 giorni dopo la partenza: dopo, l'ospite ti scrive.
 
 ## Limiti da conoscere
 

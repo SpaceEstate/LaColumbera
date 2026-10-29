@@ -22,7 +22,7 @@ const n2=(n,a,b)=>n+' '+(+n===1?a:b);
 const L={
  it:{eyebrow:'Area ospiti',titolo:'La tua prenotazione',sub:'Inserisci il codice di prenotazione: lo trovi nella email di conferma se hai prenotato sul nostro sito, altrimenti è il numero di prenotazione di Booking.com o Airbnb.',
   etCodice:'Codice di prenotazione',entra:'Entra',cerco:'Cerco…',privacy:'Il codice vale come una chiave della tua prenotazione: non condividerlo con chi non soggiorna con te. Lo usiamo solo per mostrarti la prenotazione e i servizi collegati.',informativa:'Informativa privacy',lingua:'Lingua',
-  err404:'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.',err429:'Troppi tentativi. Riprova tra qualche minuto (se hai prenotato sul sito puoi anche aprire il link della mail di conferma).',errRete:'Servizio non raggiungibile: controlla la connessione e riprova.',
+  err404:'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.',err429:'Troppi tentativi. Riprova tra qualche minuto (se hai prenotato sul sito puoi anche aprire il link della mail di conferma).',errRete:'Servizio non raggiungibile: controlla la connessione e riprova.',errChiusa:'Il soggiorno è finito: l\'area clienti resta aperta fino a 7 giorni dopo la partenza. Per qualsiasi necessità scrivici a lacolumbera@gmail.com.',
   esci:'Esci',tabSoggiorno:'Il soggiorno',tabInfo:'Info utili',tabDintorni:'Dintorni',tabMessaggi:'Messaggi',tabs:'Sezioni dell\'area ospiti',
   prima:n=>n===1?'Arrivi domani':'Arrivi tra '+n+' giorni',oggiArrivo:'Benvenuto! Arrivi oggi',durante:'Buon soggiorno!',oggiPartenza:'Oggi è il giorno della partenza: buon viaggio!',dopo:'Grazie per aver soggiornato alla Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',nNotti:n=>n2(n,'notte','notti'),nOspiti:n=>n2(n,'ospite','ospiti'),dalle:h=>'dalle '+h,entro:h=>'entro le '+h,copia:'Copia codice',copiato:'Copiato ✓',confermata:'Confermata',
@@ -50,7 +50,7 @@ const L={
   ricControlla:'Controlla i dati inseriti.',ricErr:'Richiesta non inviata: controlla la connessione e riprova.',obbl:'obbligatorio'},
  en:{eyebrow:'Guest area',titolo:'Your booking',sub:'Enter your booking code: you will find it in the confirmation email if you booked on our website, otherwise it is your Booking.com or Airbnb reservation number.',
   etCodice:'Booking code',entra:'Open',cerco:'Searching…',privacy:'Your booking code works like a key: do not share it with anyone who is not staying with you. We only use it to show you your booking and the related services.',informativa:'Privacy notice',lingua:'Language',
-  err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',
+  err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',errChiusa:'Your stay has ended: the guest area stays open until 7 days after check-out. For anything you need, write to us at lacolumbera@gmail.com.',
   esci:'Log out',tabSoggiorno:'Your stay',tabInfo:'Useful info',tabDintorni:'Nearby',tabMessaggi:'Messages',tabs:'Guest area sections',
   prima:n=>n===1?'You arrive tomorrow':'You arrive in '+n+' days',oggiArrivo:'Welcome! You arrive today',durante:'Enjoy your stay!',oggiPartenza:'Today is your departure day: have a safe trip!',dopo:'Thank you for staying at La Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',nNotti:n=>n2(n,'night','nights'),nOspiti:n=>n2(n,'guest','guests'),dalle:h=>'from '+h,entro:h=>'by '+h,copia:'Copy code',copiato:'Copied ✓',confermata:'Confirmed',
@@ -78,7 +78,7 @@ const L={
   ricControlla:'Please check the details you entered (tax code, postcode).',ricErr:'Request not sent: check your connection and try again.',obbl:'required'},
  de:{eyebrow:'Gästebereich',titolo:'Ihre Buchung',sub:'Geben Sie Ihren Buchungscode ein: Sie finden ihn in der Bestätigungs-E-Mail, wenn Sie auf unserer Website gebucht haben, ansonsten ist es Ihre Buchungsnummer von Booking.com oder Airbnb.',
   etCodice:'Buchungscode',entra:'Öffnen',cerco:'Suche…',privacy:'Der Buchungscode funktioniert wie ein Schlüssel: Geben Sie ihn nicht an Personen weiter, die nicht mit Ihnen übernachten. Wir verwenden ihn nur, um Ihnen Ihre Buchung und die zugehörigen Dienste anzuzeigen.',informativa:'Datenschutzhinweis',lingua:'Sprache',
-  err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+  err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',errChiusa:'Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet. Für alle Anliegen schreiben Sie uns an lacolumbera@gmail.com.',
   esci:'Abmelden',tabSoggiorno:'Ihr Aufenthalt',tabInfo:'Nützliche Infos',tabDintorni:'Umgebung',tabMessaggi:'Nachrichten',tabs:'Bereiche des Gästebereichs',
   prima:n=>n===1?'Sie reisen morgen an':'Sie reisen in '+n+' Tagen an',oggiArrivo:'Willkommen! Sie reisen heute an',durante:'Schönen Aufenthalt!',oggiPartenza:'Heute ist Ihr Abreisetag: Gute Reise!',dopo:'Danke für Ihren Aufenthalt in La Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',nNotti:n=>n2(n,'Nacht','Nächte'),nOspiti:n=>n2(n,'Gast','Gäste'),dalle:h=>'ab '+h+' Uhr',entro:h=>'bis '+h+' Uhr',copia:'Code kopieren',copiato:'Kopiert ✓',confermata:'Bestätigt',
@@ -182,7 +182,7 @@ function i18nLogin(){
  paintLang('#ga-lang-login')}
 const langSel=id=>`<div class="ga-lang" id="${id}" role="group" aria-label="${esc(t('lingua'))}">${LANGS.map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===lang}" data-testid="ga-lang-${l}">${l.toUpperCase()}</button>`).join('')}</div>`;
 function paintLang(sel){const el=$(sel);if(el)el.outerHTML=langSel(sel.slice(1))}
-const errText=x=>x&&x.status===404?t('err404'):x&&x.status===429?t('err429'):lang==='it'&&x&&x.status?x.message:t('errRete');
+const errText=x=>x&&x.status===410?t('errChiusa'):x&&x.status===404?t('err404'):x&&x.status===429?t('err429'):lang==='it'&&x&&x.status?x.message:t('errRete');
 function showErr(x){$('#r').innerHTML=`<p class="form-err" role="alert" data-testid="ga-error">${esc(errText(x))}</p>`}
 // apri: scheda da mostrare subito (dal pulsante Rispondi dell'email arriva «messaggi»), se c'è per questa prenotazione
 async function load(body,btn,apri){
@@ -192,7 +192,7 @@ async function load(body,btn,apri){
   catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
   if(r.t)accSet(r.code||body.code,r.t);
   R=r;tab=apri==='messaggi'&&chatOn()?'messaggi':'soggiorno';evCache=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
- catch(x){showErr(x)}
+ catch(x){if(x&&x.status===410)accDel();showErr(x)}      // link di un soggiorno chiuso: si dimentica la sessione
  finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig||t('entra');delete btn.dataset.loading}}}
 function logout(){accDel();R=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});$('#r').innerHTML='';const lg=$('#login');if(lg)lg.hidden=false;document.querySelector('.auth-wrap').classList.remove('ga-on');const cd=$('#cd');if(cd){cd.value='';cd.focus()}}
 

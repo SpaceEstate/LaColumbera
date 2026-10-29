@@ -316,15 +316,24 @@ test('M9  messaggi programmati a mano; la sincronizzazione delle date continua a
   assert((await H.busyDates('torre')).includes('2026-11-01'), 'il calendario è aggiornato lo stesso');
 });
 
-test('M10 conservazione: la conversazione si cancella N giorni dopo la partenza (90 di predefinito), non prima', async () => {
+test('M10 conservazione: la conversazione si cancella N giorni dopo la partenza (7 di predefinito, come l\'area clienti), non prima; un periodo più lungo scelto dal titolare vale', async () => {
   await base();
+  eq((await H.adminApi('msg_auto', {})).body.impostazioni.conservazione, 7, 'predefinito: 7 giorni');
   const c = await confermata();                                                      // partenza 13/12/2026
   await ospite('msg_send', { code: c.code, t: c.t, testo: 'ciao' });
   await H.adminApi('msg_reply', { code: c.code, testo: 'ciao a te' });
-  clock.set('2027-03-12T10:00:00Z'); await sync();                                   // 89 giorni dopo
+  clock.set('2026-12-19T10:00:00Z'); await sync();                                   // 6 giorni dopo
   eq((await thread(c.code)).messaggi.length, 2, 'ancora lì');
-  clock.set('2027-03-14T10:00:00Z'); await sync();                                   // 91 giorni dopo (e più di 20 ore dal controllo precedente)
+  clock.set('2026-12-21T10:00:00Z'); await sync();                                   // 8 giorni dopo (e più di 20 ore dal controllo precedente)
   eq((await thread(c.code)).messaggi.length, 0, 'cancellata');
+  // con 90 giorni scelti in Impostazioni si cancella al 91°
+  eq((await H.adminApi('msg_imp_save', { conservazione: 90, avvisaTitolare: true, avvisaOspite: true })).status, 200);
+  const d = await confermata({ da: '2027-01-10', a: '2027-01-12', email: 'novanta@esempio.it' });
+  await ospite('msg_send', { code: d.code, t: d.t, testo: 'ciao' });
+  clock.set('2027-02-12T10:00:00Z'); await sync();
+  eq((await thread(d.code)).messaggi.length, 1, '31 giorni dopo, con 90 scelti: ancora lì');
+  clock.set('2027-04-13T10:00:00Z'); await sync();
+  eq((await thread(d.code)).messaggi.length, 0, '91 giorni dopo: cancellata');
   eq((await H.adminApi('msg_inbox', {})).body.conversazioni.length, 0);
   const resto = [...kv.d.keys()].filter(k => kv.get(k) && k.startsWith('msg:') && (k.includes(c.code) || JSON.stringify(kv.get(k).v).includes(c.code)));      // le chiavi scadute non contano
   eq(resto, [], 'nessuna chiave dei messaggi rimasta');
@@ -343,13 +352,13 @@ test('M11 controllo leggero (msg_v): solo con il token, pochissimi comandi, limi
   eq((await H.api('mie', { code: c.code, t: c.t }, ip1)).status, 200, '100 controlli leggeri non bloccano l\'area');
   for (let i = 0; i < 140; i++) await H.api('msg_v', { code: c.code, t: c.t }, ip1);
   eq((await H.api('msg_v', { code: c.code, t: c.t }, ip1)).status, 429, 'oltre 240 in 10 minuti');
-  // conservazione: se l'elenco delle prenotazioni è vuoto (KV non ha risposto) non si cancella nulla; una conversazione orfana solo dopo 90 giorni ferma
+  // conservazione: se l'elenco delle prenotazioni è vuoto (KV non ha risposto) non si cancella nulla; una conversazione orfana solo quando è ferma da più del periodo di conservazione
   const MSG = require('../../api/_messaggi.js').makeMessaggi({ kv: (...a) => kv.run(a), kvp: cmds => Promise.all(cmds.map(x => kv.run(x))), now: () => clock.now() });
   eq((await MSG.pulizia([])).cancellate, 0); eq((await MSG.pulizia(null)).cancellate, 0);
   eq((await thread(c.code)).messaggi.length, 1, 'ancora lì');
   kv.exec(['DEL', 'msg:pulizia']); eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 0, 'orfana ma recente: resta');
   clock.advance(91 * 24 * 60 * MIN); kv.exec(['DEL', 'msg:pulizia']);
-  eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 1, 'orfana e ferma da oltre 90 giorni: cancellata');
+  eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 1, 'orfana e ferma da oltre il periodo di conservazione: cancellata');
 });
 
 /* ===================== esecuzione ===================== */

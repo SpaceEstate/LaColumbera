@@ -209,6 +209,22 @@ test('U4g ritorno dal pagamento: il webhook arriva mentre la pagina controlla �
   const t = text(d.doc.querySelector('[data-testid=booking-success]')); assert(/Stiamo verificando/.test(t) && /lacolumbera@gmail\.com/.test(t) && !/confermata 🎉/.test(t), t);
 });
 
+test('U4m link della mail aperto più di 7 giorni dopo il check-out: «Il soggiorno è finito» (anche in inglese), non «Prenotazione non trovata»; la sessione si dimentica', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body;
+  await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const m = /area-clienti\.html(#c=[A-Z0-9]+&t=[A-Za-z0-9_-]+)/.exec(global.__mails.find(x => x.to === 'mario@test.it').text);
+  clock.set('2026-12-18T10:00:00Z');
+  const ok = await load('area-clienti.html', { hash: m[1], scripts: AREA });
+  await waitFor(() => ok.doc.querySelector('[data-testid=mie-card-' + c.code + ']'), '6 giorni dopo: ancora aperta');
+  clock.set('2026-12-20T10:00:00Z');
+  for (const [lang, re] of [['it-IT', /^Il soggiorno è finito: l'area clienti resta aperta fino a 7 giorni dopo la partenza/], ['en-US', /^Your stay has ended: the guest area stays open until 7 days after check-out/]]) {
+    const r = await load('area-clienti.html', { hash: m[1], lang, scripts: AREA });
+    const e = await waitFor(() => r.doc.querySelector('[data-testid=ga-error]'), 'messaggio ' + lang);
+    assert(re.test(text(e)) && !/non trovata|not found/i.test(text(e)), text(e));
+    assert(!r.w.sessionStorage.getItem('lc_acc'), 'sessione dimenticata');
+  }
+});
 test('U4b area clienti dal link della mail (#c=…&t=…): entra subito, il token sparisce dall\'indirizzo e passa alla Guest Card', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body;
@@ -1262,7 +1278,7 @@ test('W28 Gestione · Annulla e rimborsa (con conferma) e ricevute: dati dell\'o
   // senza richiesta, per una prenotazione del sito: si può mandare lo stesso
   assert(/L'ospite non l'ha chiesta/.test(text(await waitFor(() => $('#bk-ric p'), 'ricevuta senza richiesta'))));
 });
-test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrate, uscite, ospiti, notti e letti (scelta e nota salvate subito), senza nomi; si copia con un tocco', async () => {
+test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrate, uscite, ospiti, notti e letti (letti, culla e nota salvati subito), senza nomi né orario d\'ingresso; si copia con un tocco', async () => {
   await setup();
   const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
   const c2 = (await checkout({ id: 'corte', da: '2026-10-11', a: '2026-10-13', nome: 'Anna Verdi', email: 'anna@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c2));
@@ -1270,23 +1286,29 @@ test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrat
   const r = await loadAdmin('#pulizie'), $ = s => r.doc.querySelector(s), txt = id => $('[data-testid=admin-pul-txt-' + id + ']').textContent;
   await waitFor(() => $('[data-testid=admin-pul-torre]') && $('[data-testid=admin-pul-corte]'), 'due schede');
   assert.deepEqual([$('[data-testid=admin-pul-da]').value, $('[data-testid=admin-pul-al]').value], ['2026-10-02', '2026-10-15'], 'di partenza: le prossime due settimane');
-  assert.equal(txt('torre'), ['PULIZIE TORRE', 'dal 2 ottobre al 15 ottobre', '', 'Venerdì 2 ottobre', '• entra: ospiti da confermare, 2 notti, letti da confermare, dalle 16:00', '',
-    'Domenica 4 ottobre — cambio', '• esce: ospiti da confermare', '• entra: 3 ospiti, 3 notti, letti da confermare, dalle 16:00', '', 'Mercoledì 7 ottobre', '• esce: 3 ospiti'].join('\n'));
+  // modifica voluta (29/10/2026): l'orario d'ingresso non c'è più nel testo («, dalle 16:00»); l'uscita resta come prima
+  assert.equal(txt('torre'), ['PULIZIE TORRE', 'dal 2 ottobre al 15 ottobre', '', 'Venerdì 2 ottobre', '• entra: ospiti da confermare, 2 notti, letti da confermare', '',
+    'Domenica 4 ottobre — cambio', '• esce: ospiti da confermare', '• entra: 3 ospiti, 3 notti, letti da confermare', '', 'Mercoledì 7 ottobre', '• esce: 3 ospiti'].join('\n'));
   assert(/Domenica 11 ottobre — cambio\n• esce: 2 ospiti\n• entra: 2 ospiti, 2 notti/.test(txt('corte')) && /Lunedì 5 ottobre\n• entra: 2 ospiti, 6 notti/.test(txt('corte')), txt('corte'));
   assert(!/Mario|Rossi|Anna|Verdi|@|HMSEDESZCW|6877180932/.test(txt('torre') + txt('corte')), 'nel testo niente nomi, email o codici');
   assert(/Mario Rossi/.test(text($('[data-testid=admin-pul-torre]'))), 'i nomi li vede solo il titolare, nella pagina');
-  // letti e nota: si salvano subito e finiscono nel testo
-  $('[data-testid=admin-pul-letto-' + c1 + '-m]').click();
+  // letti (modifica voluta: contatori al posto di «Matrimoniale / Singoli»), culla e nota: si salvano subito e finiscono nel testo
+  $('[data-testid=admin-pul-mat-' + c1 + '-piu]').click();
   await waitFor(() => kv.exec(['HGET', 'pul:info', c1]), 'scelta salvata');
-  assert.deepEqual(JSON.parse(kv.exec(['HGET', 'pul:info', c1])), { letto: 'm', nota: '', a: '2026-10-07' });
-  assert(/3 ospiti, 3 notti, letto matrimoniale, dalle 16:00/.test(txt('torre')));
-  const nota = $('[data-testid=admin-pul-nota-' + c1 + ']'); nota.value = '  serve la culla '; chg(r, nota);
-  await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c1])).nota === 'serve la culla', 'nota salvata');
-  assert(/letto matrimoniale, dalle 16:00 — serve la culla/.test(txt('torre')), txt('torre'));
-  $('[data-testid="admin-pul-letto-cal:torre:2026-10-02-s"]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'cal:torre:2026-10-02']), 'anche per una prenotazione vista solo nel calendario');
-  $('[data-testid=admin-pul-letto-HMSEDESZCW-s]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'Airbnb dal foglio');
-  assert(/6 notti, letti singoli/.test(txt('corte')));
-  $('[data-testid=admin-pul-letto-HMSEDESZCW-s]').click(); await waitFor(() => !kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'toccata di nuovo, la scelta si toglie');
+  assert.deepEqual(JSON.parse(kv.exec(['HGET', 'pul:info', c1])), { letto: '', nota: '', a: '2026-10-07', mat: 1, sing: 0 });
+  assert(/3 ospiti, 3 notti, 1 letto matrimoniale\n/.test(txt('torre')), txt('torre'));
+  $('[data-testid=admin-pul-sing-' + c1 + '-piu]').click(); await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c1])).sing === 1, 'più un singolo');
+  const cu = $('[data-testid=admin-pul-culla-' + c1 + ']'); cu.checked = true; chg(r, cu);
+  await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c1])).culla === true, 'culla salvata');
+  const nota = $('[data-testid=admin-pul-nota-' + c1 + ']'); nota.value = '  serve il seggiolone '; chg(r, nota);
+  await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c1])).nota === 'serve il seggiolone', 'nota salvata');
+  assert(/3 ospiti, 3 notti, 1 letto matrimoniale e 1 letto singolo, culla — serve il seggiolone/.test(txt('torre')), txt('torre'));
+  $('[data-testid="admin-pul-sing-cal:torre:2026-10-02-piu"]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'cal:torre:2026-10-02']), 'anche per una prenotazione vista solo nel calendario');
+  $('[data-testid=admin-pul-sing-HMSEDESZCW-piu]').click(); await waitFor(() => kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'Airbnb dal foglio');
+  $('[data-testid=admin-pul-sing-HMSEDESZCW-piu]').click(); await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])).sing === 2, 'due singoli');
+  assert(/6 notti, 2 letti singoli/.test(txt('corte')), txt('corte'));
+  $('[data-testid=admin-pul-sing-HMSEDESZCW-meno]').click(); await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW'])).sing === 1, 'uno in meno');
+  $('[data-testid=admin-pul-sing-HMSEDESZCW-meno]').click(); await waitFor(() => !kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), 'a zero, senza nota né culla, la voce si toglie');
   // copia: esattamente il testo mostrato
   let copiato = ''; Object.defineProperty(r.w.navigator, 'clipboard', { value: { writeText: async t => { copiato = t; } }, configurable: true });
   $('[data-testid=admin-pul-copy-torre]').click(); await waitFor(() => copiato, 'copiato'); assert.equal(copiato, txt('torre'));
@@ -1296,11 +1318,44 @@ test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrat
   $('[data-testid=admin-pul-per-7]').click(); assert.deepEqual([da.value, al.value], ['2026-10-02', '2026-10-08']);
   // riaprendo la pagina le scelte ci sono ancora
   const r2 = await loadAdmin('#pulizie');
-  await waitFor(() => r2.doc.querySelector('[data-testid=admin-pul-letto-' + c1 + '-m]').classList.contains('on'), 'scelta ricaricata');
-  assert.equal(r2.doc.querySelector('[data-testid=admin-pul-nota-' + c1 + ']').value, 'serve la culla');
+  await waitFor(() => r2.doc.querySelector('[data-testid=admin-pul-mat-' + c1 + ']') && text(r2.doc.querySelector('[data-testid=admin-pul-mat-' + c1 + ']')) === '1', 'scelta ricaricata');
+  assert.deepEqual([text(r2.doc.querySelector('[data-testid=admin-pul-sing-' + c1 + ']')), r2.doc.querySelector('[data-testid=admin-pul-culla-' + c1 + ']').checked, r2.doc.querySelector('[data-testid=admin-pul-nota-' + c1 + ']').value], ['1', true, 'serve il seggiolone']);
   assert(r2.doc.querySelector('#adm-nav a.on[href="#pulizie"]'), 'voce di menu in Operatività');
 });
 
+test('W33 Gestione · Pulizie: letti combinabili (limiti, avviso se i posti non bastano, la culla conta), scelte salvate prima dei contatori ancora valide; niente orario d\'ingresso, l\'uscita resta', async () => {
+  await setup();
+  const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
+  const c2 = (await checkout({ id: 'corte', da: '2026-10-11', a: '2026-10-13', ospiti: 2, nome: 'Anna Verdi', email: 'anna@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c2));
+  const c3 = (await checkout({ da: '2026-10-08', a: '2026-10-10', ospiti: 2, nome: 'Luca Bianchi', email: 'luca@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c3));
+  kv.exec(['HSET', 'pul:info', c2, JSON.stringify({ letto: 's', nota: '', a: '2026-10-13' }), c3, JSON.stringify({ letto: 'm', nota: '', a: '2026-10-10' })]);      // salvate prima dei contatori
+  const cf = (await H.adminApi('cfg_admin', {})).body; Object.assign(cf, { checkinOra: '16:00', checkoutOra: '10:00' }); assert.equal((await H.adminApi('save', cf)).status, 200);
+  const r = await loadAdmin('#pulizie'), $ = s => r.doc.querySelector(s), txt = id => $('[data-testid=admin-pul-txt-' + id + ']').textContent, n = (f, k) => text($('[data-testid=admin-pul-' + f + '-' + k + ']'));
+  await waitFor(() => $('[data-testid=admin-pul-mat-' + c1 + ']'), 'contatori');
+  // scelte di prima: «m» = un matrimoniale, «s» = «letti singoli» come prima (senza numero) finché non si toccano i contatori
+  assert(/Giovedì 8 ottobre\n• entra: 2 ospiti, 2 notti, 1 letto matrimoniale/.test(txt('torre')) && n('mat', c3) === '1', txt('torre'));
+  assert(/Domenica 11 ottobre — cambio\n• esce: ospiti da confermare, entro le 10:00\n• entra: 2 ospiti, 2 notti, letti singoli\n/.test(txt('corte')), txt('corte'));
+  assert(/scelta di prima: letti singoli/.test(text($('[data-testid=admin-pul-corte]'))));
+  $('[data-testid=admin-pul-sing-' + c2 + '-piu]').click(); await waitFor(() => JSON.parse(kv.exec(['HGET', 'pul:info', c2])).sing === 1, 'contatore dalla scelta di prima');
+  assert.deepEqual(JSON.parse(kv.exec(['HGET', 'pul:info', c2])), { letto: '', nota: '', a: '2026-10-13', mat: 0, sing: 1 });
+  // 3 ospiti con un matrimoniale: mancano posti (avviso); con un singolo in più o con la culla l'avviso sparisce
+  $('[data-testid=admin-pul-mat-' + c1 + '-piu]').click(); await waitFor(() => n('mat', c1) === '1', 'un matrimoniale');
+  assert(/2 posti per 3 ospiti/.test(text($('[data-testid=admin-pul-posti-' + c1 + ']'))));
+  assert.equal(r.doc.activeElement, $('[data-testid=admin-pul-mat-' + c1 + '-piu]'), 'il focus resta sul pulsante');
+  const cu = $('[data-testid=admin-pul-culla-' + c1 + ']'); cu.checked = true; chg(r, cu);
+  await waitFor(() => !$('[data-testid=admin-pul-posti-' + c1 + ']'), 'la culla conta come posto');
+  // limiti: al massimo 3 matrimoniali e 6 singoli; sotto zero non si va (e non si salva nulla)
+  for (let i = 0; i < 5; i++) { $('[data-testid=admin-pul-mat-' + c1 + '-piu]').click(); await sleep(15); }
+  for (let i = 0; i < 8; i++) { $('[data-testid=admin-pul-sing-' + c1 + '-piu]').click(); await sleep(15); }
+  await waitFor(() => { const v = JSON.parse(kv.exec(['HGET', 'pul:info', c1])); return v.mat === 3 && v.sing === 6; }, 'fermi al massimo');
+  assert.deepEqual([n('mat', c1), n('sing', c1)], ['3', '6']);
+  assert(/3 ospiti, 3 notti, 3 letti matrimoniali e 6 letti singoli, culla/.test(txt('torre')), txt('torre'));
+  const calls = r.log.calls.length; $('[data-testid=admin-pul-sing-' + c3 + '-meno]').click(); await sleep(40);
+  assert.equal(r.log.calls.length, calls, 'a zero il «−» non salva nulla');
+  // niente orario d'ingresso né nel testo né nella scheda; l'uscita lo tiene
+  assert(!/dalle \d/.test(txt('torre') + txt('corte')) && !/dalle \d/.test(text($('[data-testid=admin-pul-torre]'))), 'niente «dalle»');
+  assert(/entro le 10:00/.test(txt('torre')) && /entro le 10:00/.test(text($('[data-testid=admin-pul-torre]'))));
+});
 test('W30 Gestione · Pulizie: si sceglie cosa va nel testo — una prenotazione letta male o doppia si toglie con «Nel testo» (entrata e uscita insieme, resta in grigio, la scelta si salva); chi si sovrappone è segnalato', async () => {
   await setup();
   const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));

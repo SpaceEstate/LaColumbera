@@ -1379,6 +1379,12 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 .pul-letto{grid-column:2/-1;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pul-letto button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font:600 .86rem var(--sans);color:var(--ink);cursor:pointer}
 .pul-letto button.on{background:var(--wine);border-color:var(--wine);color:#fff}
+/* letti a contatore (− 1 + matrimoniale · − 0 + singoli) e culla */
+.pul-step{display:inline-flex;align-items:center;gap:6px;margin-right:8px}
+.pul-letto .pul-step button{width:40px;height:40px;padding:0;font-size:1.15rem;line-height:1}
+.pul-step b{min-width:1.1em;text-align:center;font:700 1rem var(--sans)}
+.pul-step span,.pul-culla{font-size:.9rem;color:var(--ink)}
+.pul-culla{display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-right:8px}
 .pul-ask{font-size:.78rem;font-weight:700;color:#9a5b00}
 .pul-nota{grid-column:2/-1;width:100%;font:inherit;font-size:.92rem;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--paper);color:var(--ink)}
 .pul-txt{white-space:pre-wrap;word-break:break-word;font-family:var(--sans);font-size:.9rem;line-height:1.55;background:var(--paper);border:1px dashed var(--line);border-radius:14px;padding:14px 16px;margin:0 0 12px;color:var(--ink)}

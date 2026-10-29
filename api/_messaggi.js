@@ -84,7 +84,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   /* ---------- impostazioni ---------- */
   async function impostazioni() {
     const o = (await jget('msg:imp')) || {}, c = Number(o.conservazione);
-    return { conservazione: Number.isInteger(c) && c >= 7 && c <= 730 ? c : 90, avvisaTitolare: o.avvisaTitolare !== false, avvisaOspite: o.avvisaOspite !== false };      // entrambi gli avvisi attivi di partenza
+    return { conservazione: Number.isInteger(c) && c >= 7 && c <= 730 ? c : 7, avvisaTitolare: o.avvisaTitolare !== false, avvisaOspite: o.avvisaOspite !== false };      // entrambi gli avvisi attivi di partenza; conversazioni 7 giorni dopo la partenza (come l'area clienti)
   }
   async function salvaImpostazioni(b) {
     const c = Number(b && b.conservazione);

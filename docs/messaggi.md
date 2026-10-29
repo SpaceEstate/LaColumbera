@@ -106,7 +106,7 @@ Tutto su Upstash (KV), separato dalla configurazione:
 
 L'elenco completo è in testa ad `api/_messaggi.js`.
 
-- **Conservazione:** le conversazioni si cancellano da sole **90 giorni dopo la partenza** (si cambia in Automatici → Impostazioni, da 7 a 730 giorni). Il controllo gira al massimo una volta ogni 20 ore, dentro la sincronizzazione (test M10). Se l'elenco delle prenotazioni non arriva (KV non risponde) non si cancella nulla; una conversazione senza prenotazione si cancella solo se è ferma da quel numero di giorni (test M11).
+- **Conservazione:** le conversazioni si cancellano da sole **7 giorni dopo la partenza** (dall'ottavo giorno; si allunga in Automatici → Impostazioni, fino a 730 giorni). Anche l'area clienti si chiude 7 giorni dopo il check-out, per il codice e per i link delle email. Se in Impostazioni avevi già salvato un altro numero, vale quello: rimettilo a 7. Il controllo gira al massimo una volta ogni 20 ore, dentro la sincronizzazione (test M10). Se l'elenco delle prenotazioni non arriva (KV non risponde) non si cancella nulla; una conversazione senza prenotazione si cancella solo se è ferma da quel numero di giorni (test M11).
 - **Log:** nessun testo, nome o codice.
 - **Email:** il testo dei messaggi è nelle email di avviso (titolare e ospite), vedi il paragrafo 5.
 - **Informativa:** `privacy.html` (trattamento «Messaggi con la struttura», fornitore DeepL se attivo, conservazione).

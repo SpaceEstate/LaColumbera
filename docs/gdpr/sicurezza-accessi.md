@@ -13,7 +13,7 @@ Scelta del titolare (ottobre 2026): **per entrare basta il codice della prenotaz
 
 | Elemento | Ruolo | Dà accesso da solo? |
 |---|---|---|
-| **Codice di una prenotazione del sito** (13 caratteri casuali, es. `558R TE56 487A9`) | Riferimento della prenotazione e chiave dell'area clienti | Sì, fino a **30 giorni dopo il check-out** |
+| **Codice di una prenotazione del sito** (13 caratteri casuali, es. `558R TE56 487A9`) | Riferimento della prenotazione e chiave dell'area clienti | Sì, fino a **7 giorni dopo il check-out** |
 | **Numero di prenotazione Booking.com / Airbnb** (dal foglio, es. `6877180932`, `HMSEDESZCW`) | Riferimento del portale, letto dal registro del foglio | Sì, fino a **7 giorni dopo il check-out** |
 | **Token di accesso** (128 bit casuali) | Arriva nel link della mail di conferma e nella risposta del checkout; dopo l'accesso con il codice il server rilascia un token di sessione (4 ore) | Sì, solo per quella prenotazione e fino alla scadenza |
 
@@ -56,7 +56,7 @@ Ogni fallimento produce **la stessa risposta**: 404 con il messaggio "Prenotazio
 - **Generazione:** `crypto.randomBytes(16)` (128 bit), codificato in base64url.
 - **Conservazione sul server:** solo l'hash SHA-256 del token. Chiave KV `tok:<sha256>`, valore `{c: CODICE, k: tipo}`, con `EX`. Il token in chiaro non viene salvato né registrato nei log.
 - **Scadenze:**
-  - token della mail o del checkout: fino a **30 giorni dopo il check-out**, con un minimo di 1 giorno e un massimo di 400 giorni;
+  - token della mail o del checkout: resta su KV fino a 30 giorni dopo il check-out (minimo 1 giorno, massimo 400), ma a ogni accesso si controlla la data: l'area si apre solo fino a **7 giorni dopo il check-out**; dopo, chi apre il link legge «Il soggiorno è finito» (HTTP 410, non conta come tentativo sbagliato). Con il solo codice, dopo il 7° giorno, resta «Prenotazione non trovata»;
   - token di sessione (dopo l'accesso con il codice): **4 ore**.
 - **Verifica:** formato `^[A-Za-z0-9_-]{22,64}$`, poi lettura di `tok:<hash>` e confronto del codice. Un token valido per la prenotazione A non funziona per la prenotazione B.
 - **Lato client:** solo `sessionStorage`, che si cancella alla chiusura della scheda. Niente `localStorage` e niente cookie.
@@ -187,7 +187,7 @@ Test di mutazione: con `verify` che restituisce sempre vero falliscono 2 test; c
 - **Tetto generale sui codici sbagliati:** chi provasse molti codici da molti indirizzi può rallentare per un'ora l'accesso con il solo codice anche agli ospiti veri; il link della mail e le sessioni già aperte restano utilizzabili.
 - **Limiti per IP:** sulle reti condivise (Wi-Fi di hotel, CGNAT degli operatori mobili) più ospiti condividono lo stesso contatore.
 - **Fail-open dei limiti** se KV non è raggiungibile.
-- **Il link o il codice della mail inoltrati** a terzi danno accesso fino a 30 giorni dopo il check-out. La mail e l'area clienti avvisano che valgono come una chiave.
+- **Il link o il codice della mail inoltrati** a terzi danno accesso fino a 7 giorni dopo il check-out. La mail e l'area clienti avvisano che valgono come una chiave.
 - **Nessuna Content-Security-Policy:** le pagine usano script e stili inline, quindi una CSP rigida richiede un intervento separato. In caso di XSS il `sessionStorage` sarebbe leggibile.
 - **Token admin `lc_t` in `sessionStorage`:** invariato.
 - **Pagina `privacy.html`:** aggiornata nel Prompt 3 (branch `gdpr/informativa`): font del sito locali, `sessionStorage` con codice e chiave di accesso. Vedi `inventario-trattamenti.md`.

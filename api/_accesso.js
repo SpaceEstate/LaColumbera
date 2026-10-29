@@ -24,10 +24,15 @@ const RL = {
   loginIp: { max: 10, win: 900 }        // login admin falliti per IP: 10 ogni 15 minuti
 };
 const SESSION_TTL_SEC = 4 * 3600;
-const GRACE_DAYS = 30;                  // un token "lungo" (mail, checkout) vale fino a 30 giorni dopo il check-out
-const CODE_DAYS_SITO = 30;              // accesso con il codice del sito: fino a 30 giorni dopo il check-out (messaggi, ricevuta)
-const CODE_DAYS_PORTALE = 7;            // accesso con il numero Booking/Airbnb: fino a 7 giorni dopo il check-out
+// L'area clienti resta aperta fino a 7 giorni dopo il check-out, per tutti (richiesta del titolare, 29/10/2026: prima il sito arrivava a 30):
+// poi le conversazioni si cancellano e le righe del foglio pure. Vale per il codice e per i link già mandati (si controlla la data a ogni accesso).
+const GRACE_DAYS = 30;                  // un token "lungo" (mail, checkout) resta su KV fino a 30 giorni dopo il check-out, ma apre l'area solo fino al 7°:
+                                        // dopo serve soltanto a dire a chi apre il link che il soggiorno è finito (invece di «non trovata»)
+const CODE_DAYS_SITO = 7;               // accesso con il codice del sito: fino a 7 giorni dopo il check-out
+const CODE_DAYS_PORTALE = 7;            // accesso con il numero Booking/Airbnb (e delle prenotazioni manuali): fino a 7 giorni dopo il check-out
 const ERR_NOT_FOUND = { err: 'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.' };
+// a chi apre un link valido (il token prova chi è) dopo la chiusura si dice perché; con il solo codice resta «non trovata» (non si rivela nulla)
+const ERR_CHIUSA = { err: 'Il soggiorno è finito: l\'area clienti resta aperta fino a 7 giorni dopo la partenza. Per qualsiasi necessità scrivici a lacolumbera@gmail.com.', code: 'CHIUSA' };
 
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 const RE_TOKEN = /^[A-Za-z0-9_-]{22,64}$/;
@@ -99,8 +104,10 @@ function makeAccess({ kv, kvp, now }) {
     await kv('SET', 'tok:' + sha(t), JSON.stringify({ c: normCode(code), k: kind || 'acc' }), 'EX', String(Math.max(60, Math.floor(ttlSec))));
     return t;
   }
-  // token "lungo" per la mail di conferma / il checkout: scade 30 giorni dopo il check-out
+  // token "lungo" per la mail di conferma / il checkout: resta 30 giorni dopo il check-out (l'area si chiude al 7°, vedi aperta)
   const issueForBooking = (b, kind) => issue(b.code, ttlUntil(b.a), kind);
+  // l'area è ancora aperta per questa prenotazione? (fino a N giorni dopo il check-out, alla mezzanotte UTC)
+  const aperta = b => { const g = b.fonte === 'sito' ? CODE_DAYS_SITO : CODE_DAYS_PORTALE, fine = RE_ISO.test(String(b.a || '')) ? Date.parse(b.a + 'T00:00:00Z') + g * 864e5 : 0; return fine > now(); };
   async function verify(code, t) {
     if (!RE_TOKEN.test(String(t || ''))) return false;
     let v = null;
@@ -130,6 +137,7 @@ function makeAccess({ kv, kvp, now }) {
       if (!(await verify(code, input.t))) return fail(false);
       const booking = await findBooking(code, { live: true });
       if (!booking) return fail(false);
+      if (!aperta(booking)) return { ok: false, status: 410, body: ERR_CHIUSA };      // link valido ma soggiorno chiuso: non conta come tentativo sbagliato
       return { ok: true, booking };
     }
     // 2) il codice da solo
@@ -138,9 +146,7 @@ function makeAccess({ kv, kvp, now }) {
     for (let i = 0; i < list.length && !booking; i++) booking = await findBooking(list[i], { live: false });   // KV e istantanea del foglio: veloci
     if (!booking) booking = await findBooking(list[0], { live: true });                                    // una sola domanda in diretta allo script del foglio
     if (!booking) return fail(true);
-    const giorni = booking.fonte === 'sito' ? CODE_DAYS_SITO : CODE_DAYS_PORTALE;
-    const fine = RE_ISO.test(String(booking.a || '')) ? Date.parse(booking.a + 'T00:00:00Z') + giorni * 864e5 : 0;
-    if (!(fine > now())) return fail(true);
+    if (!aperta(booking)) return fail(true);
     const token = await issue(booking.code, SESSION_TTL_SEC, 'sess');
     return { ok: true, booking, token };
   }
@@ -155,4 +161,4 @@ function maskEmail(e) {
   return s.slice(0, Math.min(2, i)) + '***' + s.slice(i);
 }
 
-module.exports = { makeAccess, maskEmail, ipKey, RL, ERR_NOT_FOUND, SESSION_TTL_SEC, newBookingCode, codeCandidates, CODE_ALPHABET, CODE_LEN, CODE_DAYS_SITO, CODE_DAYS_PORTALE };
+module.exports = { makeAccess, maskEmail, ipKey, RL, ERR_NOT_FOUND, ERR_CHIUSA, SESSION_TTL_SEC, newBookingCode, codeCandidates, CODE_ALPHABET, CODE_LEN, CODE_DAYS_SITO, CODE_DAYS_PORTALE };

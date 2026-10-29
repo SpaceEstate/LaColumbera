@@ -558,14 +558,17 @@ if(a==='msg_imp_save')try{return res.json(await MSG.salvaImpostazioni(b))}catch(
 // ---- Pulizie (Gestione → Operatività → Pulizie): per ogni arrivo come preparare i letti (m = matrimoniale, s = singoli) e una nota per chi pulisce ----
 // KV pul:info, un campo per prenotazione: il codice (sito, Booking, Airbnb) oppure cal:<appartamento>:<arrivo> per quelle viste solo nei calendari iCal.
 // Valore {letto, nota, a}: a = giorno di partenza; le voci dei soggiorni finiti da oltre 60 giorni si tolgono da sole alla lettura.
+// Letti a contatore (mat = matrimoniali 0–3, sing = singoli 0–6, solo se almeno uno) e culla (solo se sì); letto m/s è la scelta di prima, che vale
+// ancora per le voci già salvate (e per una pagina vecchia rimasta aperta) finché non ci sono i contatori.
 if(a==='pul_info'){const h=(await kv('HGETALL','pul:info'))||[],e=Array.isArray(h)?h:Object.entries(h).flat(),o={},vecchie=[],lim=addDays(todayRome(),-60);
  for(let i=0;i+1<e.length;i+=2){let v=null;try{v=JSON.parse(e[i+1])}catch{}if(!v||(v.a&&v.a<lim))vecchie.push(e[i]);else o[e[i]]=v}
  if(vecchie.length)await kv('HDEL','pul:info',...vecchie).catch(()=>{});
  return res.json(o)}
 if(a==='pul_set'){const k=String(b.k||'').trim();if(!/^[A-Za-z0-9:._-]{3,80}$/.test(k))return res.status(400).json({err:'Prenotazione non valida'});
- const letto=b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'',fuori=b.fuori===true;      // fuori: tolta dal testo per le pulizie
- if(!letto&&!nota&&!fuori){await kv('HDEL','pul:info',k);return res.json({ok:1})}
- await kv('HSET','pul:info',k,JSON.stringify(Object.assign({letto,nota,a:partenza},fuori?{fuori:true}:{})));return res.json({ok:1,letto,nota,fuori})}
+ const conta=(v,max)=>Math.max(0,Math.min(max,parseInt(v,10)||0)),mat=conta(b.mat,3),sing=conta(b.sing,6),culla=b.culla===true;
+ const letto=mat||sing?'':b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'',fuori=b.fuori===true;      // fuori: tolta dal testo per le pulizie
+ if(!letto&&!nota&&!fuori&&!mat&&!sing&&!culla){await kv('HDEL','pul:info',k);return res.json({ok:1})}
+ await kv('HSET','pul:info',k,JSON.stringify(Object.assign({letto,nota,a:partenza},mat||sing?{mat,sing}:{},culla?{culla:true}:{},fuori?{fuori:true}:{})));return res.json({ok:1,letto,nota,fuori,mat,sing,culla})}
 if(a==='msg_fill'){ // un template compilato per una prenotazione del sito o del foglio (anteprima, testo da copiare nella chat di Booking o Airbnb)
  const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase(),{live:false});
  if(!x)return res.status(404).json({err:'Prenotazione non trovata'});

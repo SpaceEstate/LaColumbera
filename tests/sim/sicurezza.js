@@ -89,6 +89,20 @@ test('S3  token manomesso, di un\'altra prenotazione o scaduto → rifiutato', a
   clock.advance((90 + 31) * 24 * 60 * MIN); await H.sync();
   eq((await H.api('mie', { code: a.code, t: a.t }, as(ip()))).status, 404, 'scaduto (30 giorni dopo il check-out)');
 });
+test('S22 area chiusa 7 giorni dopo il check-out anche con il link della mail: «Il soggiorno è finito» (il link resta riconosciuto 30 giorni solo per dirlo), senza contare come tentativo sbagliato', async () => {
+  await base();
+  const a = await confermata();                                                      // check-out 13/12/2026
+  clock.set('2026-12-19T10:00:00Z');
+  eq((await H.api('mie', { code: a.code, t: a.t }, as(ip()))).status, 200, '6 giorni dopo il check-out: ancora aperta');
+  clock.set('2026-12-21T10:00:00Z');
+  const ipx = { headers: { 'x-real-ip': '198.51.100.77' } }, r = await H.api('mie', { code: a.code, t: a.t }, ipx);
+  eq([r.status, r.body.code], [410, 'CHIUSA']); assert(/Il soggiorno è finito/.test(r.body.err) && !/Booking|Airbnb/.test(r.body.err), r.body.err);
+  eq((await H.api('msg_list', { code: a.code, t: a.t }, ipx)).status, 410, 'anche i messaggi');
+  eq((await H.api('mie', { code: a.code }, ipx)).status, 404, 'con il solo codice: «non trovata», come prima');
+  for (let i = 0; i < 12; i++) eq((await H.api('mie', { code: a.code, t: a.t }, ipx)).status, 410, 'mai 429: un link valido non è un tentativo sbagliato');
+  clock.set('2027-01-13T10:00:00Z');
+  eq((await H.api('mie', { code: a.code, t: a.t }, as(ip()))).status, 404, 'oltre i 30 giorni il link non esiste più');
+});
 
 test('S4  codice del sito: 13 caratteri casuali senza lettere ambigue; si scrive anche minuscolo, a gruppi, con trattini, O per 0 e I/L per 1', async () => {
   await base();
@@ -256,13 +270,13 @@ test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da serv
   assert(!/sk_live|sk_test_[A-Za-z0-9]{10}|whsec_[A-Za-z0-9]{10}|AIza[0-9A-Za-z_-]{20}|(?:STRIPE_[A-Z_]+|SESSION_SECRET|SYNC_SECRET|SHEET_SECRET|GMAIL_APP_PASSWORD|ADMIN_PASSWORD)\s*[:=]\s*['"`][^'"`\s]{6,}/.test(js.map(f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')).join('')), 'nessuna chiave nel frontend');
 });
 
-test('S15 finestra di accesso con il codice: sito fino a 30 giorni dopo il check-out, Booking/Airbnb fino a 7; annullate e non confermate mai', async () => {
+test('S15 finestra di accesso con il codice: sito e Booking/Airbnb fino a 7 giorni dopo il check-out; annullate e non confermate mai', async () => {
   await base();
   const c = await confermata();                                                     // check-out 13/12/2026
-  clock.set('2027-01-11T10:00:00Z');
-  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 200, '29 giorni dopo il check-out');
-  clock.set('2027-01-13T10:00:00Z');
-  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 404, 'oltre i 30 giorni');
+  clock.set('2026-12-19T10:00:00Z');
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 200, '6 giorni dopo il check-out');
+  clock.set('2026-12-21T10:00:00Z');
+  eq((await H.api('mie', { code: c.code }, as(ip()))).status, 404, 'oltre i 7 giorni (prima del 29/10/2026 erano 30)');
   await base();
   clock.set('2026-10-17T10:00:00Z');                                                // Airbnb: check-out 11/10
   eq((await H.api('gc_check', { code: 'HMSEDESZCW' }, as(ip()))).status, 200, '6 giorni dopo il check-out');
@@ -374,6 +388,23 @@ test('S20 Pulizie: scelta dei letti e nota solo con il login, chiave e testi con
   eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: '', nota: '   ' })).status, 200); eq(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), null, 'senza letto né nota la voce si toglie');
   kv.exec(['HSET', 'pul:info', 'VECCHIA1', JSON.stringify({ letto: 'm', nota: '', a: '2026-07-01' }), 'GUASTA', 'non json']);
   const o = (await H.adminApi('pul_info', {})).body; eq(Object.keys(o).sort(), ['cal:torre:2026-10-02']); eq(kv.exec(['HGET', 'pul:info', 'VECCHIA1']), null, 'soggiorno finito da oltre 60 giorni: tolto');
+});
+test('S23 Pulizie · letti a contatore e culla: numeri interi entro i limiti (matrimoniali 0–3, singoli 0–6), culla solo con un vero sì; i contatori vincono sulla scelta di prima; tutto a zero = voce tolta', async () => {
+  await base();
+  const get = () => JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']) || 'null');
+  eq((await H.api('pul_set', { k: 'HMSEDESZCW', mat: 1 })).status, 401);
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', mat: '2', sing: 1, culla: true, a: '2026-10-11' })).status, 200);
+  eq(get(), { letto: '', nota: '', a: '2026-10-11', mat: 2, sing: 1, culla: true });
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', mat: 9, sing: -4, culla: 'sì', a: '2026-10-11' })).status, 200);
+  eq(get(), { letto: '', nota: '', a: '2026-10-11', mat: 3, sing: 0 }, 'fuori dai limiti: si ferma al massimo o a zero; culla solo con true');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', mat: 'tre', sing: 7.9, a: '2026-10-11' })).status, 200);
+  eq(get(), { letto: '', nota: '', a: '2026-10-11', mat: 0, sing: 6 });
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: 'm', mat: 0, sing: 2, a: '2026-10-11' })).status, 200);
+  eq(get(), { letto: '', nota: '', a: '2026-10-11', mat: 0, sing: 2 }, 'con i contatori la scelta di prima (m/s) non si salva');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', letto: 's', a: '2026-10-11' })).status, 200);
+  eq(get(), { letto: 's', nota: '', a: '2026-10-11' }, 'una pagina vecchia rimasta aperta salva ancora come prima');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', mat: 0, sing: 0, culla: false, a: '2026-10-11' })).status, 200); eq(get(), null, 'tutto a zero: la voce si toglie');
+  eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', culla: true, a: '2026-10-11' })).status, 200); eq(get(), { letto: '', nota: '', a: '2026-10-11', culla: true }, 'basta la culla');
 });
 test('S21 Pulizie · «Nel testo»: si toglie una prenotazione dal testo solo con il login e solo con un vero sì (true); rimessa senza letti né nota, la voce sparisce', async () => {
   await base();
