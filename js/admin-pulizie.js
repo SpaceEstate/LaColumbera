@@ -35,8 +35,8 @@ function movimenti(p,da,al){const g={},add=(d,k,x)=>{(g[d]=g[d]||{d,esce:[],entr
   return Object.values(g).sort((x,y)=>x.d<y.d?-1:1)}
 // solo ciò che va nel testo: le prenotazioni tolte non ci sono, e un giorno senza movimenti rimasti sparisce
 const nelTesto=(p,mov)=>mov.map(g=>({d:g.d,esce:g.esce.filter(x=>!fuori(p,x)),entra:g.entra.filter(x=>!fuori(p,x))})).filter(g=>g.esce.length||g.entra.length);
-// il messaggio per chi pulisce
-function testo(p,tutti,da,al){const S=A.S,L=['PULIZIE '+short(p).toUpperCase(),'dal '+breve(da)+' al '+breve(al),''],mov=nelTesto(p,tutti);
+// il messaggio per chi pulisce: il nome dell'appartamento e poi i giorni; il periodo scelto qui («dal … al …») nel testo non c'è
+function testo(p,tutti){const S=A.S,L=['PULIZIE '+short(p).toUpperCase(),''],mov=nelTesto(p,tutti);
   if(!mov.length)L.push('Nessuna entrata e nessuna uscita in questo periodo.');
   for(const g of mov){
     L.push(maiusc(giorno(g.d))+(g.esce.length&&g.entra.length?' — cambio':''));
@@ -61,13 +61,13 @@ function scheda(p,da,al){const mov=movimenti(p,da,al),S=A.S,tutte=suoi(p),dentro
   const cambio=g=>g.esce.some(x=>!fuori(p,x))&&g.entra.some(x=>!fuori(p,x));
   return `<div class="admin-card pul-card" data-testid="admin-pul-${p.id}"><div class="adm-head"><h2>Pulizie <span class="n">${esc(short(p))}</span></h2><span class="adm-sub">${nu} ${nu===1?'uscita':'uscite'} · ${ne} ${ne===1?'entrata':'entrate'}${nf?` · ${nf} ${nf===1?'tolta':'tolte'} dal testo`:''}</span></div>
    ${mov.length?mov.map(g=>`<div class="pul-day"><h4 class="adm-h4">${esc(maiusc(giorno(g.d)))}${cambio(g)?' <span class="stato da_verificare">cambio</span>':''}</h4>${g.esce.map(esce).join('')}${g.entra.map(entra).join('')}</div>`).join(''):'<p class="book-note">Nessuna entrata e nessuna uscita in questo periodo.</p>'}
-   <h4 class="adm-h4">Testo da mandare</h4><pre class="pul-txt" id="pul-txt-${p.id}" data-testid="admin-pul-txt-${p.id}">${esc(testo(p,mov,da,al))}</pre>
+   <h4 class="adm-h4">Testo da mandare</h4><pre class="pul-txt" id="pul-txt-${p.id}" data-testid="admin-pul-txt-${p.id}">${esc(testo(p,mov))}</pre>
    <div class="adm-quick"><button type="button" class="btn btn-wine" data-act="pulCopy" data-id="${p.id}" data-testid="admin-pul-copy-${p.id}">Copia il testo</button>${navigator.share?`<button type="button" class="btn btn-line" data-act="pulShare" data-id="${p.id}">Condividi…</button>`:''}</div></div>`}
 // ridisegna le schede; il focus torna sul controllo appena usato (una spunta, un pulsante dei letti), che dopo il ridisegno è un elemento nuovo
 const repaint=focusTid=>{const el=$('#pul-cards');if(!el)return;el.innerHTML=A.S.apts.map(p=>scheda(p,V.pulDa,V.pulAl)).join('');
   if(focusTid){const f=el.querySelector('[data-testid="'+focusTid+'"]');if(f)f.focus()}};
 // solo il testo di un appartamento (dopo una nota): i campi restano dove sono, anche se intanto tocchi un altro pulsante
-const ritesto=id=>{const p=A.aptById(id),t=$('#pul-txt-'+id);if(p&&t)t.textContent=testo(p,movimenti(p,V.pulDa,V.pulAl),V.pulDa,V.pulAl)};
+const ritesto=id=>{const p=A.aptById(id),t=$('#pul-txt-'+id);if(p&&t)t.textContent=testo(p,movimenti(p,V.pulDa,V.pulAl))};
 
 A.view.pulizie=()=>{if(!V.pulDa){V.pulDa=today;V.pulAl=addDays(today,13)}
   return `<div class="admin-card" data-testid="admin-pulizie"><h2>Pulizie</h2>

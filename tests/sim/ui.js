@@ -319,7 +319,8 @@ test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, info
   assert(/3 notti × €\s?180/.test(pay) && /€\s?540/.test(text(r.doc.querySelector('[data-testid=ga-pay-total]'))) && /Pagato online con carta il ven 2 ott 2026/.test(pay) && /imposta di soggiorno/i.test(pay), pay);
   assert(!/Mario|Rossi|mario@test\.it/.test(text(app)), 'nessun dato personale nella pagina');
   const mie = r.log.calls.find(x => x.a === 'mie' && x.status === 200); assert(mie, 'risposta del server');
-  const info = tabOf(r, 'info'), it = text(info);
+  const info = tabOf(r, 'info'), it = text(info), MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic';
+  assert.deepEqual(['ga-route', 'ga-arrivo-maps', 'ga-parcheggio-maps'].map(k => r.doc.querySelector('[data-testid=' + k + ']').getAttribute('href')), [MAPS, MAPS, MAPS], 'indicazioni e parcheggio: il link di Google Maps scelto dal titolare');
   assert(/Regole della casa/.test(it) && /Niente feste <b>dopo<\/b> le 22/.test(it) && !info.querySelector('b b, li b'), 'testi della struttura come testo, mai HTML: ' + it);
   assert(/Carta il martedì/.test(it) && /Via Val Gola 22/.test(it) && /check-in online/.test(it), it);
   assert(!/segreta-torre/.test(it) && /dal mar 8 dic 2026/.test(text(r.doc.querySelector('[data-testid=ga-riservate-dal]'))), 'Wi-Fi non ancora visibile: ' + it);
@@ -1218,9 +1219,12 @@ test('W24 Luoghi e stagioni: Garda, Val di Non, meli in fiore, Bondone d\'estate
 test('W25 Come trovarci: indirizzo, parcheggio e fermata con i pulsanti per il navigatore; mappa con legenda; auto, treno e aereo passo per passo; autobus con orari e foto; aiuto al telefono', async () => {
   await setup();
   const { doc } = await load('mappa.html', { scripts: ['js/site.js', 'js/mappa.js'] }), $ = s => doc.querySelector(s), href = s => $(s).getAttribute('href');
-  const DIR = 'https://www.google.com/maps/dir/?api=1&destination=';
-  assert.equal(href('[data-testid=mappa-naviga]'), DIR + encodeURIComponent('Via Centrale 48, 38123 Ravina (Trento)'), 'navigatore fino alla struttura');
-  assert.equal(href('[data-testid=mappa-naviga-parcheggio]'), DIR + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)'), 'navigatore fino al parcheggio');
+  // modifica voluta (29/10/2026): casa e parcheggio aprono il link di Google Maps scelto dal titolare (cercati per indirizzo portavano gli ospiti nel punto sbagliato)
+  const MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic';
+  assert.equal(href('[data-testid=mappa-naviga]'), MAPS, 'navigatore fino alla struttura');
+  assert.equal(href('[data-testid=mappa-naviga-parcheggio]'), MAPS, 'navigatore fino al parcheggio');
+  assert.equal(href('[data-testid=mappa-google]'), MAPS, 'la mappa su Google Maps');
+  assert(!/google\.com\/maps\/(dir|search)\/\?api=1&(amp;)?(destination|query)=Via%20(Centrale|Val%20Gola)/.test(fs.readFileSync(path.join(ROOT, 'mappa.html'), 'utf8')), 'nessun link per indirizzo verso casa o parcheggio');
   assert.equal(href('[data-testid=mappa-vai-bus]'), '#bus'); assert($('#bus[data-testid=bus-section]'), 'la sezione autobus ha ancora l\'indirizzo #bus (link da Luoghi, Eventi e Convenzioni)');
   for (const f of ['dintorni.html', 'eventi.html', 'convenzioni.html']) assert(fs.readFileSync(path.join(ROOT, f), 'utf8').includes('href="mappa.html#bus"'), f);
   assert($('[data-testid=mappa-svg] svg title') && /Trento Sud/.test(text($('[data-testid=mappa-svg] svg title'))), 'la mappa disegnata c\'è');
@@ -1286,8 +1290,9 @@ test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrat
   const r = await loadAdmin('#pulizie'), $ = s => r.doc.querySelector(s), txt = id => $('[data-testid=admin-pul-txt-' + id + ']').textContent;
   await waitFor(() => $('[data-testid=admin-pul-torre]') && $('[data-testid=admin-pul-corte]'), 'due schede');
   assert.deepEqual([$('[data-testid=admin-pul-da]').value, $('[data-testid=admin-pul-al]').value], ['2026-10-02', '2026-10-15'], 'di partenza: le prossime due settimane');
-  // modifica voluta (29/10/2026): l'orario d'ingresso non c'è più nel testo («, dalle 16:00»); l'uscita resta come prima
-  assert.equal(txt('torre'), ['PULIZIE TORRE', 'dal 2 ottobre al 15 ottobre', '', 'Venerdì 2 ottobre', '• entra: ospiti da confermare, 2 notti, letti da confermare', '',
+  // modifiche volute (29/10/2026): l'orario d'ingresso non c'è più nel testo («, dalle 16:00»), l'uscita resta come prima;
+  // nemmeno il periodo scelto («dal 2 ottobre al 15 ottobre»): dopo il nome dell'appartamento vengono subito i giorni
+  assert.equal(txt('torre'), ['PULIZIE TORRE', '', 'Venerdì 2 ottobre', '• entra: ospiti da confermare, 2 notti, letti da confermare', '',
     'Domenica 4 ottobre — cambio', '• esce: ospiti da confermare', '• entra: 3 ospiti, 3 notti, letti da confermare', '', 'Mercoledì 7 ottobre', '• esce: 3 ospiti'].join('\n'));
   assert(/Domenica 11 ottobre — cambio\n• esce: 2 ospiti\n• entra: 2 ospiti, 2 notti/.test(txt('corte')) && /Lunedì 5 ottobre\n• entra: 2 ospiti, 6 notti/.test(txt('corte')), txt('corte'));
   assert(!/Mario|Rossi|Anna|Verdi|@|HMSEDESZCW|6877180932/.test(txt('torre') + txt('corte')), 'nel testo niente nomi, email o codici');
@@ -1314,7 +1319,8 @@ test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrat
   $('[data-testid=admin-pul-copy-torre]').click(); await waitFor(() => copiato, 'copiato'); assert.equal(copiato, txt('torre'));
   // periodo: dal 10 al 12 ottobre a Torre non succede nulla, a Corte c'è il cambio dell'11
   const da = $('[data-testid=admin-pul-da]'), al = $('[data-testid=admin-pul-al]'); da.value = '2026-10-10'; al.value = '2026-10-12'; chg(r, al);
-  assert(/Nessuna entrata e nessuna uscita/.test(txt('torre')) && /dal 10 ottobre al 12 ottobre/.test(txt('corte')) && /— cambio/.test(txt('corte')));
+  assert(/Nessuna entrata e nessuna uscita/.test(txt('torre')) && /^PULIZIE CORTE\n\nDomenica 11 ottobre — cambio/.test(txt('corte')), txt('corte'));
+  assert(!/\bdal \d+ \w+ al \d+/.test(txt('torre') + txt('corte')), 'il periodo scelto non è nel testo');
   $('[data-testid=admin-pul-per-7]').click(); assert.deepEqual([da.value, al.value], ['2026-10-02', '2026-10-08']);
   // riaprendo la pagina le scelte ci sono ancora
   const r2 = await loadAdmin('#pulizie');

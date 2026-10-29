@@ -10,10 +10,10 @@ if(!P)return;
 const {esc,api,get,mdLite,accSet,accDel,accFromHash,accGet,accBody,fmtCode,codeIn}=P;
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const TEL='+39 351 704 3594',TEL_H='+393517043594',MAIL='lacolumbera@gmail.com';
-const INDIRIZZO='Via Centrale 48, 38123 Ravina (Trento)',PARCHEGGIO='Via Val Gola 22, 38123 Ravina (Trento)';
+const INDIRIZZO='Via Centrale 48, 38123 Ravina (Trento)';
 const CHECKIN_URL='https://spaceestate.github.io/Checkin/index.html',REVIEW_URL='https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ';
-const mapsQ=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
-const mapsDir=q=>'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(q);
+// Google Maps: casa e parcheggio aprono il punto scelto dal titolare (cercati per indirizzo portavano gli ospiti nel punto sbagliato)
+const MAPS='https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic';
 const ss=(k,v)=>{try{if(v===undefined)return sessionStorage.getItem(k);if(v===null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch{return null}};
 
 /* ---------------- lingua ---------------- */
@@ -216,7 +216,7 @@ function pSoggiorno(s){
   act(CHECKIN_URL,'checkin',t('aCheckin'),t('aCheckinD'),ext+` data-testid="checkin-link-${esc(code)}"`),
   act('guest-card.html','card',t('aGc'),t('aGcD'),` data-testid="gc-link-${esc(code)}"`),
   `<button type="button" class="ga-act" data-act="ics" data-testid="ga-ics">${icon('cal')}<span><b>${esc(t('aCal'))}</b><small>${esc(t('aCalD'))}</small></span></button>`,
-  act(mapsDir(INDIRIZZO),'route',t('aStrada'),'Via Centrale 48, Ravina',ext+' data-testid="ga-route"')].join('');
+  act(MAPS,'route',t('aStrada'),'Via Centrale 48, Ravina',ext+' data-testid="ga-route"')].join('');
  const chip=(href,ic,label,attrs)=>`<a href="${esc(href)}"${attrs}>${icon(ic)}<span>${esc(label)}</span></a>`;
  const contatti=`<div class="ga-contact">${chip('tel:'+TEL_H,'tel',t('aChiama'),' data-testid="ga-tel"')}${c.whatsapp?chip('https://wa.me/'+c.whatsapp,'wa',t('aWa'),ext+' data-testid="ga-wa"'):''}${chip('mailto:'+MAIL,'mail',t('aMail'),' data-testid="ga-mail"')}</div>`;
  const rec=`<p class="ga-review">${icon('star')}<a href="${esc(REVIEW_URL)}"${ext} data-testid="review-link-${esc(code)}">${esc(t('aRec'))}</a><span>· ${esc(t('aRecD'))}</span></p>`;
@@ -297,8 +297,8 @@ function pInfo(s){
  const ris=inf.riservate?`<section class="ga-card ga-txt ga-ris" data-testid="ga-riservate"><h3>${esc(t('riservate'))}</h3>${cards(inf.riservate,'').map(k=>(k.h?`<h4>${esc(k.h)}</h4>`:'')+k.body).join('')}</section>`
   :inf.riservateDal?`<section class="ga-card" data-testid="ga-riservate-dal"><h3>${esc(t('riservate'))}</h3><p>${esc(t('riservateDal',dLong(inf.riservateDal)))}</p></section>`:'';
  return `<section class="ga-card" data-testid="ga-arrivo"><h3>${esc(t('arrivo'))}</h3><p><b>${esc(INDIRIZZO)}</b></p>
-   <div class="ga-btns"><a class="btn btn-wine" href="${esc(mapsDir(INDIRIZZO))}"${ext}>${esc(t('aStrada'))}</a><a class="btn btn-line" href="mappa.html">${esc(t('trovarci'))}</a></div>
-   <h4>${esc(t('parcheggio'))}</h4><p>${esc(t('parcheggioD'))} <a href="${esc(mapsQ(PARCHEGGIO))}"${ext}>${esc(t('apriMaps'))}</a></p>
+   <div class="ga-btns"><a class="btn btn-wine" href="${esc(MAPS)}"${ext} data-testid="ga-arrivo-maps">${esc(t('aStrada'))}</a><a class="btn btn-line" href="mappa.html">${esc(t('trovarci'))}</a></div>
+   <h4>${esc(t('parcheggio'))}</h4><p>${esc(t('parcheggioD'))} <a href="${esc(MAPS)}"${ext} data-testid="ga-parcheggio-maps">${esc(t('apriMaps'))}</a></p>
    <p class="book-note">${esc(t('chiavi'))}</p></section>
   <section class="ga-card" data-testid="ga-orari"><h3>${esc(t('orari'))}</h3><div class="bc-grid">
    <div class="bc-cell"><span>${esc(t('checkin'))}</span><b>${esc(dDay(s.da))}</b>${h.checkin?`<small>${esc(t('dalle',h.checkin))}</small>`:''}</div>
