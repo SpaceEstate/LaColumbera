@@ -52,7 +52,7 @@ A.view.oggi=()=>{
   <div class="adm-cols">
    <div class="admin-card" data-testid="admin-oggi-fare"><h3>Da fare</h3>
     ${pend.length?`<h4 class="adm-h4">Prenotazioni da gestire</h4><ul class="adm-list">${pend.slice(0,5).map(x=>`<li><span class="adm-apt">${esc(aptName(x.id))}</span><span class="adm-who"><a href="#prenotazioni/${esc(x.code)}">${esc(x.nome||x.code)}</a> ${chip(x.stato)}</span><small class="adm-when">${fmtS(x.da)} → ${fmtS(x.a)}</small></li>`).join('')}</ul>`:''}
-    <div id="oggi-msg">${nm?'<p class="book-note">Carico i messaggi…</p>':''}</div>
+    <div id="oggi-msg">${nm?'<p class="book-note">Carico i messaggi…</p>':''}</div><div id="oggi-ric"></div>
     ${!pend.length&&!nm?'<p class="adm-ok" style="margin-top:0">Niente in sospeso: prenotazioni e messaggi sono in ordine.</p>':''}
     <h4 class="adm-h4">Invii automatici di oggi e domani</h4><div id="oggi-auto" data-testid="admin-oggi-auto"><p class="book-note">Carico…</p></div></div>
    <div class="admin-card" data-testid="admin-oggi-oggi">${giorno('Oggi',today,arr(today),dep(today),casa)}${giorno('Domani',dom,arr(dom),dep(dom))}</div></div>
@@ -63,6 +63,9 @@ A.after.oggi=()=>{
   if(!V.health||Date.now()-V.health.ts>5*60e3)A.api('health',{}).then(d=>{V.health={ts:Date.now(),data:d}},()=>{V.health={ts:Date.now(),data:null}}).then(()=>rep('oggi-sem',semaforo()));
   if(+A.D.msgNonLetti)A.api('msg_inbox',{}).then(r=>{const el=$('#oggi-msg');if(!el)return;const c=(r.conversazioni||[]).filter(x=>x.nonLetti>0).slice(0,5);
     el.innerHTML=c.length?`<h4 class="adm-h4">Messaggi da leggere</h4><ul class="adm-list">${c.map(x=>`<li><span class="adm-apt">${esc(aptName(x.apt))}</span><span class="adm-who"><a href="#messaggi/c/${esc(x.code)}" data-testid="admin-oggi-conv-${esc(x.code)}">${esc(x.nome||x.code)}</a> <span class="adm-badge">${x.nonLetti}</span><small class="adm-prev1">${esc(x.anteprima)}</small></span></li>`).join('')}</ul>`:''},()=>{});
+  // ricevute chieste dagli ospiti e non ancora mandate
+  A.api('ricevute',{}).then(r=>{const el=$('#oggi-ric'),l=(r.ricevute||[]).filter(q=>q.stato==='richiesta');if(!el||!l.length)return;const by=new Map(elenco().map(x=>[x.code,x]));
+    el.innerHTML=`<h4 class="adm-h4">Ricevute da mandare <small>${l.length}</small></h4><ul class="adm-list" data-testid="admin-oggi-ric">${l.slice(0,5).map(q=>{const x=by.get(q.code)||{};return `<li><span class="adm-apt">${esc(aptName(x.id))}</span><span class="adm-who"><a href="#prenotazioni/${esc(q.code)}">${esc(q.nome||q.code)}</a></span><small class="adm-when">chiesta ${esc(fmtS(String(q.richiesta_il).slice(0,10)))}</small></li>`}).join('')}</ul>`},()=>{});
   // invii automatici previsti oggi e domani (ora di Roma): li prepara il server con le regole attive
   const fino=addDays(today,2);
   A.api('msg_auto',{}).then(r=>{const el=$('#oggi-auto');if(!el)return;
@@ -111,6 +114,7 @@ function vDettaglio(code){
   const tel=String(x.tel||'').replace(/[^\d+]/g,''),wa=tel.replace(/^\+/,'').replace(/^00/,'');
   const pay=x.portale?`<p>Pagamento gestito da ${esc(x.fonte)}: importo e ricevuta sono sul portale.</p>`
     :`<div class="ga-rows">${ct?ct.righe.map(r=>`<div><span>${r.notti} ${r.notti===1?'notte':'notti'} × ${eur(r.prezzo)}${ct.righe.length>1?' · dal '+fmtS(r.dal):''}</span><b>${eur(r.notti*r.prezzo)}</b></div>`).join('')+(ct.supplemento>0?`<div><span>Ospiti in più: ${n} ${n===1?'notte':'notti'} × ${eur(ct.supplemento)}</span><b>${eur(ct.supplemento*n)}</b></div>`:''):''}<div class="ga-tot"><span>Totale</span><b data-testid="admin-book-total">${eur(x.totale)}</b></div></div>
+      ${x.rimborso?`<p class="adm-ok" data-testid="admin-book-rimborso">↩ Rimborsati ${eur(x.rimborso.importo)} ${A.ilD(String(x.rimborso.il||x.annullata_il||'').slice(0,10))} · ${x.annullata_da==='ospite'?'annullata dall\'ospite dall\'area clienti':'annullata da te'}${x.rimborso.stato==='pending'?' · rimborso in corso su Stripe':x.rimborso.stato==='gia_rimborsato'?' · era già rimborsata su Stripe':''}</p>`:''}
       <p class="book-note">${x.pagamento?`✓ Pagata con carta${x.confermata_il?' '+A.ilD(String(x.confermata_il).slice(0,10)):''}. <a href="https://dashboard.stripe.com/payments/${esc(encodeURIComponent(x.pagamento))}" target="_blank" rel="noopener">Vedi su Stripe ↗</a>`:x.stato==='in_attesa'?'In attesa del pagamento (l\'ospite è sulla pagina di Stripe o l\'ha lasciata).':x.stato==='da_verificare'?'Pagata, ma serve una tua decisione: vedi lo stato qui sotto.':'Nessun pagamento registrato.'}</p>`;
   const chat=!x.portale&&x.stato==='confermata';
   return `<div class="admin-card" data-testid="admin-book-${esc(x.code)}">${back}
@@ -126,16 +130,19 @@ function vDettaglio(code){
    <div class="field" style="margin-top:14px;max-width:460px"><label for="bk-tpl">Messaggio da mandare</label><select id="bk-tpl" data-testid="admin-book-tpl"><option value="">Carico i template…</option></select></div>
    <button type="button" class="btn btn-wine" data-act="bkFill" data-code="${esc(x.code)}" data-testid="admin-book-fill">Prepara e copia</button> <span class="admin-msg" id="bk-fill-msg"></span>
    <textarea id="bk-fill" rows="6" readonly hidden data-testid="admin-book-text" style="margin-top:12px"></textarea></div>
+  <div class="admin-card" data-testid="admin-book-ric"><h3>Ricevuta</h3><div id="bk-ric"><p class="book-note">Carico…</p></div></div>
   <div class="admin-card" data-testid="admin-book-msg"><h3>Messaggi</h3><div id="bk-msg">${chat?'<p class="book-note">Carico…</p>':x.portale?`<p>Gli ospiti di ${esc(x.fonte)} ti scrivono sul portale: dal sito non si chatta. Qui sopra trovi il messaggio con il link all'area ospiti da incollare nella chat.</p>`:'<p class="book-note">Si può scrivere all\'ospite quando la prenotazione è confermata.</p>'}</div></div>
   <div class="admin-card" data-testid="admin-book-actions"><h3>Azioni</h3><div class="adm-quick">
    ${x.portale?'':`<label class="adm-inp">Stato ${selStato(x)}</label>`}
    <a class="btn btn-line" href="#guestcard" data-act="gcFrom" data-code="${esc(x.code)}" data-testid="admin-book-gc">Emetti Guest Card</a>
    <a class="btn btn-line" href="#calendario/${esc(x.id)}" data-act="calGo" data-i="${A.idx(x.id)}" data-d="${esc(x.da)}">Vedi nel calendario</a>
+   ${!x.portale&&x.pagamento&&(x.stato==='confermata'||x.stato==='da_verificare')?`<button type="button" class="btn btn-line btn-del-book" data-act="bkRimborsa" data-code="${esc(x.code)}" data-testid="admin-book-rimborsa">Annulla e rimborsa ${eur(x.totale)}</button>`:''}
    ${x.portale?'':`<button type="button" class="btn btn-line btn-del-book" data-act="bookDel" data-code="${esc(x.code)}" data-back="1">Rimuovi dallo storico</button>`}</div></div>`}
 A.view.prenotazioni=r=>r.sub?vDettaglio(r.sub):vElenco();
 A.after.prenotazioni=r=>{
   if(!r.sub)return;
   const x=elenco().find(z=>String(z.code).toUpperCase()===r.sub.toUpperCase());if(!x)return;
+  ricLoad(x);
   // template: per Booking e Airbnb quello con il link all'area ospiti, per il sito il benvenuto
   A.api('msg_tpl',{}).then(j=>{const el=$('#bk-tpl');if(!el)return;const l=j.templates||[],pre=x.portale?'portale':'benvenuto';
     el.innerHTML=l.length?l.map(t=>`<option value="${esc(t.id)}"${t.id===pre?' selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">Nessun template</option>';V.tpl=l},()=>{});
@@ -146,6 +153,24 @@ A.after.prenotazioni=r=>{
     el.innerHTML=(c?`<p>${c.nonLetti?`<span class="adm-badge">${c.nonLetti}</span> da leggere · `:''}ultimo messaggio ${c.da==='ospite'?'dell\'ospite':'tuo'}: «${esc(c.anteprima)}»</p>`:'<p>Nessun messaggio finora.</p>')
       +(pr.length||pg.length?`<h4 class="adm-h4">In programma</h4><ul class="adm-list">${pr.map(z=>`<li><span class="adm-apt">${esc(quando(z.quando))}</span><span class="adm-who">${esc(z.nomeRegola||z.template)} <small>(automatico${z.stato==='saltato'?', saltato':''})</small></span></li>`).join('')}${pg.map(z=>`<li><span class="adm-apt">${esc(quando(Date.parse(z.quando)))}</span><span class="adm-who">«${esc(String(z.testo).slice(0,80))}» <small>(programmato da te)</small></span></li>`).join('')}</ul>`:'')
       +`<a class="btn btn-wine" href="#messaggi/c/${esc(x.code)}" data-testid="admin-book-chat">${c?'Apri la conversazione':'Scrivi all\'ospite'}</a>`})};
+
+// ---------- Ricevuta (api/_ricevute.js): l'ospite la chiede dall'area clienti, tu la emetti e la mandi da qui ----------
+const ricDati=q=>[['Intestata a',q.nome],['Codice fiscale',q.cf||'—'],['Indirizzo',[q.indirizzo,[q.cap,q.citta].filter(Boolean).join(' '),q.paese].filter(Boolean).join(', ')],...(q.nota?[['Nota',q.nota]]:[])];
+function ricHtml(x,q){
+  const dove=(q&&q.email)||x.email||'',invio=`<div class="field"><label for="ric-file">Ricevuta (PDF, oppure foto JPG o PNG; al massimo 3 MB)</label><input type="file" id="ric-file" accept="application/pdf,image/jpeg,image/png" data-testid="admin-ric-file"></div>
+   <div class="field"><label for="ric-msg">Messaggio per l'ospite (facoltativo)</label><textarea id="ric-msg" rows="2" maxlength="1000" placeholder="es. Grazie ancora per il soggiorno!"></textarea></div>
+   <div class="adm-quick"><button type="button" class="btn btn-wine" data-act="ricInvia" data-code="${esc(x.code)}" data-testid="admin-ric-invia">Manda la ricevuta${dove?' a '+esc(dove):''}</button>`;
+  if(!q)return x.portale?'<p class="book-note">L\'ospite la può chiedere dall\'area clienti: ti arriva un\'email con i dati per intestarla.</p>'
+    :dove?`<p class="book-note">L'ospite non l'ha chiesta (la può chiedere dall'area clienti). Se vuoi mandargliela lo stesso, carica il file:</p>${invio}</div><span class="admin-msg" id="ric-out"></span>`:'<p class="book-note">Nessuna richiesta.</p>';
+  const dati=ricDati(q),testo=dati.map(([k,v])=>k+': '+v).join('\n');
+  return `<p>${q.stato==='inviata'?`<span class="stato confermata">mandata</span> ${A.ilD(String(q.inviata_il).slice(0,10))} a ${esc(dove)}${q.file?' · '+esc(q.file):''}`:`<span class="stato da_verificare">da mandare</span> chiesta ${A.ilD(String(q.richiesta_il).slice(0,10))}`}</p>
+   <dl class="ric-dati" data-testid="admin-ric-dati">${dati.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}<dt>Mandala a</dt><dd>${esc(dove||'—')}${q.email?'':' <small>(email della prenotazione)</small>'}</dd></dl>
+   <div class="adm-quick"><button type="button" class="btn btn-line" data-act="copy" data-v="${esc(testo)}" data-testid="admin-ric-copy">Copia i dati</button></div>
+   ${q.stato==='inviata'?`<details class="ric-di-nuovo"><summary>Manda di nuovo</summary>${invio}</div></details><div class="adm-quick"><button type="button" class="btn btn-line" data-act="ricStato" data-stato="richiesta" data-code="${esc(x.code)}">Segna come da mandare</button></div>`
+     :`${invio}<button type="button" class="btn btn-line" data-act="ricStato" data-stato="inviata" data-code="${esc(x.code)}" data-testid="admin-ric-fatta">Segna come mandata</button><button type="button" class="btn btn-line btn-del-book" data-act="ricStato" data-stato="elimina" data-code="${esc(x.code)}" data-testid="admin-ric-togli">Togli la richiesta</button></div>`}
+   <span class="admin-msg" id="ric-out"></span>`}
+const ricLoad=x=>A.api('ricevute',{}).then(r=>{V.ric=r.ricevute||[];const el=$('#bk-ric');if(el)el.innerHTML=ricHtml(x,V.ric.find(q=>q.code===x.code))},()=>{const el=$('#bk-ric');if(el)el.innerHTML='<p class="book-note">Non disponibile in questo momento.</p>'});
+const leggiFile=f=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>ko(Error('File non leggibile'));r.readAsDataURL(f)});
 
 // ---------- Guest Card ----------
 function vGc(){
@@ -183,6 +208,19 @@ Object.assign(A.act,{
   bkGo:a=>{V.bkf=a.dataset.f||'tutte'},
   gcFrom:a=>{V.gcFrom=a.dataset.code},
   oggiRefresh:async a=>{a.disabled=true;V.health=null;await A.refreshAdm();A.body()},
+  bkRimborsa:async a=>{const x=elenco().find(z=>z.code===a.dataset.code);if(!x)return;
+    if(!confirm('Annullare la prenotazione di '+(x.nome||x.code)+' e rimborsare '+eur(x.totale)+' sulla carta con cui ha pagato? Non si può tornare indietro: le notti tornano libere e all\'ospite arriva un\'email.'))return;
+    a.disabled=true;a.textContent='Rimborso in corso…';
+    try{await A.api('rimborsa',{code:x.code});await A.refreshAdm();A.body()}catch(e){alert(e.message);a.disabled=false;a.textContent='Annulla e rimborsa '+eur(x.totale)}},
+  ricInvia:async a=>{const inp=$('#ric-file'),o=$('#ric-out'),f=inp&&inp.files&&inp.files[0];o.className='admin-msg';
+    if(!f){o.className='admin-msg warn';o.textContent='Scegli prima il file della ricevuta';return}
+    if(f.size>3*1024*1024){o.className='admin-msg warn';o.textContent='Il file è troppo grande: al massimo 3 MB';return}
+    a.disabled=true;o.textContent='Invio in corso…';
+    try{const r=await A.api('ricevuta_invia',{code:a.dataset.code,file:await leggiFile(f),nome:f.name,messaggio:($('#ric-msg')||{}).value||''});
+      const x=elenco().find(z=>z.code===a.dataset.code);if(x)await ricLoad(x);const o2=$('#ric-out');if(o2){o2.className='admin-msg ok';o2.textContent='Ricevuta mandata a '+r.ricevuta.invio+'.'}}
+    catch(e){o.className='admin-msg warn';o.textContent=e.message;a.disabled=false}},
+  ricStato:async a=>{if(a.dataset.stato==='elimina'&&!confirm('Togliere la richiesta di ricevuta? I dati inseriti dall\'ospite si cancellano.'))return;
+    try{await A.api('ricevuta_stato',{code:a.dataset.code,stato:a.dataset.stato});const x=elenco().find(z=>z.code===a.dataset.code);if(x)await ricLoad(x)}catch(e){alert(e.message)}},
   bookDel:a=>{if(confirm('Rimuovere definitivamente questa prenotazione dallo storico?'))A.api('book_del',{code:a.dataset.code}).then(async()=>{await A.refreshAdm();if(a.dataset.back)location.hash='#prenotazioni';else A.body()}).catch(x=>alert(x.message))},
   bkFill:async a=>{const id=($('#bk-tpl')||{}).value,tp=(V.tpl||[]).find(x=>x.id===id),o=$('#bk-fill-msg'),out=$('#bk-fill');if(!tp){o.textContent='Scegli un template';return}
     o.className='admin-msg';o.textContent='Preparo…';

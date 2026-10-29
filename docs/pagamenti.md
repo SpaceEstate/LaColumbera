@@ -47,6 +47,19 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 3. Controlla: email a te, email all'ospite, riga sul foglio, notti chiuse sul sito, «Ultimo avviso da Stripe» compilato nella scheda.
 4. Annulla la prenotazione di prova da Gestione → Prenotazioni.
 
+## Annullamento e rimborso
+
+- **L'ospite** annulla da solo dall'area clienti (scheda «Il soggiorno» → «Annullamento») **fino a 7 giorni prima dell'arrivo** (giorni di calendario, ora di Roma: per un arrivo il 20 si annulla fino al 13 compreso). Due passi: il pulsante, poi la conferma con l'importo. Rimborso **totale**, sulla carta con cui ha pagato. Dopo quel giorno l'area mostra solo la regola; chi prenota a meno di 7 giorni dall'arrivo non è rimborsabile. La regola è scritta nella pagina dell'appartamento prima di pagare e nell'email di conferma.
+- **Tu**, da Gestione → Prenotazioni → dettaglio → «Annulla e rimborsa», in qualsiasi momento, anche per le prenotazioni «da verificare».
+- **Cosa succede:** prima il rimborso su Stripe; poi la prenotazione diventa «annullata», le notti tornano libere sul sito e spariscono dal calendario «solo sito» che leggono Booking e Airbnb (alla loro prossima lettura, di solito entro qualche ora); la riga del foglio diventa ANNULLATA (con la coda di ripresa se il foglio non risponde); all'ospite arriva l'email con l'importo rimborsato e, se ha annullato lui, a te arriva l'avviso. Le chat e i messaggi automatici si fermano.
+- **Sicurezza dei soldi:** se Stripe non risponde non cambia nulla e si può riprovare; ogni prenotazione ha una chiave di idempotenza (`lc-rimborso-<codice>`), quindi un doppio tocco o un nuovo tentativo dopo un errore a metà non rimborsano due volte; se il pagamento era già stato rimborsato dalla dashboard, la prenotazione si annulla senza un secondo rimborso.
+- **Costi:** il rimborso non costa nulla, ma Stripe **non restituisce la sua commissione** sul pagamento originale. Nessun servizio aggiuntivo.
+- **Non coperti:** le prenotazioni di Booking.com e Airbnb (si annullano sulla piattaforma), le prenotazioni senza pagamento online (cambia lo stato), i rimborsi parziali (dalla dashboard di Stripe), l'imposta di soggiorno pagata con il check-in online (è un altro sistema: va rimborsata a parte, se serve); una Trentino Guest Card già emessa resta valida (non si revoca dal sito).
+
+## Ricevuta su richiesta
+
+Il sito non emette documenti fiscali (servirebbe un servizio a pagamento). L'ospite chiede la ricevuta dall'area clienti con nome, codice fiscale (controllato; facoltativo per chi non risiede in Italia) e indirizzo; a te arriva un'email con i dati. La emetti come fai di solito, poi da Gestione → Prenotazioni → dettaglio → «Ricevuta» carichi il PDF e parte all'ospite in allegato. All'area ospiti tornano solo lo stato e l'email mascherata, mai i dati inseriti; i dati si cancellano 30 giorni dopo l'invio (richieste mai evase: dopo un anno). Al massimo 5 richieste valide al giorno per prenotazione.
+
 ## Limiti da conoscere
 
 - I calendari iCal non sono istantanei: Booking e Airbnb rileggono il tuo calendario ogni alcune ore, e il sito rilegge i loro ogni circa 10 minuti. Nella finestra tra due letture una stessa notte può essere prenotata su due canali: è un limite del formato iCal (solo un gestionale con collegamento diretto lo elimina).

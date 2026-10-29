@@ -35,7 +35,7 @@ const deny=(res,r)=>{if(r.retryAfter)res.setHeader('Retry-After',String(r.retryA
 // La Guest Card restituita all'ospite: solo ciò che serve a mostrarla (niente risposta grezza del sistema TGC, email mascherata)
 const cardOut=k=>k?{gc_id:k.gc_id||'',stato:k.stato||'',valid_from:k.valid_from,valid_to:k.valid_to,ospiti:k.ospiti,email:maskEmail(k.email)}:null;
 // Azioni che accettano un corpo grande (solo admin): per tutte le altre il corpo oltre 20 KB è rifiutato
-const BIG_BODY=new Set(['save','up','msg_tpl_save']);
+const BIG_BODY=new Set(['save','up','msg_tpl_save','ricevuta_invia']);
 const np=(p,d)=>{if(p.prices&&p.prices[d]!=null)return +p.prices[d];const x=(p.periodi||[]).find(q=>d>=q.da&&d<=q.a);return+(x?x.prezzo:p.base)};
 // supplemento a notte per gli ospiti oltre quelli inclusi, a scaglioni: extraSteps[0] = 1° ospite extra, [1] = 2°, ... (l'ultimo valore vale anche per i successivi)
 const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extraSteps.length)?p.extraSteps:[+p.extra||0];let s=0;for(let i=0;i<k;i++)s+=+st[Math.min(i,st.length-1)]||0;return s};
@@ -64,6 +64,7 @@ const soggiornoOut=(config,x,bk)=>{
   origine:x.origine||'',portale:PORTALI[x.origine]||'',
   orari:{checkin:AV.noticeSettings(config).ora,checkout:RE_HHMM.test(config.checkoutOra)?config.checkoutOra:''},
   pagamento:bk?{totale:+bk.totale||0,pagato:!!bk.pagamento,data:bk.pagamento?pagato:'',conto:ct?{righe:ct.righe.map(r=>({dal:String(r.dal||''),notti:+r.notti||0,prezzo:+r.prezzo||0})),supplemento:+ct.supplemento||0}:null}:null,
+  annullo:bk?ANN.politica(bk,oggi):{possibile:false,entro:'',motivo:PORTALI[x.origine]?'portale':'stato'},      // fino a 7 giorni prima dell'arrivo (api/_annulla.js)
   info:{testo:String(p.infoOspiti||''),riservate:vis?ris:'',riservateDal:ris&&!vis&&dal&&oggi<dal?dal:''},
   contatti:{whatsapp:waNum(config)}}};
 
@@ -158,7 +159,7 @@ async function emettiGuestCardTGC({dal,al,email,personeMax,codice}){
 // ---- Email (Gmail SMTP). Ritorna true=inviata, false=errore, null=non configurata (il webhook riprova solo se false) ----
 const sendMail=async(to,subject,html,opts={})=>{if(!process.env.GMAIL_USER||!process.env.GMAIL_APP_PASSWORD)return null;
  try{const nodemailer=require('nodemailer'),t=nodemailer.createTransport({service:'gmail',auth:{user:process.env.GMAIL_USER,pass:process.env.GMAIL_APP_PASSWORD}});
-  await t.sendMail({from:'"La Columbera" <'+process.env.GMAIL_USER+'>',to,subject,html,...(opts.text?{text:opts.text}:{}),...(opts.replyTo?{replyTo:opts.replyTo}:{})});return true}
+  await t.sendMail({from:'"La Columbera" <'+process.env.GMAIL_USER+'>',to,subject,html,...(opts.text?{text:opts.text}:{}),...(opts.replyTo?{replyTo:opts.replyTo}:{}),...(opts.attachments?{attachments:opts.attachments}:{})});return true}
  catch(e){console.error('sendMail:',e.message);return false}};
 
 // ---- Avvisi al titolare sulla sincronizzazione ----
@@ -193,6 +194,10 @@ async function syncAlerts(config,req){
 const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a)});
 const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e)});
 const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
+// ---- Annullamento con rimborso (api/_annulla.js) e ricevuta su richiesta (api/_ricevute.js) ----
+const ANN=require('./_annulla.js').makeAnnulla({kv,E,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),sheet:b=>sheetUpsertBooking(b),log:e=>E.log(e)});
+const RIC=require('./_ricevute.js').makeRicevute({kv,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),maskEmail,log:e=>E.log(e)});
+const errOut=(res,e)=>{if(e&&e.status)return res.status(e.status).json(Object.assign({err:e.message},e.code?{code:e.code}:{}));throw e};
 // si scrive solo alle prenotazioni del sito confermate: gli ospiti di Booking e Airbnb usano la chat della loro piattaforma
 const chatOk=x=>!!x&&x.origine==='sito'&&x.stato==='confermata';
 const msgErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({err:e.message});throw e};
@@ -395,6 +400,7 @@ if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.bo
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
  const bk=x.fonte==='sito'?await E.bkGet(x.code):null,sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk);
  sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code),email:(await MSG.impostazioni()).avvisaOspite}:{attivi:false};      // email: le risposte arrivano anche via email
+ sg.ricevuta=await RIC.pubblico(x.code,bk);      // solo lo stato e l'indirizzo mascherato, mai i dati inseriti
  return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:sg})}
 // Controllo leggero dei messaggi nuovi (ogni 20 secondi dall'area ospiti con la scheda Messaggi aperta): solo con il token, una chiave letta.
 // Ha un limite suo (non consuma le 60 consultazioni per IP): una famiglia con due telefoni sulla stessa rete non resta bloccata.
@@ -434,6 +440,18 @@ if(a==='gc_issue'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x
  const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString()};
  await kv('SET',GCK(x.code),JSON.stringify(card));
  return res.json(cardOut(card))}
+// Annullamento dall'area clienti (prenotazioni del sito pagate): fino a 7 giorni prima dell'arrivo, con il rimborso totale sulla carta (api/_annulla.js)
+if(a==='annulla'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
+ if(x.fonte!=='sito')return res.status(409).json({err:'Hai prenotato tramite '+(PORTALI[x.origine]||'un portale')+': per annullare usa la piattaforma.',code:'PORTALE'});
+ try{const o=await ANN.annulla(x.code,{da:'ospite',lingua:['it','en','de'].includes(b.lingua)?b.lingua:'it',site:siteOf(req)}),rb=o.booking.rimborso||null;
+  return res.json({ok:1,gia:!!o.gia,rimborso:rb?{importo:rb.importo,stato:rb.stato}:null,email:o.booking.email?maskEmail(o.booking.email):''})}
+ catch(e){return errOut(res,e)}}
+// Richiesta della ricevuta (sito, Booking e Airbnb): i dati vanno al titolare, che la emette e la manda dalla Gestione (api/_ricevute.js)
+if(a==='ricevuta'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
+ if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ try{return res.json(Object.assign({t:r.token||undefined},await RIC.richiedi(x,x.fonte==='sito'?await E.bkGet(x.code):null,b.dati,{lingua:b.lingua,site:siteOf(req),
+  limite:()=>ACC.limitKey('ric',x.code,{max:5,win:86400},'Hai già mandato diverse richieste oggi: se serve correggere qualcosa scrivici a lacolumbera@gmail.com.')})))}
+ catch(e){if(e&&e.retryAfter)res.setHeader('Retry-After',String(e.retryAfter));return errOut(res,e)}}
 if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Marketing dopo il login della struttura
  // Il redirect registrato è la home: index.html inoltra qui in automatico (?a=gc_oauth_callback&state=…&code=…).
  // Per sicurezza si accetta anche il caso in cui Trentino accodi "?state=..&code=.." dentro "a" (rawA).
@@ -473,6 +491,7 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
   let bks=null;try{bks=await E.bkAll()}catch(e){bks=null}      // senza l'elenco delle prenotazioni non si manda né si cancella nulla
   out.messaggi=bks?await MSG.esegui(config,bks,siteOf(req)).catch(()=>({errori:1})):{errori:1};
   if(bks)await MSG.pulizia(bks).catch(()=>{});
+  await RIC.elenco().catch(()=>{});      // le richieste di ricevuta scadute si cancellano anche se nessuno apre la Gestione
   return res.json(out)}
  if(a==='reconcile')return res.json(await E.reconcile(config,{days:Math.min(Math.max(+b.days||90,7),180)}));
  const [last,logs]=await Promise.all([jg('reconcile:last'),kv('LRANGE','sync:log','0','19')]);
@@ -577,6 +596,17 @@ if(a==='stato'){const x=await E.bkGet(b.code);
   if((await sendMail(x.email,gm.subject,gm.html,{text:gm.text,replyTo:REPLY_TO}))===false)await kv('DEL','done:'+x.code+':mail_ospite').catch(()=>{});
  }
  return res.json({ok:1,changed:1})}
+// Annulla e rimborsa (Gestione): qualsiasi prenotazione del sito pagata, confermata o da verificare, senza limiti di data (api/_annulla.js)
+if(a==='rimborsa'){const code=String(b.code||'').trim().toUpperCase();
+ try{const o=await ANN.annulla(code,{da:'titolare',lingua:await MSG.linguaDi(code).catch(()=>''),site:siteOf(req)});return res.json({ok:1,gia:!!o.gia,booking:o.booking})}
+ catch(e){return errOut(res,e)}}
+// Ricevute (Gestione): richieste degli ospiti, invio del file all'ospite, stato
+if(a==='ricevute')return res.json({ricevute:await RIC.elenco()});
+if(a==='ricevuta_invia'||a==='ricevuta_stato'){const code=String(b.code||'').trim().toUpperCase();
+ try{if(a==='ricevuta_stato')return res.json({ricevuta:await RIC.segna(code,String(b.stato||''))});
+  const x=await findBooking(await cfg(req),code,{live:false});if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
+  return res.json({ricevuta:await RIC.invia(x,x.fonte==='sito'?await E.bkGet(code):null,b,{site:siteOf(req)})})}
+ catch(e){return errOut(res,e)}}
 if(a==='book_del'){const x=await E.bkGet(b.code);if(!x)return res.json({ok:1,removed:0});
  if(x.stato==='confermata'||x.stato==='da_verificare'){ // lo storico confermato non si cancella: diventa "annullata" (resta nel foglio per audit e riconciliazione)
   x.stato='annullata';x.annullata_il=new Date().toISOString();await E.bkPut(x);await E.holdRelease(x.id,days(x.da,x.a),x.code).catch(()=>{});await sheetUpsertBooking(x);

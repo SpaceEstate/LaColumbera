@@ -64,6 +64,8 @@ Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», 
 - **Fonti, senza doppioni.** Prenotazioni del sito (con nome, email, importo); Booking.com e Airbnb dal foglio, con il loro numero ma senza nome né importo; i calendari iCal per ciò che il foglio non ha ancora («solo calendario»). Il foglio contiene anche le prenotazioni del sito: queste si mostrano una volta sola, con i dati del sito.
 - **Ricerca** per codice (anche a gruppi o minuscolo), nome, email, telefono. **Filtri**: Tutte, Da gestire, Prossime, Passate, Annullate; origine (Sito, Booking.com, Airbnb).
 - **Dettaglio**: arrivo con l'orario di check-in, partenza con il check-out, notti, ospiti; contatti con telefono e WhatsApp; pagamento riga per riga come lo vede l'ospite, con il link al pagamento su Stripe; il **codice per l'area ospiti** da copiare e un **messaggio pronto** (benvenuto per il sito, link all'area ospiti per Booking e Airbnb: si incolla nella chat del portale); messaggi e invii programmati; stato, Guest Card precompilata, «Vedi nel calendario», «Rimuovi dallo storico». Aprire il dettaglio non segna i messaggi come letti.
+- **Annulla e rimborsa** (nel dettaglio, per le prenotazioni del sito pagate, confermate o «da verificare»): dopo la conferma rimborsa l'intero importo su Stripe, annulla la prenotazione (notti di nuovo libere sul sito e, alla prossima lettura del calendario, su Booking e Airbnb), aggiorna il foglio e manda l'email all'ospite. Vale in qualsiasi momento; l'ospite invece annulla da solo dall'area clienti solo fino a 7 giorni prima dell'arrivo (ti arriva un'email). Per un rimborso parziale usa la dashboard di Stripe e poi cambia lo stato. Vedi `docs/pagamenti.md` §«Annullamento e rimborso».
+- **Ricevuta** (nel dettaglio): se l'ospite l'ha chiesta dall'area clienti trovi i dati per intestarla (con «Copia i dati»); emetti la ricevuta come fai di solito, poi carichi il PDF (o una foto JPG/PNG, al massimo 3 MB) e parte all'ospite in allegato, con un messaggio facoltativo. Il file non resta sul sito. In alternativa «Segna come mandata» o «Togli la richiesta». Alle prenotazioni del sito la puoi mandare anche senza richiesta. In **Oggi → Da fare** compaiono le ricevute da mandare.
 - **Semaforo unico** in Oggi: sincronizzazione (subito) più pagamenti ed email (controllo su Stripe, al massimo ogni 5 minuti; «Aggiorna» lo rifà). Verde «Tutto ok», giallo «Da guardare», rosso «Da sistemare», con il motivo; un tocco apre Sito → Sistema.
 
 ## 6. Pulizie
@@ -91,7 +93,9 @@ Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'ar
 - `cfg`: stessi campi di prima; nuovi e facoltativi `luoghi` e `convenzioni` (assenti finché non li salvi). Nessun dato già salvato viene convertito o riscritto all'apertura.
 - `cfg:rev`: numero di versione delle impostazioni (nuovo; assente = 0).
 - `pul:info`: letti e note delle Pulizie, una voce per arrivo (nuovo).
-- Nessun dato personale nuovo: il dettaglio della prenotazione mostra gli stessi dati che la Gestione già riceveva.
+- `bkh` (prenotazioni del sito): quando una prenotazione si annulla con il rimborso si aggiungono `annullata_da` (ospite o titolare) e `rimborso` (importo, stato, riferimento Stripe, data). Le altre prenotazioni non cambiano.
+- `ric`: richieste di ricevuta, una voce per prenotazione (nuovo), cancellate 30 giorni dopo l'invio.
+- Dati personali nuovi solo per la ricevuta (chiesta dall'ospite): vedi `docs/gdpr/inventario-trattamenti.md` (T6e).
 
 ## 10. Verifica a mano (telefono e computer)
 
@@ -103,6 +107,8 @@ Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'ar
 6. Prenotazioni → cerca un ospite per nome; apri il dettaglio di una prenotazione Airbnb → «Prepara e copia» → incolla il testo nella chat di Airbnb.
 7. Sito → Luoghi e convenzioni → cambia un titolo → Salva → apri `dintorni.html`: deve comparire il nuovo titolo. Poi «Ripristina le schede di partenza» → Salva.
 8. Pulizie → scegli le prossime due settimane → per un arrivo «Matrimoniale» → «Copia il testo» → incollalo in WhatsApp: ci sono giorni, persone e letti, nessun nome.
+9. Rimborso (con le chiavi di prova di Stripe, carta `4242 4242 4242 4242`): prenota una data lontana, apri l'area clienti con il codice → «Annulla la prenotazione» → «Sì, annulla e rimborsa». Su Stripe il pagamento risulta rimborsato; in Gestione la prenotazione è «annullata» con «Rimborsati …»; la data è di nuovo prenotabile; ti arriva l'avviso e all'ospite l'email. Ripeti con «Annulla e rimborsa» dalla Gestione.
+10. Ricevuta: dall'area clienti «Richiedi la ricevuta» con dati di prova → ti arriva l'email; in Gestione apri la prenotazione → carica un PDF → «Manda la ricevuta»: all'ospite arriva con l'allegato e nell'area risulta «inviata».
 
 ## 11. Limiti noti
 

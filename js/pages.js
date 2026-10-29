@@ -2,7 +2,7 @@
 const $=s=>document.querySelector(s),B=document.body.dataset;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const eur=n=>'€'+Math.round(n);
-const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;throw e}return j});
+const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;e.code=j.code||'';throw e}return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 const iso=d=>d.toISOString().slice(0,10);
 const days=(da,a)=>{const o=[];for(let d=new Date(da);d<new Date(a);d.setUTCDate(d.getUTCDate()+1))o.push(iso(d));return o};
@@ -81,6 +81,11 @@ function lightbox(foto,start,nome,trigger,onClose){
   // il focus va sulla finestra (non sulla X, che al tocco resterebbe evidenziata): Tab porta ai pulsanti
   document.body.appendChild(m);document.body.classList.add('modal-open');show(start);m.focus({preventScroll:true});
   return close}
+// Regola di annullamento (api/_annulla.js), da leggere prima di pagare: gratis dall'area clienti fino a 7 giorni prima dell'arrivo (ora di Roma),
+// con il rimborso totale; chi prenota a meno di 7 giorni dall'arrivo non è rimborsabile. Decide il server: qui la si mostra soltanto.
+const oggiRoma=()=>{try{const o={};for(const x of new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()))o[x.type]=x.value;return o.year+'-'+o.month+'-'+o.day}catch{return iso(new Date())}};
+const annullo=da=>{const d=new Date(da+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-7);const ug=iso(d);
+  return oggiRoma()<=ug?'Annullamento gratuito fino a '+fmtL(ug)+', con il rimborso totale dall’area clienti.':'Non rimborsabile: l’arrivo è tra meno di 7 giorni.'};
 // Accesso alla prenotazione (api/_accesso.js): basta il codice di prenotazione; il server risponde con un token di sessione.
 // Il link della mail porta un token segreto ("#c=…&t=…"), i messaggi mandati da Booking/Airbnb il solo codice ("#k=…"): il frammento "#"
 // non va mai al server né ad altri siti, e viene tolto subito dall'indirizzo. Codice e token restano solo in sessionStorage (si cancella chiudendo la scheda).
@@ -242,11 +247,12 @@ async function apt(c){
     <div class="bk-quote">
       <p class="quote-line" id="q" data-testid="quote"></p>
       <div class="bk-total" id="tot" hidden><span>Totale soggiorno</span><b id="tot-v" data-testid="booking-total"></b></div>
+      <p class="book-note bk-ann" id="ann" data-testid="booking-cancel-policy" hidden></p>
       <button type="button" class="btn btn-wine bk-cta" id="go" data-testid="booking-continue" hidden>Prenota</button>
     </div>
   </div>
   <div class="bk-pane" id="p2" hidden>
-    <div class="bk-recap" data-testid="booking-recap"><b id="r-apt"></b><span id="r-dates"></span><div class="r-tot" id="r-tot"></div><button type="button" class="link-btn" id="back" data-testid="booking-back">Modifica date e ospiti</button></div>
+    <div class="bk-recap" data-testid="booking-recap"><b id="r-apt"></b><span id="r-dates"></span><div class="r-tot" id="r-tot"></div><p class="r-ann" id="r-ann" data-testid="booking-recap-policy"></p><button type="button" class="link-btn" id="back" data-testid="booking-back">Modifica date e ospiti</button></div>
     <form id="f" data-testid="booking-form">
       <div class="field-row">
         <div class="field"><label for="bn">Nome</label><input id="bn" name="nome" required autocomplete="given-name" data-testid="booking-name"></div>
@@ -270,8 +276,8 @@ async function apt(c){
     $('#b-in').classList.toggle('on',!da);$('#b-out').classList.toggle('on',!!da&&!a);
     $('#g-dec').disabled=n<=1;$('#g-inc').disabled=n>=p.max;
     $('#q').textContent=ok?`${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`:da?'Ora scegli il giorno di partenza.':'Scegli arrivo e partenza: qui compare l’importo.';
-    $('#tot').hidden=!ok;$('#go').hidden=!ok;
-    if(ok)$('#tot-v').textContent=money(tot(p,da,a,n))};
+    $('#tot').hidden=!ok;$('#go').hidden=!ok;$('#ann').hidden=!ok;
+    if(ok){$('#tot-v').textContent=money(tot(p,da,a,n));$('#ann').textContent=annullo(da)}};
   const draw=()=>{const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,nd=new Date(y,mo+1,0).getDate();
     $('#mt').textContent=m.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
     $('#pv').disabled=mk(m)<=k0;$('#nx').disabled=mk(m)>=kLast;      // né indietro oltre il mese in corso né avanti oltre i 6 mesi
@@ -299,7 +305,7 @@ async function apt(c){
     if(window.matchMedia&&matchMedia('(max-width:960px)').matches)$('.book-card').scrollIntoView({behavior:'smooth',block:'start'})};
   $('#go').onclick=()=>{if(!a)return;msg('');
     const nn=days(da,a).length;
-    $('#r-apt').textContent=short(p);$('#r-dates').textContent=`${fmtW(da)} → ${fmtW(a)} · ${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`;$('#r-tot').textContent=money(tot(p,da,a,n));
+    $('#r-apt').textContent=short(p);$('#r-dates').textContent=`${fmtW(da)} → ${fmtW(a)} · ${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`;$('#r-tot').textContent=money(tot(p,da,a,n));$('#r-ann').textContent=annullo(da);
     goStep(2);$('#bn').focus({preventScroll:true})};
   $('#back').onclick=async()=>{msg('');goStep(1);
     if(stale){stale=false;      // dopo un errore del server le date potrebbero non essere più libere: si ricarica il calendario

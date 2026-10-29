@@ -28,7 +28,7 @@ const L={
   checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',nNotti:n=>n2(n,'notte','notti'),nOspiti:n=>n2(n,'ospite','ospiti'),dalle:h=>'dalle '+h,entro:h=>'entro le '+h,copia:'Copia codice',copiato:'Copiato ✓',confermata:'Confermata',
   aCheckin:'Check-in online',aCheckinD:'Registra gli ospiti prima di arrivare',aGc:'Trentino Guest Card',aGcD:'Musei, trasporti e attrazioni',aCal:'Aggiungi al calendario',aCalD:'Date e orari del soggiorno',aStrada:'Indicazioni stradali',aChiama:'Chiama',aWa:'WhatsApp',aMail:'Email',aRec:'Lascia una recensione',aRecD:'Ci aiuti molto',
   pagTit:'Pagamento',pagTot:'Totale',pagNotti:(n,p)=>n2(n,'notte','notti')+' × '+p,pagDal:d=>'dal '+d,pagSup:(n,p)=>'Ospiti in più · '+n2(n,'notte','notti')+' × '+p,pagPagato:d=>'Pagato online con carta'+(d?' il '+d:''),
-  pagPortale:p=>'Hai prenotato tramite '+p+': pagamenti e ricevute sono gestiti dalla piattaforma.',pagAltro:'Per pagamenti e ricevute scrivici.',pagImposta:'L\'imposta di soggiorno si paga con il check-in online.',pagRicevuta:'Ti serve una ricevuta o una fattura? Scrivici.',
+  pagPortale:p=>'Hai prenotato tramite '+p+': pagamenti e ricevute sono gestiti dalla piattaforma.',pagAltro:'Per pagamenti e ricevute scrivici.',pagImposta:'L\'imposta di soggiorno si paga con il check-in online.',
   arrivo:'Come arrivare',parcheggio:'Parcheggio',parcheggioD:'Il parcheggio della struttura è in Via Val Gola 22, a 50 metri.',apriMaps:'Apri in Maps',trovarci:'Come trovarci',chiavi:'Le istruzioni per entrare (codici della cassetta delle chiavi) arrivano via email dopo il check-in online.',
   orari:'Orari',casa:'La casa',riservate:'Wi-Fi e informazioni riservate',riservateDal:d=>'Le trovi qui dal '+d+'.',testiIt:'',contatti:'Contatti',
   eventi:'Eventi durante il tuo soggiorno',nessunEvento:'Nessun evento in calendario per le tue date.',tuttiEventi:'Tutti gli eventi',caricoEventi:'Carico gli eventi…',
@@ -36,7 +36,18 @@ const L={
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area ospiti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
   calTitolo:a=>'Soggiorno a La Columbera · '+a,calArea:'Area ospiti',
   chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatNotaEmail:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile e la risposta ti arriva anche via email. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
-  scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti'},
+  scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti',
+  annTit:'Annullamento',annOk:(d,i)=>'Puoi annullare gratis fino a '+d+' (7 giorni prima dell\'arrivo): ti rimborsiamo '+i+' sulla carta con cui hai pagato.',annBtn:'Annulla la prenotazione',
+  annConf:i=>'Vuoi davvero annullare? La prenotazione non si potrà recuperare e le notti tornano disponibili. Ti rimborsiamo '+i+'.',annSi:'Sì, annulla e rimborsa',annNo:'No, la tengo',annInCorso:'Annullo…',
+  annScaduto:d=>'Si annulla gratis fino a 7 giorni prima dell\'arrivo (fino a '+d+'): ora la prenotazione non è più rimborsabile. Per qualsiasi necessità scrivici.',annNonPagata:'Per annullare questa prenotazione scrivici.',
+  annPortale:p=>'Hai prenotato tramite '+p+': per annullare usa la piattaforma.',annFatto:'Prenotazione annullata',annFattoD:(i,e)=>'Il rimborso di '+i+' è partito: torna sulla carta con cui hai pagato, di solito in 5–10 giorni lavorativi.'+(e?' Ti abbiamo mandato un\'email a '+e+'.':''),
+  annGia:'La prenotazione è annullata e il pagamento risulta già rimborsato.',annErr:'Annullamento non riuscito: controlla la connessione e riprova.',annHome:'Torna al sito',
+  ricTit:'Ricevuta',ricD:'Ti serve la ricevuta del soggiorno? Chiedila qui: la prepariamo e te la mandiamo via email.',ricBtn:'Richiedi la ricevuta',ricNome:'Intestata a (nome e cognome o ragione sociale)',
+  ricCf:'Codice fiscale',ricCfEst:'Codice fiscale (se risiedi in Italia) o numero fiscale',ricInd:'Indirizzo (via e numero)',ricCap:'CAP',ricCitta:'Città',ricPaese:'Paese',ricPaeseDef:'Italia',
+  ricEmailPren:e=>'facoltativa: se la lasci vuota te la mandiamo a '+e,ricEmailAlt:'Email',ricEmail:'Email a cui mandarla',ricNota:'Nota (facoltativa)',ricInvia:'Invia la richiesta',ricInvio:'Invio…',
+  ricPriv:'Usiamo questi dati solo per preparare la ricevuta.',ricRichiesta:(d,e)=>'Richiesta inviata il '+d+': prepariamo la ricevuta e te la mandiamo'+(e?' a '+e:'')+'.',ricCorreggi:'Correggi i dati',
+  ricInviata:(d,e)=>'Ricevuta inviata il '+d+(e?' a '+e:'')+'. Non la trovi? Guarda nello spam o scrivici.',ricCompila:'Compila i campi con l\'asterisco.',ricEmailNo:'L\'email non sembra giusta: controllala.',
+  ricControlla:'Controlla i dati inseriti.',ricErr:'Richiesta non inviata: controlla la connessione e riprova.',obbl:'obbligatorio'},
  en:{eyebrow:'Guest area',titolo:'Your booking',sub:'Enter your booking code: you will find it in the confirmation email if you booked on our website, otherwise it is your Booking.com or Airbnb reservation number.',
   etCodice:'Booking code',entra:'Open',cerco:'Searching…',privacy:'Your booking code works like a key: do not share it with anyone who is not staying with you. We only use it to show you your booking and the related services.',informativa:'Privacy notice',lingua:'Language',
   err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',
@@ -45,7 +56,7 @@ const L={
   checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',nNotti:n=>n2(n,'night','nights'),nOspiti:n=>n2(n,'guest','guests'),dalle:h=>'from '+h,entro:h=>'by '+h,copia:'Copy code',copiato:'Copied ✓',confermata:'Confirmed',
   aCheckin:'Online check-in',aCheckinD:'Register your guests before you arrive',aGc:'Trentino Guest Card',aGcD:'Museums, transport and attractions',aCal:'Add to calendar',aCalD:'Dates and times of your stay',aStrada:'Directions',aChiama:'Call',aWa:'WhatsApp',aMail:'Email',aRec:'Leave a review',aRecD:'It helps us a lot',
   pagTit:'Payment',pagTot:'Total',pagNotti:(n,p)=>n2(n,'night','nights')+' × '+p,pagDal:d=>'from '+d,pagSup:(n,p)=>'Extra guests · '+n2(n,'night','nights')+' × '+p,pagPagato:d=>'Paid online by card'+(d?' on '+d:''),
-  pagPortale:p=>'You booked through '+p+': payments and receipts are handled by the platform.',pagAltro:'For payments and receipts, write to us.',pagImposta:'The tourist tax is paid during online check-in.',pagRicevuta:'Need a receipt or an invoice? Write to us.',
+  pagPortale:p=>'You booked through '+p+': payments and receipts are handled by the platform.',pagAltro:'For payments and receipts, write to us.',pagImposta:'The tourist tax is paid during online check-in.',
   arrivo:'Getting here',parcheggio:'Parking',parcheggioD:'Our parking is at Via Val Gola 22, 50 metres away.',apriMaps:'Open in Maps',trovarci:'How to find us',chiavi:'The instructions to get in (key box codes) are sent by email after online check-in.',
   orari:'Times',casa:'The house',riservate:'Wi-Fi and private information',riservateDal:d=>'You will find it here from '+d+'.',testiIt:'Written in Italian by your hosts.',contatti:'Contact',
   eventi:'Events during your stay',nessunEvento:'No events scheduled for your dates.',tuttiEventi:'All events',caricoEventi:'Loading events…',
@@ -53,7 +64,18 @@ const L={
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
   calTitolo:a=>'Stay at La Columbera · '+a,calArea:'Guest area',
   chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatNotaEmail:'Write to us here with any question about your stay: we will reply as soon as possible and you will also get our answer by email. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
-  scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left'},
+  scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left',
+  annTit:'Cancellation',annOk:(d,i)=>'You can cancel free of charge until '+d+' (7 days before arrival): we refund '+i+' to the card you paid with.',annBtn:'Cancel the booking',
+  annConf:i=>'Do you really want to cancel? The booking cannot be restored and the nights become available again. We will refund '+i+'.',annSi:'Yes, cancel and refund',annNo:'No, keep it',annInCorso:'Cancelling…',
+  annScaduto:d=>'Free cancellation is possible up to 7 days before arrival (until '+d+'): the booking is no longer refundable. If you need anything, write to us.',annNonPagata:'To cancel this booking, write to us.',
+  annPortale:p=>'You booked through '+p+': to cancel, use the platform.',annFatto:'Booking cancelled',annFattoD:(i,e)=>'The refund of '+i+' is on its way back to the card you paid with: it usually arrives within 5–10 business days.'+(e?' We have sent you an email at '+e+'.':''),
+  annGia:'The booking is cancelled and the payment has already been refunded.',annErr:'Cancellation failed: check your connection and try again.',annHome:'Back to the website',
+  ricTit:'Receipt',ricD:'Need a receipt for your stay? Request it here: we will prepare it and email it to you.',ricBtn:'Request a receipt',ricNome:'Issued to (full name or company name)',
+  ricCf:'Italian tax code (codice fiscale)',ricCfEst:'Italian tax code (if resident in Italy) or tax number',ricInd:'Address (street and number)',ricCap:'Postcode',ricCitta:'City',ricPaese:'Country',ricPaeseDef:'',
+  ricEmailPren:e=>'optional: if you leave it empty we send it to '+e,ricEmailAlt:'Email',ricEmail:'Email address to send it to',ricNota:'Note (optional)',ricInvia:'Send request',ricInvio:'Sending…',
+  ricPriv:'We only use these details to prepare your receipt.',ricRichiesta:(d,e)=>'Request sent on '+d+': we will prepare your receipt and send it'+(e?' to '+e:'')+'.',ricCorreggi:'Correct the details',
+  ricInviata:(d,e)=>'Receipt sent on '+d+(e?' to '+e:'')+'. Can\'t find it? Check your spam folder or write to us.',ricCompila:'Please fill in the fields marked with an asterisk.',ricEmailNo:'The email address does not look right: please check it.',
+  ricControlla:'Please check the details you entered (tax code, postcode).',ricErr:'Request not sent: check your connection and try again.',obbl:'required'},
  de:{eyebrow:'Gästebereich',titolo:'Ihre Buchung',sub:'Geben Sie Ihren Buchungscode ein: Sie finden ihn in der Bestätigungs-E-Mail, wenn Sie auf unserer Website gebucht haben, ansonsten ist es Ihre Buchungsnummer von Booking.com oder Airbnb.',
   etCodice:'Buchungscode',entra:'Öffnen',cerco:'Suche…',privacy:'Der Buchungscode funktioniert wie ein Schlüssel: Geben Sie ihn nicht an Personen weiter, die nicht mit Ihnen übernachten. Wir verwenden ihn nur, um Ihnen Ihre Buchung und die zugehörigen Dienste anzuzeigen.',informativa:'Datenschutzhinweis',lingua:'Sprache',
   err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
@@ -62,7 +84,7 @@ const L={
   checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',nNotti:n=>n2(n,'Nacht','Nächte'),nOspiti:n=>n2(n,'Gast','Gäste'),dalle:h=>'ab '+h+' Uhr',entro:h=>'bis '+h+' Uhr',copia:'Code kopieren',copiato:'Kopiert ✓',confermata:'Bestätigt',
   aCheckin:'Online-Check-in',aCheckinD:'Gäste vor der Anreise registrieren',aGc:'Trentino Guest Card',aGcD:'Museen, Verkehrsmittel und Attraktionen',aCal:'Zum Kalender hinzufügen',aCalD:'Daten und Zeiten Ihres Aufenthalts',aStrada:'Wegbeschreibung',aChiama:'Anrufen',aWa:'WhatsApp',aMail:'E-Mail',aRec:'Bewertung schreiben',aRecD:'Das hilft uns sehr',
   pagTit:'Zahlung',pagTot:'Gesamt',pagNotti:(n,p)=>n2(n,'Nacht','Nächte')+' × '+p,pagDal:d=>'ab '+d,pagSup:(n,p)=>'Zusätzliche Gäste · '+n2(n,'Nacht','Nächte')+' × '+p,pagPagato:d=>'Online per Karte bezahlt'+(d?' am '+d:''),
-  pagPortale:p=>'Sie haben über '+p+' gebucht: Zahlungen und Belege laufen über die Plattform.',pagAltro:'Für Zahlungen und Belege schreiben Sie uns.',pagImposta:'Die Kurtaxe wird beim Online-Check-in bezahlt.',pagRicevuta:'Benötigen Sie eine Quittung oder Rechnung? Schreiben Sie uns.',
+  pagPortale:p=>'Sie haben über '+p+' gebucht: Zahlungen und Belege laufen über die Plattform.',pagAltro:'Für Zahlungen und Belege schreiben Sie uns.',pagImposta:'Die Kurtaxe wird beim Online-Check-in bezahlt.',
   arrivo:'Anreise',parcheggio:'Parkplatz',parcheggioD:'Unser Parkplatz befindet sich in der Via Val Gola 22, 50 Meter entfernt.',apriMaps:'In Maps öffnen',trovarci:'Anfahrt',chiavi:'Die Anweisungen zum Einlass (Codes des Schlüsselkastens) erhalten Sie nach dem Online-Check-in per E-Mail.',
   orari:'Zeiten',casa:'Das Haus',riservate:'WLAN und vertrauliche Informationen',riservateDal:d=>'Sie finden sie hier ab dem '+d+'.',testiIt:'Von Ihren Gastgebern auf Italienisch verfasst.',contatti:'Kontakt',
   eventi:'Veranstaltungen während Ihres Aufenthalts',nessunEvento:'Für Ihre Daten sind keine Veranstaltungen geplant.',tuttiEventi:'Alle Veranstaltungen',caricoEventi:'Veranstaltungen werden geladen…',
@@ -70,7 +92,18 @@ const L={
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
   calTitolo:a=>'Aufenthalt in La Columbera · '+a,calArea:'Gästebereich',
   chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatNotaEmail:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich, und unsere Antwort erhalten Sie auch per E-Mail. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
-  scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen'}
+  scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen',
+  annTit:'Stornierung',annOk:(d,i)=>'Sie können bis zum '+d+' (7 Tage vor der Anreise) kostenlos stornieren: Wir erstatten '+i+' auf die Karte, mit der Sie bezahlt haben.',annBtn:'Buchung stornieren',
+  annConf:i=>'Möchten Sie wirklich stornieren? Die Buchung kann nicht wiederhergestellt werden, und die Nächte werden wieder frei. Wir erstatten '+i+'.',annSi:'Ja, stornieren und erstatten',annNo:'Nein, behalten',annInCorso:'Wird storniert…',
+  annScaduto:d=>'Eine kostenlose Stornierung ist bis 7 Tage vor der Anreise möglich (bis zum '+d+'): Die Buchung ist nicht mehr erstattungsfähig. Wenn Sie etwas brauchen, schreiben Sie uns.',annNonPagata:'Um diese Buchung zu stornieren, schreiben Sie uns.',
+  annPortale:p=>'Sie haben über '+p+' gebucht: Zum Stornieren nutzen Sie die Plattform.',annFatto:'Buchung storniert',annFattoD:(i,e)=>'Die Erstattung von '+i+' geht auf die Karte zurück, mit der Sie bezahlt haben: in der Regel innerhalb von 5–10 Werktagen.'+(e?' Wir haben Ihnen eine E-Mail an '+e+' gesendet.':''),
+  annGia:'Die Buchung ist storniert und die Zahlung wurde bereits erstattet.',annErr:'Stornierung fehlgeschlagen: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',annHome:'Zurück zur Website',
+  ricTit:'Quittung',ricD:'Benötigen Sie eine Quittung für Ihren Aufenthalt? Fordern Sie sie hier an: Wir erstellen sie und senden sie Ihnen per E-Mail.',ricBtn:'Quittung anfordern',ricNome:'Ausgestellt auf (Vor- und Nachname oder Firmenname)',
+  ricCf:'Italienische Steuernummer (Codice fiscale)',ricCfEst:'Italienische Steuernummer (bei Wohnsitz in Italien) oder Steuernummer',ricInd:'Adresse (Straße und Hausnummer)',ricCap:'PLZ',ricCitta:'Ort',ricPaese:'Land',ricPaeseDef:'',
+  ricEmailPren:e=>'optional: leer lassen, dann senden wir sie an '+e,ricEmailAlt:'E-Mail',ricEmail:'E-Mail-Adresse für den Versand',ricNota:'Anmerkung (optional)',ricInvia:'Anfrage senden',ricInvio:'Wird gesendet…',
+  ricPriv:'Wir verwenden diese Angaben nur für Ihre Quittung.',ricRichiesta:(d,e)=>'Anfrage am '+d+' gesendet: Wir erstellen Ihre Quittung und senden sie'+(e?' an '+e:'')+'.',ricCorreggi:'Angaben korrigieren',
+  ricInviata:(d,e)=>'Quittung am '+d+(e?' an '+e:'')+' gesendet. Nicht gefunden? Prüfen Sie den Spam-Ordner oder schreiben Sie uns.',ricCompila:'Bitte füllen Sie die mit Sternchen markierten Felder aus.',ricEmailNo:'Die E-Mail-Adresse scheint nicht zu stimmen: Bitte prüfen Sie sie.',
+  ricControlla:'Bitte prüfen Sie Ihre Angaben (Steuernummer, PLZ).',ricErr:'Anfrage nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',obbl:'Pflichtfeld'}
 };
 const pickL=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
 let lang=pickL(ss('lc_lang'))||(navigator.languages||[navigator.language]).map(pickL).find(Boolean)||'en';
@@ -187,7 +220,67 @@ function pSoggiorno(s){
  const chip=(href,ic,label,attrs)=>`<a href="${esc(href)}"${attrs}>${icon(ic)}<span>${esc(label)}</span></a>`;
  const contatti=`<div class="ga-contact">${chip('tel:'+TEL_H,'tel',t('aChiama'),' data-testid="ga-tel"')}${c.whatsapp?chip('https://wa.me/'+c.whatsapp,'wa',t('aWa'),ext+' data-testid="ga-wa"'):''}${chip('mailto:'+MAIL,'mail',t('aMail'),' data-testid="ga-mail"')}</div>`;
  const rec=`<p class="ga-review">${icon('star')}<a href="${esc(REVIEW_URL)}"${ext} data-testid="review-link-${esc(code)}">${esc(t('aRec'))}</a><span>· ${esc(t('aRecD'))}</span></p>`;
- return card+`<div class="ga-actions">${acts}</div>`+contatti+pPay(s,pay)+rec+installCard()}
+ return card+`<div class="ga-actions">${acts}</div>`+contatti+pPay(s,pay)+pRicevuta(s)+pAnnullo(s)+rec+installCard()}
+// Annullamento (solo prenotazioni del sito pagate online): fino a 7 giorni prima dell'arrivo, con il rimborso totale. Due passi: il pulsante,
+// poi la conferma con l'importo. La regola la decide il server (s.annullo): qui si mostra soltanto.
+function pAnnullo(s){
+ const a=s.annullo||{},pay=s.pagamento;
+ if(a.motivo==='portale')return `<section class="ga-card ga-ann" data-testid="ga-annullo"><h3>${esc(t('annTit'))}</h3><p class="book-note">${esc(t('annPortale',s.portale))}</p></section>`;
+ if(!pay)return '';
+ const body=a.possibile?`<p>${esc(t('annOk',dLong(a.entro),eur(pay.totale)))}</p><div id="ga-ann-box">${annBox(false)}</div>`
+  :`<p class="book-note" data-testid="ga-annullo-no">${esc(a.motivo==='scaduto'?t('annScaduto',dLong(a.entro)):t('annNonPagata'))}</p>`;
+ return `<section class="ga-card ga-ann" data-testid="ga-annullo"><h3>${esc(t('annTit'))}</h3>${body}</section>`}
+const annBox=(conf,err)=>conf?`<div class="ga-ann-conf" role="group" aria-labelledby="ga-ann-q"><p id="ga-ann-q"><b>${esc(t('annConf',eur(sog().pagamento.totale)))}</b></p>
+  <div class="ga-btns"><button type="button" class="btn btn-wine" data-act="annSi" data-testid="ga-annulla-si">${esc(t('annSi'))}</button><button type="button" class="btn btn-line" data-act="annNo" data-testid="ga-annulla-no">${esc(t('annNo'))}</button></div>
+  <p class="form-err" role="alert" data-testid="ga-annulla-err">${esc(err||'')}</p></div>`
+ :`<button type="button" class="btn btn-line" data-act="annChiedi" data-testid="ga-annulla">${esc(t('annBtn'))}</button>`;
+async function annulla(btn){
+ btn.disabled=true;btn.textContent=t('annInCorso');
+ try{const r=await callG('annulla',{lingua:lang});paintAnnullata(r)}
+ catch(x){const box=$('#ga-ann-box'),m=x.status&&lang==='it'?x.message:x.code==='NON_ANNULLABILE'?t('annScaduto',dLong(sog().annullo.entro)):t('annErr');      // i messaggi del server sono in italiano
+  if(box)box.innerHTML=annBox(true,m);const b=$('[data-testid=ga-annulla-si]');if(b)b.focus()}}
+// dopo l'annullamento l'area non apre più la prenotazione: si chiude la sessione e resta la conferma, con quanto torna sulla carta
+function paintAnnullata(r){
+ stopPoll();accDel();R=null;
+ const rb=r.rimborso||{};
+ $('#r').innerHTML=`<div class="ga" data-testid="guest-app"><section class="ga-card ga-ann-done" data-testid="ga-annullata" tabindex="-1"><h2>${esc(t('annFatto'))}</h2>
+  <p>${esc(rb.stato==='gia_rimborsato'?t('annGia'):t('annFattoD',eur(rb.importo),r.email))}</p><a class="btn btn-wine" href="index.html">${esc(t('annHome'))}</a></section></div>`;
+ const c=$('[data-testid=ga-annullata]');if(c)c.focus()}
+// Ricevuta: l'ospite la chiede con i dati per intestarla; il titolare la prepara e la manda dalla Gestione (api/_ricevute.js).
+// Il server non rimanda mai indietro i dati inseriti: dopo l'invio qui resta solo lo stato.
+let ricForm=false,ricErr='';
+function pRicevuta(s){
+ const q=s.ricevuta||{},giorno=v=>dLong(String(v||'').slice(0,10));
+ let body;
+ if(q.stato==='inviata')body=`<p data-testid="ga-ric-inviata">${esc(t('ricInviata',giorno(q.inviata_il),q.invio))}</p>`;
+ else if(ricForm)body=ricFormHtml(q);
+ else if(q.stato==='richiesta')body=`<p data-testid="ga-ric-richiesta">${esc(t('ricRichiesta',giorno(q.richiesta_il),q.invio))}</p><button type="button" class="link-btn" data-act="ricApri">${esc(t('ricCorreggi'))}</button>`;
+ else body=`<p>${esc(t('ricD'))}</p><button type="button" class="btn btn-line" data-act="ricApri" data-testid="ga-ric-apri">${esc(t('ricBtn'))}</button>`;
+ return `<section class="ga-card ga-ric" id="ga-ric" data-testid="ga-ricevuta"><h3>${esc(t('ricTit'))}</h3>${body}</section>`}
+function ricFormHtml(q){
+ const it=lang==='it',f=(id,lab,attrs,req,hint)=>`<div class="field"><label for="ric-${id}">${esc(lab)}${req?' <span aria-hidden="true">*</span>':''}${hint?` <small>(${esc(hint)})</small>`:''}</label><input id="ric-${id}" name="${id}"${req?' aria-required="true"':''} ${attrs}></div>`;
+ return `<form id="ga-ric-f" class="ga-ric-f" novalidate data-testid="ga-ric-form">
+  ${f('nome',t('ricNome'),'autocomplete="name" maxlength="100"',1)}
+  ${f('paese',t('ricPaese'),`autocomplete="country-name" maxlength="40" value="${esc(t('ricPaeseDef'))}"`,1)}
+  ${f('cf',it?t('ricCf'):t('ricCfEst'),'maxlength="30" autocapitalize="characters" spellcheck="false" autocomplete="off"',it)}
+  ${f('indirizzo',t('ricInd'),'autocomplete="street-address" maxlength="120"',1)}
+  <div class="fields-grid">${f('cap',t('ricCap'),'autocomplete="postal-code" maxlength="12"',1)}${f('citta',t('ricCitta'),'autocomplete="address-level2" maxlength="60"',1)}</div>
+  ${f('email',q.emailPren?t('ricEmailAlt'):t('ricEmail'),'type="email" autocomplete="email" maxlength="120" inputmode="email"',!q.emailPren,q.emailPren?t('ricEmailPren',q.emailPren):'')}
+  <div class="field"><label for="ric-nota">${esc(t('ricNota'))}</label><textarea id="ric-nota" name="nota" rows="2" maxlength="300"></textarea></div>
+  <p class="book-note">${esc(t('ricPriv'))} <a href="privacy.html">${esc(t('informativa'))}</a></p>
+  <div class="ga-btns"><button class="btn btn-wine" data-testid="ga-ric-invia">${esc(t('ricInvia'))}</button><button type="button" class="btn btn-line" data-act="ricChiudi">${esc(t('chiudi'))}</button></div>
+  <p class="form-err" id="ga-ric-err" role="alert" data-testid="ga-ric-err">${esc(ricErr)}</p></form>`}
+const ricRepaint=focus=>{const el=$('#ga-ric');if(el)el.outerHTML=pRicevuta(sog());if(focus){const x=$(focus);if(x)x.focus()}};
+async function sendRic(f){
+ const v=k=>(f.elements[k].value||'').trim(),dati={nome:v('nome'),paese:v('paese'),cf:v('cf'),indirizzo:v('indirizzo'),cap:v('cap'),citta:v('citta'),email:v('email'),nota:v('nota')};
+ const q=sog().ricevuta||{},italia=/^(it|ita|italia|italy|italien)$/i.test(dati.paese||(lang==='it'?'Italia':''));
+ const manca=dati.nome.length<2||!dati.paese&&lang!=='it'||italia&&!dati.cf||dati.indirizzo.length<3||!dati.cap||dati.citta.length<2||!q.emailPren&&!dati.email;
+ const err=m=>{ricErr=m;const e=$('#ga-ric-err');if(e)e.textContent=m};
+ if(manca)return err(t('ricCompila'));
+ if(dati.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dati.email))return err(t('ricEmailNo'));
+ const btn=f.querySelector('[data-testid=ga-ric-invia]');btn.disabled=true;btn.textContent=t('ricInvio');err('');
+ try{const r=await callG('ricevuta',{lingua:lang,dati});delete r.t;sog().ricevuta=r;ricForm=false;ricErr='';ricRepaint('#ga-ric h3')}
+ catch(x){err(x.status===429||x.status===409?x.message:x.status===400?(lang==='it'?x.message:t('ricControlla')):t('ricErr'));btn.disabled=false;btn.textContent=t('ricInvia')}}
 function pPay(s,pay){
  let body='';
  if(pay){
@@ -195,8 +288,7 @@ function pPay(s,pay){
   if(righe){for(const r of righe)rows.push([t('pagNotti',r.notti,eur(r.prezzo))+(righe.length>1?' · '+t('pagDal',dShort(r.dal)):''),eur(r.notti*r.prezzo)]);
    if(ct.supplemento>0)rows.push([t('pagSup',s.notti,eur(ct.supplemento)),eur(ct.supplemento*s.notti)])}
   body=`<div class="ga-rows">${rows.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}<div class="ga-tot"><span>${esc(t('pagTot'))}</span><b data-testid="ga-pay-total">${esc(eur(pay.totale))}</b></div></div>`
-   +(pay.pagato?`<p class="ga-ok" data-testid="ga-pay-ok">✓ ${esc(t('pagPagato',pay.data?dLong(pay.data):''))}</p>`:'')
-   +`<p class="book-note">${esc(t('pagRicevuta'))}</p>`}
+   +(pay.pagato?`<p class="ga-ok" data-testid="ga-pay-ok">✓ ${esc(t('pagPagato',pay.data?dLong(pay.data):''))}</p>`:'')}
  else body=`<p data-testid="ga-pay-portale">${esc(s.portale?t('pagPortale',s.portale):t('pagAltro'))}</p>`;
  return `<section class="ga-card ga-pay" data-testid="ga-pay"><h3>${esc(t('pagTit'))}</h3>${body}<p class="book-note">${esc(t('pagImposta'))}</p></section>`}
 function pInfo(s){
@@ -314,7 +406,7 @@ function setTab(k,focus){tab=k;
 function wire(){
  const f=$('#f');
  f.onsubmit=e=>{e.preventDefault();const code=codeIn($('#cd').value);if(!code)return;load(accBody(code),f.querySelector('[data-testid="area-clienti-submit"]'))};
- document.addEventListener('submit',e=>{if(e.target&&e.target.id==='ga-send'){e.preventDefault();sendMsg(e.target)}});
+ document.addEventListener('submit',e=>{if(e.target&&e.target.id==='ga-send'){e.preventDefault();sendMsg(e.target)}if(e.target&&e.target.id==='ga-ric-f'){e.preventDefault();sendRic(e.target)}});
  document.addEventListener('input',e=>{if(e.target&&e.target.id==='ga-testo'){cnt();active()}});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&tab==='messaggi'&&R){loadMsgs(false);active()}});
  document.addEventListener('click',async e=>{
@@ -329,7 +421,10 @@ function wire(){
   if(k==='logout')logout();
   else if(k==='ics'){const s=sog();download('la-columbera-'+s.da+'.ics',icsOf(s),'text/calendar;charset=utf-8')}
   else if(k==='install'&&deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch{}deferredInstall=null;if(R)paint()}
-  else if(k==='noinstall'){ss('lc_pwa_no','1');const c=a.closest('.ga-install');if(c)c.remove()}});
+  else if(k==='noinstall'){ss('lc_pwa_no','1');const c=a.closest('.ga-install');if(c)c.remove()}
+  else if(k==='annChiedi'||k==='annNo'){const box=$('#ga-ann-box');if(box){box.innerHTML=annBox(k==='annChiedi');const x=$(k==='annChiedi'?'[data-testid=ga-annulla-no]':'[data-testid=ga-annulla]');if(x)x.focus()}}
+  else if(k==='annSi')annulla(a);
+  else if(k==='ricApri'||k==='ricChiudi'){ricForm=k==='ricApri';ricErr='';ricRepaint(ricForm?'#ric-nome':'#ga-ric h3')}});
  // frecce sinistra/destra tra le schede (come una barra di schede vera)
  document.addEventListener('keydown',e=>{const tb=e.target.closest&&e.target.closest('.ga-tabs [role=tab]');if(!tb||!/^Arrow(Left|Right)$/.test(e.key))return;
   const all=$$('.ga-tabs [role=tab]'),i=all.indexOf(tb),j=(i+(e.key==='ArrowRight'?1:-1)+all.length)%all.length;e.preventDefault();setTab(all[j].dataset.tab,true)});

@@ -248,6 +248,166 @@ test('P15 calendario personale (for=all, per lo script del telefono): tutte le f
   eq(dts(site.text), ['20261201'], 'for=site: solo la prenotazione del sito, niente Booking, Airbnb né nomi'); assert(!/Mario Rossi/.test(site.text));
 });
 
+/* ===================== annullamento con rimborso (api/_annulla.js) ===================== */
+let ipN = 0;
+const ospite = (a, body) => H.api(a, body, { headers: { 'x-real-ip': '198.51.100.' + (++ipN % 250) } });      // un IP diverso a chiamata: le prove non consumano i limiti per IP
+const pagata = async o => { const c = await checkout(o); eq(c.status, 200, JSON.stringify(c.body)); eq((await wh(c.body.code)).status, 200); return c.body.code; };
+const rimborsi = () => global.__stripeRefunds;
+const libere = async (da, a) => (await H.busyDates('torre')).filter(d => d >= da && d < a);
+const regAirbnb = () => {      // una prenotazione Airbnb nel registro del foglio (lo stub dello script non lo popola)
+  const snap = JSON.parse(kv.exec(['GET', 'reg:snap']) || '{"rows":[]}');
+  snap.rows = [{ id: 'AIRBNB|HMSEDESZCW', fonte: 'AIRBNB', codice: 'HMSEDESZCW', apt: 'corte', checkin: '2026-11-05', checkout: '2026-11-08', notti: 3, ospiti: 2, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] }];
+  kv.exec(['SET', 'reg:snap', JSON.stringify(Object.assign({ invalid: [], count: 1, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' }, snap))]);
+};
+
+test('R1 l\'ospite annulla dall\'area clienti fino a 7 giorni prima dell\'arrivo: rimborso totale su Stripe, prenotazione annullata, notti di nuovo libere (sito e calendario per Booking/Airbnb), foglio, email all\'ospite e al titolare; ripetere non rimborsa due volte', async () => {
+  await base();
+  const code = await pagata(); global.__mails = [];
+  const m = await ospite('mie', { code }); eq(m.body.soggiorno.annullo, { possibile: true, entro: '2026-10-13', motivo: 'ok' }, 'arrivo il 20/10: si annulla fino al 13/10');
+  const u0 = upserts(), r = await ospite('annulla', { code, lingua: 'it' });
+  eq(r.status, 200, JSON.stringify(r.body)); eq([r.body.ok, r.body.gia, r.body.rimborso, r.body.email], [1, false, { importo: 540, stato: 'succeeded' }, 'ma***@test.it']);
+  eq(rimborsi().length, 1, 'un rimborso'); const rf = rimborsi()[0];
+  eq([rf.key, rf.params.payment_intent, rf.params.reason, rf.params.metadata, rf.params.amount], ['lc-rimborso-' + code, 'pi_' + code, 'requested_by_customer', { code }, undefined], 'rimborso totale del pagamento della prenotazione, con la chiave di idempotenza');
+  const b = bk(code); eq([b.stato, b.annullata_da, b.rimborso.importo, b.rimborso.id, b.rimborso.stato], ['annullata', 'ospite', 540, 're_test_1', 'succeeded']);
+  assert(b.annullata_il && /ANNULLATA DALL'OSPITE IL 2026-10-02 · RIMBORSO 540 € \(re_test_1\)/.test(b.note), b.note);
+  eq(await libere('2026-10-19', '2026-10-25'), [], 'notti di nuovo libere sul sito');
+  eq(dts((await H.api('ical', {}, { method: 'GET', query: { id: 'torre', for: 'site' } })).text), [], 'e tolte dal calendario che leggono Booking e Airbnb');
+  assert(upserts() > u0, 'riga del foglio aggiornata');
+  eq(global.__mails.map(x => x.to).sort(), ['mario@test.it', 'owner@test'], 'una email all\'ospite e una al titolare');
+  const g = mailsTo('mario@test.it')[0], o = mailsTo('owner@test')[0];
+  assert(/Prenotazione annullata/.test(g.subject) && /Abbiamo annullato la prenotazione come ci hai chiesto/.test(g.text) && /Rimborso: € 540/.test(g.text) && /5–10 giorni lavorativi/.test(g.text) && g.text.includes(code.slice(0, 4)), g.text);
+  assert(/Prenotazione annullata/.test(o.subject) && o.text.includes(code) && /rimborso di € 540 avviato su Stripe \(re_test_1\)/.test(o.text) && o.replyTo === 'mario@test.it', o.text);
+  // di nuovo (doppio tocco arrivato dopo, rete caduta): stessa risposta, nessun rimborso né email in più
+  const r2 = await ospite('annulla', { code }); eq([r2.status, r2.body.gia], [200, true]); eq(rimborsi().length, 1); eq(global.__mails.length, 2);
+  eq((await ospite('mie', { code })).status, 404, 'l\'area clienti non apre più una prenotazione annullata');
+  eq((await ospite('msg_send', { code, testo: 'ciao' })).status, 404, 'e non si scrive più');
+  // in inglese l'email all'ospite è in inglese
+  const c2 = await pagata({ da: '2026-11-02', a: '2026-11-05', email: 'anna@test.it' }); global.__mails = [];
+  eq((await ospite('annulla', { code: c2, lingua: 'en' })).status, 200); const g2 = mailsTo('anna@test.it')[0];
+  assert(/Booking cancelled/.test(g2.subject) && /Refund: € 540/.test(g2.text) && /Monday, 2 November 2026/.test(g2.text), g2.text);
+});
+
+test('R2 dopo il settimo giorno prima dell\'arrivo (ora di Roma) l\'ospite non annulla e nulla cambia; chi prenota a meno di 7 giorni dall\'arrivo non è rimborsabile; il titolare annulla e rimborsa sempre', async () => {
+  await base();
+  const code = await pagata();      // arrivo il 20/10
+  clock.set('2026-10-13T21:30:00Z'); await H.sync();      // 13/10, 23:30 a Roma: ancora sì
+  eq((await ospite('mie', { code })).body.soggiorno.annullo, { possibile: true, entro: '2026-10-13', motivo: 'ok' });
+  clock.set('2026-10-13T22:30:00Z'); await H.sync();      // 14/10, 00:30 a Roma: non più
+  eq((await ospite('mie', { code })).body.soggiorno.annullo, { possibile: false, entro: '2026-10-13', motivo: 'scaduto' });
+  global.__mails = [];
+  const r = await ospite('annulla', { code }); eq([r.status, r.body.code], [409, 'NON_ANNULLABILE']); assert(/fino a 7 giorni prima dell'arrivo/.test(r.body.err), r.body.err);
+  eq([bk(code).stato, rimborsi().length, global.__mails.length], ['confermata', 0, 0], 'nessun rimborso, nessuna email');
+  eq(await libere('2026-10-19', '2026-10-25'), ['2026-10-20', '2026-10-21', '2026-10-22'], 'le notti restano chiuse');
+  // il titolare sì, anche adesso; all'ospite l'email dice che ha annullato La Columbera, al titolare non arriva nulla
+  eq((await H.api('rimborsa', { code })).status, 401, 'Gestione: solo con login');
+  const o = await H.adminApi('rimborsa', { code }); eq(o.status, 200, JSON.stringify(o.body));
+  eq([bk(code).stato, bk(code).annullata_da, rimborsi().length], ['annullata', 'titolare', 1]);
+  eq(global.__mails.map(x => x.to), ['mario@test.it']); assert(/La Columbera ha annullato la tua prenotazione/.test(global.__mails[0].text) && /€ 540/.test(global.__mails[0].text));
+  // prenotata il 22/10 per il 26/10: non rimborsabile da subito, e la conferma lo dice
+  clock.set('2026-10-22T08:00:00Z'); await H.sync(); global.__mails = [];
+  const c2 = await pagata({ da: '2026-10-26', a: '2026-10-29', email: 'tardi@test.it' });
+  eq((await ospite('mie', { code: c2 })).body.soggiorno.annullo.motivo, 'scaduto');
+  assert(/non è rimborsabile/.test(mailsTo('tardi@test.it')[0].text), 'email di conferma: non rimborsabile');
+  const c3 = await pagata({ da: '2026-12-10', a: '2026-12-13', email: 'presto@test.it' });
+  assert(/Puoi annullare gratis dall'area personale fino a giovedì 3 dicembre 2026/.test(mailsTo('presto@test.it')[0].text), 'email di conferma: fino a quando si annulla');
+  eq((await ospite('annulla', { code: c2 })).status, 409);
+});
+
+test('R3 Stripe non risponde: nulla cambia (confermata, notti chiuse, nessuna email); al nuovo tentativo il rimborso parte una volta sola. Un errore dopo il rimborso si completa riprovando, senza un secondo rimborso', async () => {
+  await base();
+  const code = await pagata(); global.__mails = [];
+  global.__stripeRefundFail = true;
+  const r = await ospite('annulla', { code }); eq([r.status, r.body.code], [502, 'STRIPE']); assert(/nulla è cambiato/.test(r.body.err));
+  eq([bk(code).stato, global.__mails.length], ['confermata', 0]); eq(await libere('2026-10-19', '2026-10-25'), ['2026-10-20', '2026-10-21', '2026-10-22']);
+  global.__stripeRefundFail = false;
+  eq((await ospite('annulla', { code })).status, 200); eq([rimborsi().length, bk(code).stato], [1, 'annullata']);
+  // rimborso fatto, poi KV cade subito dopo (prima di scrivere la prenotazione annullata): il nuovo tentativo usa la stessa chiave → stesso rimborso
+  const c2 = await pagata({ da: '2026-11-02', a: '2026-11-05', email: 'b@t.it' });
+  let colpi = 0; kv.after = async cmd => { if (rimborsi().length === 2 && cmd[0] === 'HGET' && cmd[1] === 'bkh' && !colpi++) throw new Error('KV giù'); };      // la rilettura dopo il rimborso
+  const r2 = await ospite('annulla', { code: c2 }); assert(r2.status >= 500, 'errore: ' + r2.status); kv.after = null;
+  eq(rimborsi().length, 2, 'il rimborso è partito'); eq(bk(c2).stato, 'confermata', 'la prenotazione non risulta ancora annullata');
+  eq((await ospite('annulla', { code: c2 })).status, 200);
+  eq([rimborsi().length, bk(c2).stato, bk(c2).rimborso.id], [2, 'annullata', 're_test_2'], 'stesso rimborso (idempotenza), nessun doppio rimborso');
+});
+
+test('R4 due annullamenti insieme (doppio tocco): un solo rimborso; già rimborsata dalla dashboard di Stripe: si annulla senza rimborsare di nuovo', async () => {
+  await base();
+  const code = await pagata();
+  const st = (await Promise.all([ospite('annulla', { code }), ospite('annulla', { code })])).map(x => x.status).sort();
+  assert(st[0] === 200 && [200, 409].includes(st[1]), 'stati: ' + st); eq(rimborsi().length, 1); eq(bk(code).stato, 'annullata');
+  const c2 = await pagata({ da: '2026-11-02', a: '2026-11-05', email: 'b@t.it' }); global.__stripeRefunded = { ['pi_' + c2]: true }; global.__mails = [];
+  const r = await H.adminApi('rimborsa', { code: c2 }); eq(r.status, 200);
+  eq([bk(c2).stato, bk(c2).rimborso.stato, rimborsi().length], ['annullata', 'gia_rimborsato', 1]); assert(/già stato rimborsato/.test(mailsTo('b@t.it')[0].text));
+});
+
+test('R5 ospiti di Booking/Airbnb e prenotazioni senza pagamento online: dal sito non si annulla (nulla cambia); il titolare annulla e rimborsa anche una «da verificare»', async () => {
+  await base(); regAirbnb();
+  const a = await ospite('annulla', { code: 'HMSEDESZCW' }); eq([a.status, a.body.code], [409, 'PORTALE']); assert(/Airbnb/.test(a.body.err));
+  eq((await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno.annullo, { possibile: false, entro: '', motivo: 'portale' });
+  // confermata a mano dal titolare, senza pagamento online
+  const c = await checkout({ da: '2026-11-02', a: '2026-11-05', email: 'c@t.it' }); eq((await H.adminApi('stato', { code: c.body.code, stato: 'confermata' })).status, 200);
+  eq((await ospite('mie', { code: c.body.code })).body.soggiorno.annullo.motivo, 'non_pagata');
+  eq((await ospite('annulla', { code: c.body.code })).status, 409); const n = await H.adminApi('rimborsa', { code: c.body.code }); eq([n.status, n.body.code], [409, 'SENZA_PAGAMENTO']); eq(bk(c.body.code).stato, 'confermata');
+  // pagata quando le date non erano più libere → «da verificare»: il titolare la annulla e la rimborsa
+  const d = await checkout({ da: '2026-12-01', a: '2026-12-04', email: 'd@t.it' }), code = d.body.code;
+  kv.exec(['DEL', 'holds:torre']); H.setFeed('bookingTorre', [H.bookingEv('x1', '2026-12-02', '2026-12-03')]); await H.sync();
+  await wh(code); eq(bk(code).stato, 'da_verificare');
+  eq((await ospite('annulla', { code })).status, 409, 'l\'ospite no (prenotazione non confermata)');
+  eq((await H.adminApi('rimborsa', { code })).status, 200); eq([bk(code).stato, rimborsi().length], ['annullata', 1]);
+});
+
+/* ===================== ricevuta su richiesta (api/_ricevute.js) ===================== */
+const DATI = { nome: 'Mario Rossi', cf: 'rssmra80a01h501u', indirizzo: 'Via Roma 1', cap: '38123', citta: 'Trento' };
+const pdf = t => 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4\n' + (t || 'ricevuta')).toString('base64');
+
+test('F1 ricevuta: l\'ospite la chiede con i dati (codice fiscale controllato), al titolare arriva l\'email; nell\'area solo lo stato e l\'email mascherata; il titolare carica il PDF e parte all\'ospite in allegato', async () => {
+  await base();
+  const code = await pagata(); global.__mails = [];
+  eq((await ospite('mie', { code })).body.soggiorno.ricevuta, { stato: '', richiesta_il: '', inviata_il: '', invio: 'ma***@test.it', emailPren: 'ma***@test.it' });
+  const no = await ospite('ricevuta', { code, dati: Object.assign({}, DATI, { cf: 'RSSMRA80A01H501X' }) }); eq(no.status, 400); assert(/codice fiscale non sembra giusto/.test(no.body.err));
+  eq((await ospite('ricevuta', { code, dati: Object.assign({}, DATI, { cap: '381' }) })).status, 400);
+  eq(global.__mails.length, 0, 'con i dati sbagliati non parte nulla');
+  const r = await ospite('ricevuta', { code, lingua: 'it', dati: Object.assign({ nota: 'Serve per il rimborso spese' }, DATI) });
+  eq(r.status, 200, JSON.stringify(r.body)); eq([r.body.stato, r.body.invio], ['richiesta', 'ma***@test.it']); assert(r.body.richiesta_il);
+  const o = mailsTo('owner@test')[0];
+  assert(o && /Richiesta di ricevuta/.test(o.subject) && /RSSMRA80A01H501U/.test(o.text) && /Via Roma 1, 38123 Trento, Italia/.test(o.text) && /Mandala a: mario@test.it/.test(o.text) && /Serve per il rimborso spese/.test(o.text) && o.text.includes('#prenotazioni/' + code), o && o.text);
+  const m = await ospite('mie', { code }); eq(m.body.soggiorno.ricevuta.stato, 'richiesta'); assert(!/RSSMRA|Via Roma/.test(JSON.stringify(m.body)), 'all\'area ospiti non tornano i dati inseriti');
+  const l = (await H.adminApi('ricevute', {})).body.ricevute; eq(l.length, 1); eq([l[0].code, l[0].cf, l[0].citta, l[0].stato], [code, 'RSSMRA80A01H501U', 'Trento', 'richiesta']);
+  // invio: solo PDF, JPG o PNG veri
+  eq((await H.adminApi('ricevuta_invia', { code, file: 'data:application/pdf;base64,' + Buffer.from('<html>').toString('base64') })).status, 400);
+  eq((await H.adminApi('ricevuta_invia', { code, file: 'data:text/html;base64,PGI+' })).status, 400);
+  eq((await H.api('ricevuta_invia', { code, file: pdf() })).status, 401, 'solo con login');
+  global.__mails = [];
+  const s = await H.adminApi('ricevuta_invia', { code, file: pdf('n. 12/2026'), nome: 'Ricevuta 12 Rossi.pdf', messaggio: 'Grazie ancora!' }); eq(s.status, 200, JSON.stringify(s.body));
+  eq(global.__mails.length, 1); const g = global.__mails[0];
+  assert(g.to === 'mario@test.it' && /La tua ricevuta/.test(g.subject) && /In allegato trovi la ricevuta del tuo soggiorno: Torre, dal martedì 20 ottobre 2026 al venerdì 23 ottobre 2026/.test(g.text) && /Grazie ancora!/.test(g.text), g.text);
+  eq(g.attachments.map(x => [x.filename, x.contentType, x.content.slice(0, 5).toString()]), [['Ricevuta 12 Rossi.pdf', 'application/pdf', '%PDF-']]);
+  eq((await ospite('mie', { code })).body.soggiorno.ricevuta.stato, 'inviata');
+  const again = await ospite('ricevuta', { code, dati: DATI }); eq(again.status, 409, 'già mandata: per correzioni si scrive');
+  // 30 giorni dopo l'invio i dati si cancellano, anche se nessuno apre la Gestione (sincronizzazione periodica)
+  clock.advance(29 * 24 * 60 * MIN); await H.sync(); eq(kv.exec(['HGETALL', 'ric']).length, 2, 'dopo 29 giorni ci sono ancora');
+  clock.advance(2 * 24 * 60 * MIN); await H.sync(); eq(kv.exec(['HGETALL', 'ric']).length, 0, 'dopo 31 giorni cancellati'); eq((await H.adminApi('ricevute', {})).body.ricevute.length, 0);
+});
+
+test('F2 ricevuta per un ospite di Airbnb (serve l\'email); straniero senza codice fiscale; testo con HTML resta testo; al massimo 5 richieste valide al giorno; segnata come inviata o tolta dalla Gestione', async () => {
+  await base(); regAirbnb(); global.__mails = [];
+  const c = 'HMSEDESZCW', dati = { nome: 'Hans <b>Müller</b>', indirizzo: 'Hauptstraße 5', cap: '80331', citta: 'München', paese: 'Germania' };
+  eq((await ospite('mie', { code: c })).body.soggiorno.ricevuta.emailPren, '', 'per Airbnb non abbiamo l\'email');
+  const no = await ospite('ricevuta', { code: c, dati }); eq(no.status, 400); assert(/email/.test(no.body.err));
+  const r = await ospite('ricevuta', { code: c, lingua: 'de', dati: Object.assign({ email: 'hans@test.de' }, dati) }); eq(r.status, 200, JSON.stringify(r.body)); eq(r.body.invio, 'ha***@test.de');
+  const o = global.__mails[0]; assert(!/<b>Müller<\/b>/.test(o.html) && /&lt;b&gt;Müller/.test(o.html), 'il nome resta testo nell\'email');
+  for (let i = 0; i < 4; i++) eq((await ospite('ricevuta', { code: c, dati: Object.assign({ email: 'hans@test.de' }, dati) })).status, 200);
+  eq((await ospite('ricevuta', { code: c, dati: Object.assign({}, dati, { cap: '' }) })).status, 400, 'i dati sbagliati non contano nel limite');
+  const lim = await ospite('ricevuta', { code: c, dati: Object.assign({ email: 'hans@test.de' }, dati) }); eq(lim.status, 429); assert(/diverse richieste/.test(lim.body.err));
+  eq(global.__mails.length, 5, 'cinque avvisi al titolare, non sei');
+  global.__mails = [];
+  eq((await H.adminApi('ricevuta_invia', { code: c, file: pdf() })).status, 200); eq(global.__mails[0].to, 'hans@test.de'); assert(/Ihre Quittung/.test(global.__mails[0].subject));
+  eq((await H.adminApi('ricevuta_stato', { code: c, stato: 'richiesta' })).body.ricevuta.stato, 'richiesta');
+  eq((await H.adminApi('ricevuta_stato', { code: c, stato: 'inviata' })).body.ricevuta.stato, 'inviata');
+  eq((await H.adminApi('ricevuta_stato', { code: c, stato: 'elimina' })).status, 200); eq((await H.adminApi('ricevute', {})).body.ricevute.length, 0);
+  eq((await H.adminApi('ricevuta_invia', { code: c, file: pdf() })).status, 409, 'senza richiesta non abbiamo l\'email di un ospite Airbnb');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

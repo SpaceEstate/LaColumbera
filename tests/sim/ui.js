@@ -345,6 +345,64 @@ test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; B
   assert(!r.doc.querySelector('#login').hidden && !r.doc.querySelector('[data-testid=guest-app]') && !r.w.sessionStorage.getItem('lc_acc'), 'uscita: sessione cancellata');
 });
 
+test('W26 area ospiti · annullamento: fino a 7 giorni prima dell\'arrivo il pulsante, poi la conferma con l\'importo («No» la tiene); «Sì» rimborsa, chiude la sessione e dice quanto torna sulla carta; dopo la scadenza solo la regola; per Airbnb la piattaforma', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA }), $ = s => r.doc.querySelector(s), stato = () => JSON.parse(kv.exec(['HGET', 'bkh', c.code])).stato;
+  await waitFor(() => $('[data-testid=guest-app]'), 'area ospiti');
+  const box = $('[data-testid=ga-annullo]');
+  assert(box && /Puoi annullare gratis fino a gio 3 dic 2026 \(7 giorni prima dell'arrivo\): ti rimborsiamo €\s?540 sulla carta/.test(text(box)), text(box));
+  $('[data-testid=ga-annulla]').click();
+  assert(/Vuoi davvero annullare\? .*Ti rimborsiamo €\s?540/.test(text(box)) && r.doc.activeElement === $('[data-testid=ga-annulla-no]'), 'conferma con l\'importo, il focus sul «No»: ' + text(box));
+  $('[data-testid=ga-annulla-no]').click(); assert($('[data-testid=ga-annulla]') && !$('[data-testid=ga-annulla-si]'), '«No» torna indietro'); assert.equal(stato(), 'confermata');
+  global.__stripeRefundFail = true;      // Stripe giù: il messaggio, nulla cambia, si riprova
+  $('[data-testid=ga-annulla]').click(); $('[data-testid=ga-annulla-si]').click();
+  await waitFor(() => /Stripe non risponde/.test(text($('[data-testid=ga-annulla-err]'))), 'errore'); assert.equal(stato(), 'confermata');
+  global.__stripeRefundFail = false; $('[data-testid=ga-annulla-si]').click();
+  const done = await waitFor(() => $('[data-testid=ga-annullata]'), 'annullata');
+  assert(/Prenotazione annullata/.test(text(done)) && /Il rimborso di €\s?540 è partito/.test(text(done)) && /ma\*\*\*@test\.it/.test(text(done)), text(done));
+  assert(r.w.sessionStorage.getItem('lc_acc') === null && r.doc.activeElement === done, 'sessione chiusa, il focus sulla conferma');
+  assert.deepEqual([stato(), global.__stripeRefunds.length], ['annullata', 1]);
+  // arrivo tra 6 giorni: non rimborsabile, solo la regola
+  const c2 = (await checkout({ da: '2026-10-08', a: '2026-10-11', email: 'b@t.it' })).body; await H.webhook('checkout.session.completed', H.paidSession(c2.code));
+  const r2 = await load('area-clienti.html', { hash: '#k=' + c2.code, scripts: AREA }); await waitFor(() => r2.doc.querySelector('[data-testid=guest-app]'), 'area');
+  assert(/fino a 7 giorni prima dell'arrivo \(fino a gio 1 ott 2026\): ora la prenotazione non è più rimborsabile/.test(text(r2.doc.querySelector('[data-testid=ga-annullo]'))) && !r2.doc.querySelector('[data-testid=ga-annulla]'), text(r2.doc.querySelector('[data-testid=ga-annullo]')));
+  regAirbnb(); const r3 = await load('area-clienti.html', { hash: '#k=HMSEDESZCW', scripts: AREA }); await waitFor(() => r3.doc.querySelector('[data-testid=guest-app]'), 'area Airbnb');
+  assert(/Hai prenotato tramite Airbnb: per annullare usa la piattaforma/.test(text(r3.doc.querySelector('[data-testid=ga-annullo]'))) && !r3.doc.querySelector('[data-testid=ga-annulla]'));
+  const r4 = await load('area-clienti.html', { hash: '#k=' + c2.code, lang: 'en-GB', scripts: AREA }); await waitFor(() => r4.doc.querySelector('[data-testid=guest-app]'), 'area EN');
+  assert(/Free cancellation is possible up to 7 days before arrival/.test(text(r4.doc.querySelector('[data-testid=ga-annullo]'))));
+});
+test('W27 area ospiti · ricevuta: si chiede con i dati (campi obbligatori controllati nella pagina, codice fiscale dal server), poi resta solo lo stato; quando il titolare la manda, «inviata»; per Airbnb, in tedesco, serve l\'email', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA }), $ = s => r.doc.querySelector(s), fill = (k, v) => { $('#ric-' + k).value = v; };
+  await waitFor(() => $('[data-testid=guest-app]'), 'area ospiti');
+  assert(/Ti serve la ricevuta del soggiorno\?/.test(text($('[data-testid=ga-ricevuta]'))));
+  $('[data-testid=ga-ric-apri]').click(); const f = $('[data-testid=ga-ric-form]');
+  assert(f && r.doc.activeElement === $('#ric-nome') && $('#ric-paese').value === 'Italia' && /se la lasci vuota te la mandiamo a ma\*\*\*@test\.it/.test(text(f)), 'modulo aperto, Italia e l\'email della prenotazione');
+  const obbl = id => !!r.doc.querySelector('label[for=ric-' + id + '] span[aria-hidden]');      // l'asterisco dei campi obbligatori
+  assert(obbl('nome') && obbl('cf') && obbl('cap') && !obbl('email') && !obbl('nota'), 'codice fiscale obbligatorio, email no (c\'è quella della prenotazione)');
+  $('[data-testid=ga-ric-invia]').click();
+  assert(/Compila i campi con l'asterisco/.test(text($('[data-testid=ga-ric-err]'))) && !r.log.calls.some(x => x.a === 'ricevuta'), 'controllo nella pagina, nessuna chiamata');
+  fill('nome', 'Mario Rossi'); fill('cf', 'RSSMRA80A01H501X'); fill('indirizzo', 'Via Roma 1'); fill('cap', '38123'); fill('citta', 'Trento');
+  $('[data-testid=ga-ric-invia]').click();
+  await waitFor(() => /codice fiscale non sembra giusto/.test(text($('[data-testid=ga-ric-err]'))), 'errore del server');
+  fill('cf', 'RSSMRA80A01H501U'); $('[data-testid=ga-ric-invia]').click();
+  const q = await waitFor(() => $('[data-testid=ga-ric-richiesta]'), 'richiesta inviata');
+  assert(/Richiesta inviata il ven 2 ott 2026: prepariamo la ricevuta e te la mandiamo a ma\*\*\*@test\.it/.test(text(q)), text(q));
+  assert(global.__mails.some(m => m.to === 'owner@test' && /Richiesta di ricevuta/.test(m.subject) && /RSSMRA80A01H501U/.test(m.text)), 'al titolare');
+  assert.equal((await H.adminApi('ricevuta_invia', { code: c.code, file: 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 x').toString('base64') })).status, 200);
+  const r2 = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA }); await waitFor(() => r2.doc.querySelector('[data-testid=ga-ric-inviata]'), 'inviata');
+  assert(/Ricevuta inviata il ven 2 ott 2026 a ma\*\*\*@test\.it/.test(text(r2.doc.querySelector('[data-testid=ga-ric-inviata]'))));
+  regAirbnb(); const r3 = await load('area-clienti.html', { hash: '#k=HMSEDESZCW', lang: 'de-DE', scripts: AREA }), $3 = s => r3.doc.querySelector(s);
+  await waitFor(() => $3('[data-testid=guest-app]'), 'Gästebereich'); $3('[data-testid=ga-ric-apri]').click();
+  assert($3('#ric-paese').value === '' && /E-Mail-Adresse für den Versand \*/.test(text(r3.doc.querySelector('label[for=ric-email]'))) && !r3.doc.querySelector('label[for=ric-cf] span[aria-hidden]'), 'Land leer, E-Mail Pflicht, Steuernummer nicht');
+  const fill3 = (k, v) => { $3('#ric-' + k).value = v; };
+  fill3('nome', 'Hans Müller'); fill3('indirizzo', 'Hauptstraße 5'); fill3('cap', '80331'); fill3('citta', 'München'); fill3('email', 'hans@test.de');
+  $3('[data-testid=ga-ric-invia]').click(); assert(/mit Sternchen markierten Felder/.test(text($3('[data-testid=ga-ric-err]'))), 'Land fehlt');
+  fill3('paese', 'Deutschland'); $3('[data-testid=ga-ric-invia]').click();
+  await waitFor(() => /Anfrage am .* gesendet: Wir erstellen Ihre Quittung und senden sie an ha\*\*\*@test\.de/.test(text($3('[data-testid=ga-ric-richiesta]'))), 'Anfrage gesendet');
+});
 test('U4j area ospiti · Messaggi: si scrive e si legge (testo, mai HTML), la risposta arriva tradotta con l\'originale; Booking/Airbnb senza scheda Messaggi', async () => {
   await setup({ DEEPL_API_KEY: 'chiave-prova' });
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
@@ -706,6 +764,19 @@ test('W23 foto dell\'appartamento a tutto schermo: si apre toccando la foto o �
   r.doc.querySelector('[data-testid=gallery-main-img]').click();
   const one = r.doc.querySelector('[data-testid=lightbox]'); assert(one && !one.querySelector('[data-testid=lightbox-next]') && text(one.querySelector('[data-testid=lightbox-count]')) === '1 / 1', 'una foto: niente frecce');
   r.doc.dispatchEvent(new r.w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); assert.equal(text(one.querySelector('[data-testid=lightbox-count]')), '1 / 1');
+});
+test('W29 prenotazione: prima di pagare si legge fino a quando si annulla gratis (7 giorni prima dell\'arrivo) oppure che non è rimborsabile', async () => {
+  await setup();
+  const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  await waitFor(() => $('#cal .d'), 'calendario');
+  assert($('[data-testid=booking-cancel-policy]').hidden, 'senza date la regola non c\'è ancora');
+  pickDates(doc, '2026-10-20', '2026-10-23');
+  assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.');
+  $('[data-testid=booking-continue]').click();
+  assert.equal(text($('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.', 'anche nel riepilogo, accanto al pulsante del pagamento');
+  $('[data-testid=booking-back]').click();
+  doc.querySelector('#cal .d[data-d="2026-10-05"]').click(); doc.querySelector('#cal .d[data-d="2026-10-08"]').click();
+  assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Non rimborsabile: l’arrivo è tra meno di 7 giorni.');
 });
 test('W5 servizi mancanti nella configurazione salvata: valgono quelli di default.json; un salvataggio da una pagina di gestione vecchia non li cancella', async () => {
   await setup();
@@ -1134,6 +1205,38 @@ test('W20 Gestione · Regole di prenotazione: preavviso, orari e area ospiti ins
   assert.equal($('[data-testid=admin-orizzonte] a').getAttribute('href'), '#calendario');
 });
 
+test('W28 Gestione · Annulla e rimborsa (con conferma) e ricevute: dati dell\'ospite come testo, si copiano, il PDF parte all\'ospite in allegato; in Oggi le ricevute da mandare', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const c2 = (await checkout({ da: '2026-11-10', a: '2026-11-13', email: 'anna@test.it', nome: 'Anna Bianchi' })).body; await H.webhook('checkout.session.completed', H.paidSession(c2.code));
+  assert.equal((await H.api('ricevuta', { code: c2.code, dati: { nome: 'Anna <img src=x onerror=alert(1)> Bianchi', cf: 'MRTMTT25D09F205Z', indirizzo: 'Via Verdi 2', cap: '20121', citta: 'Milano', nota: 'Per l\'azienda <b>X</b>' } })).status, 200);
+  let r = await loadAdmin('#oggi'); const $ = s => r.doc.querySelector(s);
+  const og = await waitFor(() => $('[data-testid=admin-oggi-ric]'), 'ricevute in Oggi');
+  assert(/Anna <img src=x onerror=alert\(1\)> Bianchi/.test(text(og)) && !og.querySelector('img') && og.querySelector('a[href="#prenotazioni/' + c2.code + '"]'), text(og));
+  // dettaglio con la richiesta: dati come testo, copia, invio del PDF
+  await goto(r, '#prenotazioni/' + c2.code, '[data-testid=admin-book-ric]');
+  const dati = await waitFor(() => $('[data-testid=admin-ric-dati]'), 'dati della ricevuta');
+  assert(/MRTMTT25D09F205Z/.test(text(dati)) && /Via Verdi 2, 20121 Milano, Italia/.test(text(dati)) && /anna@test\.it \(email della prenotazione\)/.test(text(dati)) && !r.doc.querySelector('#bk-ric img, #bk-ric b'), text(dati));
+  assert(/Codice fiscale: MRTMTT25D09F205Z/.test($('[data-testid=admin-ric-copy]').dataset.v), 'si copiano i dati');
+  $('[data-testid=admin-ric-invia]').click(); assert(/Scegli prima il file/.test(text($('#ric-out'))));
+  const file = new r.w.File(['%PDF-1.4 ricevuta 7'], 'Ricevuta 7.pdf', { type: 'application/pdf' }); Object.defineProperty($('#ric-file'), 'files', { value: [file], configurable: true });
+  $('#ric-msg').value = 'Grazie!'; global.__mails = [];
+  $('[data-testid=admin-ric-invia]').click();
+  await waitFor(() => /Ricevuta mandata a anna@test\.it/.test(text($('#ric-out'))), 'ricevuta mandata');
+  const m = global.__mails.find(x => x.to === 'anna@test.it'); assert(m && m.attachments[0].filename === 'Ricevuta 7.pdf' && /Grazie!/.test(m.text), 'email con l\'allegato');
+  assert(/mandata/.test(text($('#bk-ric'))) && /Ricevuta 7\.pdf/.test(text($('#bk-ric'))));
+  // annulla e rimborsa: con «Annulla» nella finestra di conferma non succede nulla
+  await goto(r, '#prenotazioni/' + c.code, '[data-testid=admin-book-' + c.code + ']');
+  assert(/Annulla e rimborsa €\s?540/.test(text($('[data-testid=admin-book-rimborsa]'))));
+  r.log.confirmAnswer = false; $('[data-testid=admin-book-rimborsa]').click(); await sleep(40);
+  const cf = r.log.confirms.pop(); assert.equal(global.__stripeRefunds.length, 0); assert(/Annullare la prenotazione di Mario Rossi e rimborsare €\s?540/.test(cf), cf);
+  r.log.confirmAnswer = true; $('[data-testid=admin-book-rimborsa]').click();
+  const rb = await waitFor(() => $('[data-testid=admin-book-rimborso]'), 'rimborso fatto');
+  assert(/Rimborsati €\s?540/.test(text(rb)) && /annullata da te/.test(text(rb)) && !$('[data-testid=admin-book-rimborsa]'), text(rb));
+  assert.deepEqual([JSON.parse(kv.exec(['HGET', 'bkh', c.code])).stato, global.__stripeRefunds.length], ['annullata', 1]);
+  // senza richiesta, per una prenotazione del sito: si può mandare lo stesso
+  assert(/L'ospite non l'ha chiesta/.test(text(await waitFor(() => $('#bk-ric p'), 'ricevuta senza richiesta'))));
+});
 test('W21 Gestione · Pulizie: per periodo, un testo per appartamento con entrate, uscite, ospiti, notti e letti (scelta e nota salvate subito), senza nomi; si copia con un tocco', async () => {
   await setup();
   const c1 = (await checkout({ da: '2026-10-04', a: '2026-10-07', ospiti: 3, nome: 'Mario Rossi', email: 'mario@test.it' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));

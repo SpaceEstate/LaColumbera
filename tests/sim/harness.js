@@ -292,7 +292,7 @@ const PREFETCH = { syncRapida: [PRE.feeds], syncCompleta: [PRE.feeds, PRE.recon]
 /* ---------------- ambiente di test ---------------- */
 const defaultCfg = () => { const d = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')); return Object.assign(d, { ical: { torre: FEED.bookingTorre + ',' + FEED.airbnbTorre, corte: FEED.bookingCorte + ',' + FEED.airbnbCorte }, closed: {} }); };
 async function newEnv({ legacyRows, env, cfg, startIso } = {}) {
-  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false;
+  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = '';
   clock.set(startIso || '2026-10-02T09:00:00Z');
   setEnv(env); V = loadVercel();
   const c = cfg || defaultCfg(); kv.exec(['SET', 'cfg', JSON.stringify(c)]);
