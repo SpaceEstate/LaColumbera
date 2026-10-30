@@ -395,8 +395,10 @@ test('S24 caricamento foto (a=up): solo con il login; se Vercel Blob non va il t
   eq((await H.api('up', { id: 'home', img })).status, 401);
   let r = await H.adminApi('up', { id: 'home', img }); eq(r.status, 200); assert(/^https:\/\/teststore\.public\.blob\.vercel-storage\.com\/foto\/home\//.test(r.body.url), r.body.url);
   class BlobAccessError extends Error {}
-  for (const [e, re] of [[new Error('Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option to your calls.'), /non è collegato al sito.*BLOB_READ_WRITE_TOKEN/],
-    [new BlobAccessError('Vercel Blob: Access denied, please provide a valid token for this resource.'), /rifiuta la chiave/],
+  for (const [e, re] of [[new Error('Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option to your calls.'), /non è collegato al sito/],
+    [new Error('Vercel Blob: No blob credentials found. Pass a `token` option, set `BLOB_READ_WRITE_TOKEN`, or use `oidcToken` (or `VERCEL_OIDC_TOKEN`) with `storeId` or `BLOB_STORE_ID`.'), /non è collegato al sito.*store pubblico/],
+    [new Error('Vercel Blob: Cannot use public access on a private store'), /store Vercel Blob è privato/],
+    [new BlobAccessError('Vercel Blob: Access denied, please provide a valid token for this resource.'), /rifiuta l'accesso.*store pubblico/],
     [new Error('Vercel Blob: This store does not exist.'), /non esiste più/],
     [new Error('Vercel Blob: This store has been suspended.'), /sospeso/],
     [new Error('fetch failed'), /non risponde.*fetch failed/]]) {

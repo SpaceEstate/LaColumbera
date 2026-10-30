@@ -279,11 +279,11 @@ const CFG_CAMBIATA={err:'Nel frattempo le impostazioni sono state salvate da un 
 
 // Caricamento foto non riuscito (Vercel Blob): al titolare si dice cosa sistemare su Vercel invece del generico «Errore interno», che non dice nulla
 const blobErr=e=>{const n=String(e&&e.constructor&&e.constructor.name||''),t=String(e&&e.message||''),f='Foto non caricata: ';
- if(/No token found/i.test(t))return f+'l\'archivio delle foto (Vercel Blob) non è collegato al sito. Su Vercel: Storage → Blob → collega lo store al progetto (crea la variabile BLOB_READ_WRITE_TOKEN), poi rifai il deploy.';
- if(n==='BlobAccessError'||/Access denied/i.test(t))return f+'Vercel Blob rifiuta la chiave del sito (variabile BLOB_READ_WRITE_TOKEN non valida o di uno store diverso). Su Vercel ricollega lo store Blob al progetto e rifai il deploy.';
+ if(/No (token|blob credentials) found/i.test(t))return f+'l\'archivio delle foto (Vercel Blob) non è collegato al sito. Su Vercel: Storage → Blob → collega al progetto uno store pubblico (variabile BLOB_STORE_ID o BLOB_READ_WRITE_TOKEN), poi rifai il deploy.';
+ if(/private/i.test(t))return f+'lo store Vercel Blob è privato, ma le foto del sito devono essere pubbliche. Su Vercel collega al progetto uno store Blob pubblico e rifai il deploy.';
+ if(n==='BlobAccessError'||/Access denied/i.test(t))return f+'Vercel Blob rifiuta l\'accesso. Di solito lo store collegato è privato (le foto del sito devono stare in uno store pubblico) oppure la chiave non è più valida: su Vercel collega al progetto uno store Blob pubblico e rifai il deploy.';
  if(n==='BlobStoreNotFoundError'||/store does not exist/i.test(t))return f+'lo store Vercel Blob collegato al sito non esiste più. Su Vercel crea uno store Blob, collegalo al progetto e rifai il deploy.';
  if(n==='BlobStoreSuspendedError'||/suspended/i.test(t))return f+'lo store Vercel Blob è sospeso (di solito per i limiti del piano). Controlla su Vercel: Storage → Blob.';
- if(/private/i.test(t))return f+'lo store Vercel Blob è privato, ma le foto del sito devono essere pubbliche. Su Vercel collega al progetto uno store Blob pubblico e rifai il deploy.';
  return f+'l\'archivio delle foto (Vercel Blob) non risponde. Riprova tra qualche minuto; se continua, controlla su Vercel: Storage → Blob ('+(t.slice(0,120)||n||'errore sconosciuto')+').'};
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body&&typeof req.body==='object'?req.body:{};res.setHeader('Cache-Control','no-store');
 try{
