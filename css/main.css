@@ -490,8 +490,9 @@ section{position:relative;padding:clamp(80px,10vw,140px) 0}
 /* Scheda un po' più compatta (30/10/2026: celle del calendario, pulsanti, margini e cifre più piccoli) per starci intera nello schermo.
    Sugli schermi larghi segue lo scorrimento della pagina e resta in vista accanto a foto e descrizione (position:sticky, come prima
    del 27/10). Mai altezza massima né scorrimento interno: il calendario si vede sempre intero, importo e pulsante stanno in fondo.
-   Se lo schermo è più basso della scheda, js/pages.js (--bk-top) la ferma più in alto, con il fondo in vista. */
-@media(min-width:961px) and (min-height:740px){.book-card{position:sticky;top:var(--bk-top,84px)}}
+   Se lo schermo è più basso della scheda, js/pages.js (--bk-top) la ferma più in alto, con il fondo in vista. Dal 30/10 anche sui portatili
+   (finestra alta da 640 px, prima 740: su 1366×768 e 1536×864 la scheda scorreva via); più in basso resta ferma al suo posto. */
+@media(min-width:961px) and (min-height:640px){.book-card{position:sticky;top:var(--bk-top,84px)}}
 
 /* ---------- PRENOTAZIONE: passi, date, ospiti, importo ---------- */
 [hidden]{display:none!important}
