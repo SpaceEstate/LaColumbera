@@ -462,7 +462,8 @@ test('C3 webhook perso: la sincronizzazione rilegge su Stripe le sessioni degli 
   const r = await H.sync(); eq(r.status, 200); eq(r.body.checkin, { controllate: 1, recuperati: 1, errore: false });
   assert(ckKey(code), 'registrato dal controllo su Stripe'); eq([ckKey('ALTRO123'), ckKey('VECCHIO1')], [null, null], 'troppo recente (il webhook può ancora arrivare) o troppo vecchio: non si guarda');
   assert(/Check-in online: 1 check-in registrato dal controllo su Stripe/.test(logTxt()) && !logTxt().includes(code), 'avviso nel registro, senza il codice');
-  eq((await ospite('mie', { code })).body.soggiorno.checkin.fatto, true);
+  eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: true, il: '2026-10-02' });
+  eq(JSON.parse(ckKey(code)).il, new Date((t - 3600) * 1000).toISOString(), 'il momento del pagamento (dalla sessione), non quello del controllo');
   await H.sync(); eq(global.__stripeListCalls, 1, 'entro 10 minuti non si richiede a Stripe');
   clock.advance(11 * MIN); global.__stripeSessionsListFail = true;
   const r2 = await H.sync(); eq(r2.status, 200); eq(r2.body.checkin.errore, true); assert(/controllo su Stripe non riuscito/.test(logTxt()));

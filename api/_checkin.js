@@ -36,7 +36,8 @@ function makeCheckin({ kv, stripe, log, now }) {
     if (!eCheckin(s) || s.payment_status !== 'paid') return null;
     const code = codiceDi(s);
     if (!code) return null;
-    const t = now(), v = JSON.stringify({ il: new Date(t).toISOString(), sid: String(s.id || '').slice(0, 80) });
+    const t = now(), il = s.created > 0 && s.created * 1000 <= t ? s.created * 1000 : t;      // giorno del pagamento, anche se lo registra la rete di sicurezza
+    const v = JSON.stringify({ il: new Date(il).toISOString(), sid: String(s.id || '').slice(0, 80) });
     return { code, nuovo: (await kv('SET', 'ck:' + code, v, 'NX', 'EX', String(ttlDi(s.metadata, t)))) === 'OK' };
   }
   // Per l'area clienti: fatto sì o no, e il giorno (ora di Trento)
@@ -51,7 +52,7 @@ function makeCheckin({ kv, stripe, log, now }) {
     const out = { controllate: 0, recuperati: 0, errore: false };
     try {
       if ((await kv('SET', 'checkin:ric', '1', 'NX', 'EX', '600')) !== 'OK') return out;
-      const t = now(), l = await stripe().checkout.sessions.list({ created: { gte: Math.floor((t - FINESTRA_MS) / 1000), lte: Math.floor((t - ATTESA_MS) / 1000) }, limit: 100 });
+      const t = now(), l = await stripe().checkout.sessions.list({ status: 'complete', created: { gte: Math.floor((t - FINESTRA_MS) / 1000), lte: Math.floor((t - ATTESA_MS) / 1000) }, limit: 100 });
       for (const s of (l && l.data) || []) {
         if (!eCheckin(s) || s.payment_status !== 'paid' || !codiceDi(s)) continue;
         out.controllate++;
