@@ -277,6 +277,14 @@ const blobUrls=c=>[...(c.apts||[]).flatMap(p=>p.foto||[]),...(c.luoghi||[]).map(
 const LUA_CFG_SET="local c=tonumber(redis.call('GET',KEYS[2]) or '0') or 0 if ARGV[2]~='' and tonumber(ARGV[2])~=c then return {0,c} end redis.call('SET',KEYS[1],ARGV[1]) return {1,redis.call('INCR',KEYS[2])}";
 const CFG_CAMBIATA={err:'Nel frattempo le impostazioni sono state salvate da un altro dispositivo (o da un\'altra scheda): per non cancellare quelle modifiche non ho salvato le tue.',code:'CFG_CAMBIATA'};
 
+// Caricamento foto non riuscito (Vercel Blob): al titolare si dice cosa sistemare su Vercel invece del generico «Errore interno», che non dice nulla
+const blobErr=e=>{const n=String(e&&e.constructor&&e.constructor.name||''),t=String(e&&e.message||''),f='Foto non caricata: ';
+ if(/No token found/i.test(t))return f+'l\'archivio delle foto (Vercel Blob) non è collegato al sito. Su Vercel: Storage → Blob → collega lo store al progetto (crea la variabile BLOB_READ_WRITE_TOKEN), poi rifai il deploy.';
+ if(n==='BlobAccessError'||/Access denied/i.test(t))return f+'Vercel Blob rifiuta la chiave del sito (variabile BLOB_READ_WRITE_TOKEN non valida o di uno store diverso). Su Vercel ricollega lo store Blob al progetto e rifai il deploy.';
+ if(n==='BlobStoreNotFoundError'||/store does not exist/i.test(t))return f+'lo store Vercel Blob collegato al sito non esiste più. Su Vercel crea uno store Blob, collegalo al progetto e rifai il deploy.';
+ if(n==='BlobStoreSuspendedError'||/suspended/i.test(t))return f+'lo store Vercel Blob è sospeso (di solito per i limiti del piano). Controlla su Vercel: Storage → Blob.';
+ if(/private/i.test(t))return f+'lo store Vercel Blob è privato, ma le foto del sito devono essere pubbliche. Su Vercel collega al progetto uno store Blob pubblico e rifai il deploy.';
+ return f+'l\'archivio delle foto (Vercel Blob) non risponde. Riprova tra qualche minuto; se continua, controlla su Vercel: Storage → Blob ('+(t.slice(0,120)||n||'errore sconosciuto')+').'};
 const handler=async(req,res)=>{const rawA=String(req.query.a||''),a=rawA.split('?')[0],b=req.body&&typeof req.body==='object'?req.body:{};res.setHeader('Cache-Control','no-store');
 try{
 if(!BIG_BODY.has(a)){let n=0;try{n=JSON.stringify(b).length}catch{n=Infinity}if(n>20000)return res.status(413).json({err:'Richiesta troppo grande'})}
@@ -632,7 +640,8 @@ if(a==='event_add'){const list=(await jg('events'))||[];if(!b.title||!b.date)ret
  await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
 if(a==='event_del'){let list=(await jg('events'))||[];list=list.filter(x=>x.id!==b.id);await kv('SET','events',JSON.stringify(list));return res.json({ok:1})}
 if(a==='up'){const m=/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(b.img||'');if(!m)return res.status(400).json({err:'Immagine non valida'});
- const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
+ try{const o=await put('foto/'+String(b.id).replace(/\W/g,'')+'/f.jpg',Buffer.from(m[2],'base64'),{access:'public',contentType:m[1],addRandomSuffix:true});return res.json({url:o.url})}
+ catch(e){console.error('up:',e&&e.name,String(e&&e.message||e).slice(0,160));return res.status(503).json({err:blobErr(e),code:'BLOB'})}}
 if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.err)return res.status(400).json({err:pre.err});
  // versione aperta da chi salva (rev); senza rev (pagina di gestione non aggiornata) o con force (il titolare ha scelto «salva comunque») non si controlla
  const rev=b.force||b.rev==null||b.rev===''?'':String(Math.max(0,parseInt(b.rev,10)||0));

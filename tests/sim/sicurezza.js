@@ -389,6 +389,21 @@ test('S20 Pulizie: scelta dei letti e nota solo con il login, chiave e testi con
   kv.exec(['HSET', 'pul:info', 'VECCHIA1', JSON.stringify({ letto: 'm', nota: '', a: '2026-07-01' }), 'GUASTA', 'non json']);
   const o = (await H.adminApi('pul_info', {})).body; eq(Object.keys(o).sort(), ['cal:torre:2026-10-02']); eq(kv.exec(['HGET', 'pul:info', 'VECCHIA1']), null, 'soggiorno finito da oltre 60 giorni: tolto');
 });
+test('S24 caricamento foto (a=up): solo con il login; se Vercel Blob non va il titolare legge cosa sistemare, non il generico «Errore interno»', async () => {
+  await base();
+  const img = 'data:image/jpeg;base64,' + Buffer.from('foto').toString('base64');
+  eq((await H.api('up', { id: 'home', img })).status, 401);
+  let r = await H.adminApi('up', { id: 'home', img }); eq(r.status, 200); assert(/^https:\/\/teststore\.public\.blob\.vercel-storage\.com\/foto\/home\//.test(r.body.url), r.body.url);
+  class BlobAccessError extends Error {}
+  for (const [e, re] of [[new Error('Vercel Blob: No token found. Either configure the `BLOB_READ_WRITE_TOKEN` environment variable, or pass a `token` option to your calls.'), /non è collegato al sito.*BLOB_READ_WRITE_TOKEN/],
+    [new BlobAccessError('Vercel Blob: Access denied, please provide a valid token for this resource.'), /rifiuta la chiave/],
+    [new Error('Vercel Blob: This store does not exist.'), /non esiste più/],
+    [new Error('Vercel Blob: This store has been suspended.'), /sospeso/],
+    [new Error('fetch failed'), /non risponde.*fetch failed/]]) {
+    global.__blobFail = e; r = await H.adminApi('up', { id: 'home', img });
+    eq(r.status, 503); eq(r.body.code, 'BLOB'); assert(/^Foto non caricata: /.test(r.body.err) && re.test(r.body.err) && !/Errore interno/.test(r.body.err), r.body.err);
+  }
+});
 test('S23 Pulizie · letti a contatore e culla: numeri interi entro i limiti (matrimoniali 0–3, singoli 0–6), culla solo con un vero sì; i contatori vincono sulla scelta di prima; tutto a zero = voce tolta', async () => {
   await base();
   const get = () => JSON.parse(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']) || 'null');
