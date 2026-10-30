@@ -215,9 +215,13 @@ test('X2  hold: scade, checkout annullato lo libera; pagamento tardivo riconferm
 });
 test('X3  export iCal: unione di tutte le fonti, ?for=booking esclude l\'eco, 503 se un feed non è mai stato scaricato', async () => {
   const { gas } = await base(); const cfg = JSON.parse(kv.exec(['GET', 'cfg'])); cfg.apts.find(a => a.id === 'torre').blocked = { '2026-12-05': true }; kv.exec(['SET', 'cfg', JSON.stringify(cfg)]);
-  H.setFeed('airbnbTorre', [H.airbnbEv('z', '2026-12-10', '2026-12-12', 'HMZZZZZZZZ')]); await checkout({ da: '2026-12-15', a: '2026-12-17' }); await H.sync();
+  H.setFeed('airbnbTorre', [H.airbnbEv('z', '2026-12-10', '2026-12-12', 'HMZZZZZZZZ')]);
+  const pg = await checkout({ da: '2026-12-15', a: '2026-12-17' }); await H.webhook('checkout.session.completed', H.paidSession(pg.body.code)); await H.sync();
+  await checkout({ da: '2026-12-24', a: '2026-12-26', email: 'in-corso@t.it' });      // pagamento in corso: hold temporaneo
+  assert((await H.busyDates('torre')).includes('2026-12-24'), 'sul sito, mentre paga, le notti non sono prenotabili da altri');
   let ic = await H.api('ical', {}, { method: 'GET', query: { id: 'torre' } }); eq(ic.status, 200); eq(ic.headers['cache-control'], 'public, s-maxage=60, stale-while-revalidate=120');
   for (const d of ['20261002', '20261205', '20261210', '20261215']) assert(ic.text.includes('DTSTART;VALUE=DATE:' + d), 'manca ' + d);
+  assert(!ic.text.includes('DTSTART;VALUE=DATE:20261224'), 'un pagamento in corso (hold) non va mai nel calendario esportato: Booking e Airbnb lo terrebbero chiuso per ore');
   const dts = t => (t.match(/DTSTART;VALUE=DATE:(\d{8})/g) || []).map(x => x.slice(-8));      // solo i DTSTART: DTSTAMP contiene la data "di oggi" simulata
   eq(dts(ic.text), ['20261002', '20261119', '20261205', '20261210', '20261215'], 'export completo');
   ic = await H.api('ical', {}, { method: 'GET', query: { id: 'torre', for: 'booking' } }); eq(dts(ic.text), ['20261205', '20261210', '20261215'], 'for=booking: niente eventi Booking, restano blocco manuale, Airbnb e sito');

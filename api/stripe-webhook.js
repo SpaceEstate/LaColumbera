@@ -9,7 +9,7 @@
 // Lo stesso account Stripe incassa l'imposta di soggiorno del check-in online: un check-in pagato con il numero di prenotazione si registra
 // (api/_checkin.js), così l'area clienti mostra «Check-in completato»; i pagamenti del sito non sono check-in e viceversa.
 // Va registrato su Stripe (Sviluppatori → Webhook) puntando a https://<tuo-dominio>/api/stripe-webhook per gli eventi
-// "checkout.session.completed", "checkout.session.async_payment_succeeded" e (consigliato) "checkout.session.expired".
+// "checkout.session.completed", "checkout.session.async_payment_succeeded" e (consigliati) "checkout.session.expired" e "checkout.session.async_payment_failed".
 // Il "Signing secret" va in STRIPE_WEBHOOK_SECRET su Vercel.
 const x = require('./x.js');
 const P = require('./_pagato.js');
@@ -27,7 +27,7 @@ const handler = async (req, res) => {
     if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       await P.confermaPagamento(event.data.object, req);      // prenotazioni del sito (metadato code)
       await x.checkin.registra(event.data.object);           // check-in online (metadati dataCheckin e numeroPrenotazione)
-    } else if (event.type === 'checkout.session.expired') await P.sessioneScaduta(event.data.object);
+    } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') await P.sessioneScaduta(event.data.object);   // mai pagata: notti libere subito
     // ultimo evento ricevuto e valido: lo mostra Gestione → Sito → Sistema → Pagamenti ed email (se non cambia mai, il webhook non sta arrivando)
     await x.kv('SET', 'stripe:ultimo', JSON.stringify({ ts: new Date().toISOString(), tipo: event.type })).catch(() => {});
   } catch (e) {

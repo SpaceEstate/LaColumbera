@@ -378,10 +378,13 @@ async function guestcard(c){
 
 /* ---------------- pagina di prenotazione (prenota.html): i dati dell'ospite e il pagamento nel sito ---------------- */
 // Si arriva dal «Prenota» della scheda dell'appartamento: prenota.html?apt=…&da=…&a=…&adulti=…&bambini=… (riepilogo a lato, con il conto).
-// Passo «Dati»: nome, cognome, email, telefono. «Continua al pagamento» registra la prenotazione e trattiene le notti per 30 minuti, come prima;
-// passo «Pagamento»: i campi della carta di Stripe (Payment Element) nella pagina stessa, con i colori e i caratteri del sito. I dati della carta
-// restano nei riquadri di Stripe: il sito non li vede mai. Senza la chiave pubblicabile su Vercel il server manda alla pagina di Stripe, come prima.
-// Le notti trattenute si liberano subito se l'ospite cambia i dati, torna alle date o lascia la pagina senza pagare.
+// Passo «Dati»: nome, cognome, email, telefono. «Continua al pagamento» registra la prenotazione (in attesa) e prepara il pagamento, SENZA trattenere
+// le notti: mentre l'ospite guarda i campi della carta restano libere per tutti. Passo «Pagamento»: i campi della carta di Stripe (Payment Element)
+// nella pagina stessa, con i colori e i caratteri del sito; i dati della carta restano nei riquadri di Stripe, il sito non li vede mai.
+// «Paga»: prima il server trattiene le notti e ricontrolla che siano ancora libere (checkout_hold), poi la conferma a Stripe. Le notti si chiudono
+// definitivamente solo quando Stripe conferma il pagamento (webhook). Carta rifiutata: le notti tornano subito libere (checkout_release) e si riprova.
+// Se l'ospite cambia i dati, torna alle date o lascia la pagina, la prenotazione si abbandona (checkout_cancel: notti libere, pagamento chiuso su Stripe).
+// Senza la chiave pubblicabile su Vercel il server manda alla pagina di Stripe, come prima (lì le notti si trattengono dall'avvio del pagamento).
 const PR_KEY='lc_prenota',prGet=()=>{try{return JSON.parse(sessionStorage.getItem(PR_KEY)||'null')||{}}catch{return {}}},prSet=v=>{try{sessionStorage.setItem(PR_KEY,JSON.stringify(v))}catch{}};
 // prenotazione di questa scheda in attesa di pagamento ({c,t}): se la pagina si riapre senza aver pagato, le sue notti si liberano prima di tutto
 const ATT_KEY='lc_attesa',attGet=()=>{try{return JSON.parse(sessionStorage.getItem(ATT_KEY)||'null')}catch{return null}},attSet=v=>{try{if(v)sessionStorage.setItem(ATT_KEY,JSON.stringify(v));else sessionStorage.removeItem(ATT_KEY)}catch{}};
@@ -398,7 +401,12 @@ const ASPETTO={theme:'stripe',labels:'above',
   rules:{'.Input':{border:'1px solid #DCCFB6',boxShadow:'none',padding:'11px 14px'},'.Input:focus':{border:'1px solid #7A2E39',boxShadow:'0 0 0 3px rgba(122,46,57,.12)'},
     '.Input--invalid':{border:'1px solid #AA3333',boxShadow:'none'},'.Label':{fontSize:'12px',fontWeight:'700',letterSpacing:'.12em',textTransform:'uppercase',color:'#7A2E39'},
     '.Tab':{border:'1px solid #DCCFB6',backgroundColor:'#FAF5EC',boxShadow:'none'},'.Tab:hover':{border:'1px solid #7A2E39'},
-    '.Tab--selected':{border:'1px solid #7A2E39',backgroundColor:'#FFFFFF',boxShadow:'0 0 0 3px rgba(122,46,57,.12)'},'.Error':{fontWeight:'600'}}};
+    '.Tab--selected':{border:'1px solid #7A2E39',backgroundColor:'#FFFFFF',boxShadow:'0 0 0 3px rgba(122,46,57,.12)'},'.TabLabel':{fontWeight:'600'},'.Error':{fontWeight:'600'}}};
+// icone della sezione pagamento (tratto sottile, colore del testo)
+const IC={lucchetto:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>',
+  carta:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/></svg>',
+  calendario:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  scudo:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/></svg>'};
 const FONTI=()=>['400','500','600','700'].map(w=>({family:'Manrope',src:'url('+location.origin+'/fonts/manrope-latin-wght-normal.woff2)',weight:w,display:'swap'}));
 const fmtS=d=>new Date(d+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short'});
 async function prenota(c){
@@ -442,12 +450,18 @@ async function prenota(c){
      </form>
      <div class="pr-chi" id="chi" data-testid="prenota-chi" hidden></div>
     </section>
-    <section class="pr-card" id="pag" data-testid="prenota-pagamento" hidden>
-     <h2 class="pr-h">Pagamento</h2>
-     <p class="book-note pr-tempo">Le notti sono riservate per te per 30 minuti, il tempo di completare il pagamento.</p>
-     <div class="pr-pe" id="pe" data-testid="prenota-carta"></div>
-     <button type="button" class="btn btn-wine bk-cta" id="paga" data-testid="prenota-paga">Paga ${money(totale)}</button>
-     <p class="bk-secure">Pagamento sicuro con Stripe: i dati della carta vanno direttamente a Stripe, il nostro sito non li vede.</p>
+    <section class="pr-card pr-pay" id="pag" data-testid="prenota-pagamento" hidden>
+     <div class="pr-pay-head"><h2 class="pr-h">Pagamento</h2><span class="pr-badge" data-testid="prenota-protetto">${IC.lucchetto}Pagamento protetto</span></div>
+     <div class="pr-due" data-testid="prenota-da-pagare"><div><span>Da pagare ora</span><small>${esc(short(p))} · ${nn} ${nn===1?'notte':'notti'} · ${esc(fmtS(da))} → ${esc(fmtS(a))}</small></div><b>${money(totale)}</b></div>
+     <div class="pr-pe-box"><div class="pr-pe-load" id="pe-load" aria-hidden="true"><i></i><i class="w"></i><i></i><i></i></div><div class="pr-pe" id="pe" data-testid="prenota-carta"></div></div>
+     <p class="pr-err" id="pe-err" data-testid="prenota-errore" role="alert"></p>
+     <button type="button" class="btn btn-wine bk-cta pr-paga" id="paga" data-testid="prenota-paga">Paga ${money(totale)}</button>
+     <p class="pr-tempo" data-testid="prenota-tempo">Le notti si riservano per te quando premi «Paga» e la prenotazione è confermata appena la banca approva il pagamento. Se il pagamento non va a buon fine non ti viene addebitato nulla.</p>
+     <ul class="pr-trust" data-testid="prenota-garanzie">
+      <li>${IC.scudo}<span>I dati della carta vanno direttamente a <b>Stripe</b>: il nostro sito non li vede mai.</span></li>
+      <li>${IC.carta}<span>Carte di credito e di debito; Apple Pay e Google Pay se il tuo dispositivo li offre.</span></li>
+      <li>${IC.calendario}<span>Conferma immediata via email, con il link alla tua area clienti per il check-in online.</span></li>
+     </ul>
     </section>
    </div>
    <aside class="pr-side">
@@ -470,15 +484,16 @@ async function prenota(c){
   </div>`;
   for(const[k,id]of[['nome','bn'],['cognome','bs'],['email','be'],['tel','bt']])if(dati[k])$('#'+id).value=dati[k];      // i dati già scritti in questa scheda
   const msg=t=>{const el=$('#e');el.textContent=t||'';if(t&&el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})};
+  const msgPag=t=>{const el=$('#pe-err');el.textContent=t||'';if(t&&el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})};      // errori del pagamento: accanto al pulsante
   if(pagamento==='annullato')msg('Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.');
   const passi=k=>box.querySelectorAll('.pr-steps li').forEach(li=>{const s=+li.dataset.s;li.classList.toggle('on',s===k);li.classList.toggle('done',s<k);li.firstElementChild.textContent=s<k?'✓':String(s)});
   const carica=(btn,t)=>{const orig=btn.textContent;btn.dataset.loading='1';btn.disabled=true;btn.classList.add('is-loading');btn.textContent=t;
     return()=>{btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
-  // pend = prenotazione in attesa di pagamento (notti trattenute); pagando = il pagamento è partito (anche se la banca porta su un'altra pagina)
+  // pend = prenotazione in attesa di pagamento (notti libere finché non si preme «Paga»); pagando = il pagamento è partito (anche se la banca porta su un'altra pagina)
   let pend=null,pagando=false,el=null,azioni=null,timer=0;
   const libera=()=>{if(!pend||pagando)return;const b=JSON.stringify({code:pend.code,t:pend.t});pend=null;attSet(null);clearTimeout(timer);
     try{fetch('api/x?a=checkout_cancel',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:b}).catch(()=>{})}catch{}};
-  const aiDati=t=>{libera();try{if(el)el.destroy()}catch{}el=null;azioni=null;$('#pe').innerHTML='';$('#pag').hidden=$('#chi').hidden=true;$('#f').hidden=false;passi(2);msg(t||'')};
+  const aiDati=t=>{libera();try{if(el)el.destroy()}catch{}el=null;azioni=null;$('#pe').innerHTML='';$('#pe-load').hidden=false;msgPag('');$('#pag').hidden=$('#chi').hidden=true;$('#f').hidden=false;passi(2);msg(t||'')};
   addEventListener('pagehide',libera);
   addEventListener('pageshow',e=>{if(e.persisted&&(pagando||!$('#pag').hidden))location.reload()});      // pagina ripresa dalla cronologia (anche tornando indietro dalla pagina di Stripe): si riparte, con le notti liberate
   $('#chi').addEventListener('click',e=>{if(e.target.closest('[data-act=modifica]'))aiDati()});
@@ -493,22 +508,38 @@ async function prenota(c){
     if(!r.cs){if(!r.url){fine();msg('Non è stato possibile avviare il pagamento: riprova tra qualche minuto.');return}
       pagando=true;location.href=r.url;return}      // chiave pubblicabile non impostata su Vercel: si paga sulla pagina di Stripe, come prima
     pend={code:r.code,t:r.t};
-    // dopo 30 minuti le notti non sono più trattenute e Stripe chiude il pagamento: si riparte dai dati, già scritti
-    timer=setTimeout(()=>{if(!pagando)aiDati('Sono passati 30 minuti e le notti non sono più riservate: premi «Continua al pagamento» per riprovare.')},29*60e3);
+    // dopo 30 minuti Stripe chiude il pagamento: si riparte dai dati, già scritti
+    timer=setTimeout(()=>{if(!pagando)aiDati('Sono passati 30 minuti e il pagamento è scaduto: premi «Continua al pagamento» per riprovare.')},29*60e3);
     $('#chi').innerHTML=`<div><b>${esc(v('nome')+' '+v('cognome'))}</b><span>${esc(v('email'))}${v('tel')?' · '+esc(v('tel')):''}</span></div><button type="button" class="link-btn" data-act="modifica" data-testid="prenota-modifica">Modifica</button>`;
     $('#f').hidden=true;$('#chi').hidden=false;$('#pag').hidden=false;passi(3);fine();
     if($('#pag').scrollIntoView)$('#pag').scrollIntoView({behavior:'smooth',block:'start'});      // su telefono il pagamento è più in basso
     try{const S=await stripeJs(),ck=S(r.pk,{locale:'it'}).initCheckoutElementsSdk({clientSecret:r.cs,elementsOptions:{appearance:ASPETTO,fonts:FONTI()}});
-      el=ck.createPaymentElement({layout:'tabs'});el.mount('#pe');
-      azioni=ck.loadActions().then(x=>{if(x.type!=='success')throw Error(x.error&&x.error.message||'Stripe');return x.actions});await azioni}
+      el=ck.createPaymentElement({layout:'tabs'});
+      if(el.on)el.on('ready',()=>{$('#pe-load').hidden=true});      // fino ad allora: la sagoma dei campi, così la pagina non salta
+      el.mount('#pe');
+      azioni=ck.loadActions().then(x=>{if(x.type!=='success')throw Error(x.error&&x.error.message||'Stripe');return x.actions});await azioni;$('#pe-load').hidden=true}
     catch(x){aiDati('Non riesco a caricare il modulo di pagamento: ricarica la pagina e riprova. Se il problema continua scrivici a lacolumbera@gmail.com.')}};
   $('#paga').onclick=async()=>{const btn=$('#paga');if(btn.dataset.loading||!pend||!azioni)return;
-    const fine=carica(btn,'Pagamento in corso…');msg('');
+    const fine=carica(btn,'Verifico le date…');msg('');msgPag('');
+    // 1) le notti si trattengono adesso, e il server ricontrolla che siano ancora libere: nessun addebito per date non più disponibili
+    let h;try{h=await api('checkout_hold',{code:pend.code,t:pend.t})}
+    catch(x){fine();
+      if(x.code==='NON_DISPONIBILE'){libera();try{if(el)el.destroy()}catch{}el=null;azioni=null;
+        box.innerHTML=torna('Queste date non sono più disponibili',esc(x.message),[{id:p.id,t:'Scegli altre date'}]);if(window.scrollTo)window.scrollTo({top:0,behavior:'smooth'});return}
+      if(x.code==='SCADUTA'){aiDati(x.message);return}
+      msgPag(x.message);return}
+    if(h&&h.stato&&h.stato!=='in_attesa'){clearTimeout(timer);const code=pend.code;pend=null;attSet(null);history.replaceState(null,'',location.pathname);return esito(box,code,{cls:'pr-esito'})}      // già pagata (per esempio da un'altra scheda)
+    // 2) la conferma a Stripe (con la banca, se la chiede)
+    btn.textContent='Pagamento in corso…';
     pagando=true;      // da qui le notti restano trattenute anche lasciando la pagina: la banca può chiedere una conferma su un'altra pagina
     let r;try{r=await(await azioni).confirm({redirect:'if_required'})}catch(x){r={type:'error',error:{}}}
     if(r&&r.type==='success'){clearTimeout(timer);const code=pend.code;pend=null;attSet(null);history.replaceState(null,'',location.pathname);
       if(window.scrollTo)window.scrollTo({top:0,behavior:'smooth'});return esito(box,code,{cls:'pr-esito'})}
-    pagando=false;fine();msg((r&&r.error&&r.error.message)||'Il pagamento non è andato a buon fine: controlla i dati della carta e riprova.')};
+    pagando=false;fine();
+    // rifiutato da Stripe o dalla banca: le notti tornano subito libere (si ritrattengono al prossimo «Paga»). Senza una risposta di Stripe
+    // (rete interrotta) restano trattenute fino alla scadenza: il pagamento potrebbe essere partito, e la conferma arriverebbe dal webhook.
+    const er=r&&r.error||{};if(er.message||er.code||er.type)api('checkout_release',{code:pend.code,t:pend.t}).catch(()=>{});
+    msgPag(er.message||'Il pagamento non è andato a buon fine: controlla i dati della carta e riprova.')};
 }
 
 // eventi automatici e inseriti in Gestione: quelli già caricati da js/site.js appena l'ospite è entrato nel sito (window.lcEventi), altrimenti si chiedono ora

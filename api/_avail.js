@@ -301,6 +301,7 @@ const thresholds = env => ({
   feedTimeoutMs: num(env.FEED_TIMEOUT_MS, 6000),
   regTimeoutMs: num(env.REG_TIMEOUT_MS, 8000),
   holdTtlSec: num(env.HOLD_TTL_SEC, 2110),            // sessione Stripe 1810 s + 300 s di margine
+  payHoldSec: num(env.PAY_HOLD_SEC, 900),             // «Paga» nella pagina del sito: il tempo della conferma (anche della banca), non di tutta la sessione
   horizonDays: num(env.ORIZZONTE_MAX_GIORNI, 365)
 });
 
@@ -629,7 +630,8 @@ function makeEngine(deps) {
     }
     for (const [d, v] of Object.entries(st.holds)) {
       const [code, exp] = String(v).split('|');
-      if (+exp > t && code !== opts.ignoreHold) add(d, 'HOLD', code);
+      // gli hold sono temporanei (un pagamento in corso): mai nei calendari esportati, dove Booking/Airbnb li terrebbero chiusi per ore
+      if (+exp > t && code !== opts.ignoreHold && mode !== 'export') add(d, 'HOLD', code);
     }
     const p = (config.apts || []).find(x => x.id === aptId);
     if (p && p.blocked) for (const d of Object.keys(p.blocked)) if (p.blocked[d]) add(d, 'MANUALE', '');

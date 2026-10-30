@@ -273,7 +273,7 @@ test('P16 pagamento nella pagina del sito (prenota.html): sessione «elements» 
   eq([c.body.cs, c.body.pk, c.body.url, typeof c.body.t], [s.client_secret, 'pk_test_prova', undefined, 'string'], 'la pagina riceve la chiave della sessione, non un indirizzo');
   eq([s.params.ui_mode, s.params.return_url, s.params.success_url, s.params.cancel_url, s.params.locale], ['elements', PR + 'pagamento=successo&code=' + code, undefined, undefined, undefined]);
   eq([s.params.customer_email, s.params.client_reference_id, s.params.metadata.code, s.params.line_items[0].price_data.unit_amount, s.params.expires_at - Math.floor(clock.now() / 1000)], ['mario@test.it', code, code, 54000, 1810]);
-  eq([bk(code).stato, holds('torre') > 0], ['in_attesa', true], 'notti trattenute come prima');
+  eq([bk(code).stato, holds('torre')], ['in_attesa', 0], 'nella pagina del sito le notti NON si trattengono finché l\'ospite non preme «Paga»');
   // al ritorno (la banca ha portato l'ospite su un'altra pagina): non pagato = «aperta», si può riprovare; pagato = confermata
   eq((await H.api('checkout_status', { code, t: c.body.t })).body, { stato: 'in_attesa', email: 'ma***@test.it', aperta: true });
   paid(code); eq((await H.api('checkout_status', { code, t: c.body.t })).body, { stato: 'confermata', email: 'ma***@test.it' });
@@ -289,6 +289,63 @@ test('P16 pagamento nella pagina del sito (prenota.html): sessione «elements» 
   // le pagine di prima (senza ui) tornano alla pagina dell'appartamento, come sempre
   const o = await checkout({ da: '2026-11-12', a: '2026-11-14', email: 'o@t.it' }), os = sessionOf(o.body.code);
   eq([typeof o.body.url, os.params.ui_mode, os.params.success_url], ['string', undefined, 'https://www.lacolumbera.test/torre.html?pagamento=successo&code=' + o.body.code]);
+});
+
+test('P18 pagamento nella pagina del sito: le notti si trattengono solo con «Paga», non prima; due ospiti con le stesse date → il secondo lo sa prima di pagare; carta rifiutata = notti di nuovo libere; le notti si chiudono solo col pagamento riuscito', async () => {
+  await base();
+  const D = { ui: 'elements', da: '2026-11-20', a: '2026-11-23' }, notti = ['2026-11-20', '2026-11-21', '2026-11-22'];
+  const libere = async () => !(await H.busyDates('torre')).some(d => notti.includes(d));
+  const A = (await checkout(Object.assign({ email: 'a@t.it', nome: 'Anna A' }, D))).body, B = (await checkout(Object.assign({ email: 'b@t.it', nome: 'Bruno B' }, D))).body;
+  assert(A.cs && B.cs, 'tutti e due vedono i campi della carta');
+  eq([holds('torre'), await libere(), bk(A.code).stato, bk(B.code).stato], [0, true, 'in_attesa', 'in_attesa'], 'compilare i dati o guardare la carta non trattiene nulla: le notti restano libere per tutti');
+  // senza il token della prenotazione non si trattiene nulla
+  eq((await H.api('checkout_hold', { code: A.code, t: 'token-sbagliato-0123456789' })).status, 404); eq(holds('torre'), 0);
+  // A preme «Paga»: le notti si trattengono adesso, per il tempo della conferma (15 minuti)
+  const ha = await H.api('checkout_hold', { code: A.code, t: A.t }); eq(ha.status, 200, JSON.stringify(ha.body));
+  eq([holds('torre'), await libere()], [3, false]); assert(Math.abs(Date.parse(ha.body.fino) - clock.now() - 900e3) < 2000, ha.body.fino);
+  // B preme «Paga» nello stesso momento: le notti sono di A → B lo sa PRIMA di pagare, nulla è addebitato
+  const hb = await H.api('checkout_hold', { code: B.code, t: B.t }); eq([hb.status, hb.body.code], [409, 'NON_DISPONIBILE']); assert(/non ti è stato addebitato nulla/.test(hb.body.err), hb.body.err);
+  // la carta di A è rifiutata: le notti tornano libere subito, la prenotazione di A resta aperta (può riprovare)
+  eq((await H.api('checkout_release', { code: A.code, t: A.t })).status, 200);
+  eq([holds('torre'), await libere(), bk(A.code).stato, (global.__stripeExpired || []).length], [0, true, 'in_attesa', 0]);
+  // ora B paga per primo: hold, pagamento, webhook → confermata, notti chiuse
+  eq((await H.api('checkout_hold', { code: B.code, t: B.t })).status, 200); paid(B.code); eq((await wh(B.code)).status, 200);
+  eq([bk(B.code).stato, holds('torre'), await libere()], ['confermata', 0, false], 'le notti si chiudono definitivamente solo col pagamento riuscito');
+  // A riprova: le notti sono ormai prenotate → lo sa prima di pagare
+  const ha2 = await H.api('checkout_hold', { code: A.code, t: A.t }); eq([ha2.status, ha2.body.code, holds('torre')], [409, 'NON_DISPONIBILE', 0]);
+  // e anche se A pagasse lo stesso (pagina manomessa), il webhook non lo conferma sopra B: «da verificare» e avviso al titolare
+  paid(A.code); global.__mails.length = 0; eq((await wh(A.code)).status, 200);
+  eq(bk(A.code).stato, 'da_verificare'); assert(mailsTo('owner@test').some(m => /conflitto/i.test(m.subject)) && !mailsTo('a@t.it').length, 'nessuna conferma all\'ospite');
+  // su una prenotazione già confermata «Paga» non trattiene nulla
+  eq((await H.api('checkout_hold', { code: B.code, t: B.t })).body, { ok: 1, stato: 'confermata' });
+});
+
+test('P19 pagamento abbandonato o non riuscito: annullando la sessione Stripe si chiude (non si può più pagare dopo); un hold scaduto durante la conferma non perde il pagamento; async_payment_failed libera le notti', async () => {
+  await base();
+  const c = (await checkout({ ui: 'elements', da: '2026-11-25', a: '2026-11-27' })).body;
+  eq((await H.api('checkout_hold', { code: c.code, t: c.t })).status, 200); assert(holds('torre') > 0);
+  // l'ospite rinuncia (cambia i dati, torna alle date, lascia la pagina): notti libere e sessione Stripe chiusa
+  eq((await H.api('checkout_cancel', { code: c.code, t: c.t })).status, 200);
+  eq([holds('torre'), global.__stripeExpired, bk(c.code).scaduta, bk(c.code).stato], [0, [bk(c.code).sessione], true, 'in_attesa']);
+  const h = await H.api('checkout_hold', { code: c.code, t: c.t }); eq([h.status, h.body.code], [410, 'SCADUTA'], 'una prenotazione abbandonata non si riprende: si riparte dai dati');
+  // annullare una sessione GIÀ pagata non cambia nulla: Stripe rifiuta, la conferma arriva comunque
+  const p = (await checkout({ ui: 'elements', da: '2026-12-01', a: '2026-12-03', email: 'p@t.it' })).body;
+  await H.api('checkout_hold', { code: p.code, t: p.t }); paid(p.code);
+  eq((await H.api('checkout_cancel', { code: p.code, t: p.t })).status, 200); assert(!bk(p.code).scaduta, 'non segnata come scaduta');
+  eq((await H.api('checkout_status', { code: p.code, t: p.t })).body.stato, 'confermata', 'pagata: confermata');
+  // Stripe non raggiungibile durante l'annullo: le notti si liberano lo stesso
+  const q = (await checkout({ ui: 'elements', da: '2026-12-05', a: '2026-12-07', email: 'q@t.it' })).body;
+  await H.api('checkout_hold', { code: q.code, t: q.t }); global.__stripeExpireFail = true;
+  eq((await H.api('checkout_cancel', { code: q.code, t: q.t })).status, 200); eq(holds('torre'), 0); global.__stripeExpireFail = false;
+  // la banca impiega più dei 15 minuti dell'hold: il pagamento arriva tardi, le notti sono ancora libere → confermata
+  const r = (await checkout({ ui: 'elements', da: '2026-12-10', a: '2026-12-12', email: 'r@t.it' })).body;
+  await H.api('checkout_hold', { code: r.code, t: r.t }); clock.advance(16 * MIN); eq(holds('torre') && (await H.busyDates('torre')).includes('2026-12-10'), false, 'hold scaduto');
+  paid(r.code); eq((await wh(r.code)).status, 200); eq(bk(r.code).stato, 'confermata');
+  // pagamento asincrono fallito: notti libere subito
+  const s = (await checkout({ ui: 'elements', da: '2026-12-14', a: '2026-12-16', email: 's@t.it' })).body;
+  await H.api('checkout_hold', { code: s.code, t: s.t }); assert((await H.busyDates('torre')).includes('2026-12-14'));
+  eq((await H.webhook('checkout.session.async_payment_failed', { id: bk(s.code).sessione, metadata: { code: s.code } })).status, 200);
+  assert(!(await H.busyDates('torre')).includes('2026-12-14')); eq(bk(s.code).stato, 'in_attesa', 'mai confermata senza pagamento');
 });
 
 test('P17 adulti e bambini sotto i 4 anni: i bambini non pagano (nessun supplemento) ma contano per il massimo; le pagine di prima mandano solo «ospiti» (tutti adulti); email e area clienti li dicono', async () => {

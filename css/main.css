@@ -556,9 +556,34 @@ form .bk-cta{margin-top:12px}
 .pr-chi b{font-family:var(--serif);font-weight:500;font-size:1.1rem}
 .pr-chi span{font-size:.88rem;color:var(--muted);overflow-wrap:anywhere}
 .pr-chi .link-btn{margin:0}
-.pr-tempo{margin:-6px 0 16px}
-.pr-pe{min-height:140px}
+/* Pagamento: intestazione con il lucchetto, l'importo da pagare ben in vista, i campi di Stripe (con la sagoma finché non sono pronti),
+   l'errore accanto al pulsante e, sotto, le garanzie in tre righe con le icone. */
+.pr-pay-head{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;margin-bottom:16px}
+.pr-pay-head .pr-h{margin:0}
+.pr-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px 5px 10px;border-radius:999px;background:rgba(122,46,57,.07);border:1px solid rgba(122,46,57,.18);color:var(--wine);font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.pr-badge svg,.pr-trust svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.pr-due{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;margin:0 0 20px;border-radius:16px;background:linear-gradient(135deg,var(--paper) 0%,var(--paper-2) 100%);border:1px solid var(--line)}
+.pr-due div{display:flex;flex-direction:column;min-width:0}
+.pr-due span{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--wine)}
+.pr-due small{font-size:.86rem;color:var(--muted);overflow-wrap:anywhere}
+.pr-due b{font-family:var(--serif);font-weight:500;font-style:italic;font-size:clamp(1.7rem,3vw,2.1rem);line-height:1;color:var(--wine);white-space:nowrap}
+.pr-pe-box{position:relative;min-height:150px}
+.pr-pe{position:relative;z-index:1}
+.pr-pe-load{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start}
+.pr-pe-load i{display:block;height:46px;border-radius:12px;border:1px solid var(--line);background:linear-gradient(90deg,var(--paper) 0%,#fff 50%,var(--paper) 100%);background-size:200% 100%;animation:prShimmer 1.4s ease-in-out infinite}
+.pr-pe-load i:first-child,.pr-pe-load i.w{grid-column:1/-1}
+@keyframes prShimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+.pr-err:empty{display:none}
+.pr-err{margin:16px 0 0;padding:10px 14px;border-radius:12px;background:rgba(170,51,51,.07);border:1px solid rgba(170,51,51,.22);color:#A33;font-size:.9rem;font-weight:600;line-height:1.5}
 .pr-card .bk-cta{margin-top:18px}
+.pr-paga{font-size:1.04rem;padding-top:15px;padding-bottom:15px}
+.pr-paga:not(.is-loading)::before{content:"";width:16px;height:16px;flex:none;background:currentColor;-webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><rect x='4.5' y='10.5' width='15' height='10' rx='2.5'/><path d='M8 10.5V8a4 4 0 0 1 8 0v2.5'/></svg>") center/contain no-repeat;mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><rect x='4.5' y='10.5' width='15' height='10' rx='2.5'/><path d='M8 10.5V8a4 4 0 0 1 8 0v2.5'/></svg>") center/contain no-repeat}
+.pr-tempo{font-size:.84rem;line-height:1.55;color:var(--muted);text-align:center;margin:12px auto 0;max-width:46ch}
+.pr-trust{list-style:none;margin:20px 0 0;padding:16px 0 0;border-top:1px dashed var(--line);display:grid;gap:10px}
+.pr-trust li{display:flex;align-items:flex-start;gap:10px;font-size:.86rem;line-height:1.5;color:var(--charcoal)}
+.pr-trust svg{color:var(--wine);margin-top:2px}
+.pr-trust b{font-weight:700}
+@media(prefers-reduced-motion:reduce){.pr-pe-load i{animation:none}}
 .pr-recap{background:#fff;border:1px solid rgba(122,46,57,.12);border-radius:22px;box-shadow:var(--shadow-card);overflow:hidden}
 .pr-foto{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--stone)}
 .pr-recap-t{padding:clamp(18px,2.4vw,26px) clamp(18px,2.4vw,26px) 0}

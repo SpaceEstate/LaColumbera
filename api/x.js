@@ -408,6 +408,17 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  // se poi il titolare cambia i prezzi, l'ospite vede comunque quelli che ha pagato.
  const righe=[];for(const d of g){const pz=np(p,d),l=righe[righe.length-1];if(l&&l.prezzo===pz)l.notti++;else righe.push({dal:d,notti:1,prezzo:pz})}
  const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,adulti:os.adulti,bambini:os.bambini,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,os.adulti)},stato:'in_attesa',creato:new Date().toISOString()};
+ // Dove si paga: dalla pagina prenota.html (b.ui) nella pagina stessa, con i campi della carta di Stripe (ui_mode «elements») e lo stile del sito,
+ // se c'è la chiave pubblicabile; altrimenti sulla pagina di Stripe, come prima. Si torna sempre alla pagina da cui si è partiti
+ // (prenota.html con le stesse date e gli stessi ospiti; per le pagine di prima quella dell'appartamento).
+ const pk=b.ui?stripePk().pk:'',nelSito=b.ui==='elements'&&!!pk;
+ // Nella pagina del sito le notti NON si trattengono adesso: mentre l'ospite guarda i campi della carta restano libere per tutti.
+ // Si trattengono solo quando preme «Paga» (checkout_hold, subito prima della conferma a Stripe) e si chiudono solo con il pagamento riuscito.
+ // Sulla pagina di Stripe invece il sito non sa quando l'ospite paga: l'hold si prende qui, come prima.
+ if(nelSito){
+  try{const ne2=noticeErr();if(ne2)return res.status(409).json(ne2);await E.bkPut(r)}
+  catch(e){console.error('checkout/put:',e.message);return res.status(503).json(NV)}}
+ else{
  let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
@@ -416,12 +427,8 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
   if(ne2){await E.holdRelease(p.id,g,r.code);return res.status(409).json(ne2)}
   if(post.conflicts.length){await E.holdRelease(p.id,g,r.code);return res.status(409).json(ND)}
   await E.bkPut(r)}
- catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});console.error('checkout/post:',e.message);return res.status(503).json(NV)}
- const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host;
- // Dove si paga: dalla pagina prenota.html (b.ui) nella pagina stessa, con i campi della carta di Stripe (ui_mode «elements») e lo stile del sito,
- // se c'è la chiave pubblicabile; altrimenti sulla pagina di Stripe, come prima. Si torna sempre alla pagina da cui si è partiti
- // (prenota.html con le stesse date e gli stessi ospiti; per le pagine di prima quella dell'appartamento).
- const pk=b.ui?stripePk().pk:'',nelSito=b.ui==='elements'&&!!pk,
+ catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});console.error('checkout/post:',e.message);return res.status(503).json(NV)}}
+ const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host,
   torna=b.ui?site+'/prenota.html?'+new URLSearchParams({apt:p.id,da:r.da,a:r.a,adulti:String(os.adulti),bambini:String(os.bambini)})+'&':site+'/'+p.id+'.html?';
  let session;
  try{session=await stripe.checkout.sessions.create(Object.assign({mode:'payment',payment_method_types:['card'],customer_email:r.email,client_reference_id:r.code,
@@ -438,9 +445,36 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  let t=null;try{t=await ACC.issueForBooking(r,'checkout')}catch(e){console.error('checkout/token:',e.message)}
  // cs = chiave della sessione per i campi della carta nella pagina (vale solo per questo pagamento); pk = chiave pubblicabile (pubblica per natura)
  return res.json(nelSito?{code:r.code,cs:session.client_secret,pk,t}:{code:r.code,url:session.url,t})}
-if(a==='checkout_cancel'){ // l'ospite torna indietro dalla pagina Stripe: libera subito le notti (il record resta: se paga lo stesso, il webhook lo conferma)
+if(a==='checkout_cancel'){ // l'ospite rinuncia (annulla su Stripe, cambia i dati o le date, lascia la pagina): libera subito le notti e chiude il pagamento su Stripe,
+ // così una prenotazione abbandonata non si può più pagare dopo (le sue notti ormai sono di nuovo libere per tutti).
  // Serve il token del checkout: senza, nessuno può liberare le notti trattenute da un altro (la risposta è sempre la stessa;
  // in mancanza di token le notti si liberano comunque alla scadenza dell'hold o con l'evento "expired" di Stripe).
+ const code=String(b.code||'').trim().toUpperCase();
+ if(code&&await ACC.verify(code,b.t)){const x=await E.bkGet(code);
+  if(x&&x.stato==='in_attesa'){await E.holdRelease(x.id,days(x.da,x.a),x.code);
+   // Stripe rifiuta di chiudere una sessione già pagata: in quel caso nulla cambia e la conferma arriva dal webhook, come sempre
+   if(x.sessione&&!x.scaduta&&process.env.STRIPE_SECRET_KEY)try{await require('stripe')(process.env.STRIPE_SECRET_KEY).checkout.sessions.expire(x.sessione);const cur=await E.bkGet(code);if(cur&&cur.stato==='in_attesa')await E.bkPut(Object.assign(cur,{scaduta:true}))}
+    catch(e){console.error('checkout_cancel/expire:',String(e&&(e.code||e.type)||'errore').slice(0,60))}}}
+ return res.json({ok:1})}
+if(a==='checkout_hold'){ // l'ospite ha premuto «Paga» nella pagina del sito: le notti si trattengono ADESSO, solo per il tempo della conferma del pagamento.
+ // 1) hold atomico (due ospiti con le stesse date: lo prende uno solo)  2) ricontrollo di tutte le altre fonti  3) via libera alla conferma su Stripe.
+ // Se le notti non sono più libere l'ospite lo sa PRIMA di pagare. Le notti si chiudono definitivamente solo con il pagamento riuscito (webhook).
+ const lim=await ACC.limitIp(req,'ch',ACC.RL.statusIp);if(lim)return deny(res,lim);
+ const code=String(b.code||'').trim().toUpperCase(),NV={err:'Disponibilità temporaneamente non verificabile: riprova tra qualche minuto o scrivici a lacolumbera@gmail.com'};
+ if(!(code&&await ACC.verify(code,b.t)))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ const x=await E.bkGet(code);if(!x)return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ if(x.stato!=='in_attesa')return res.json({ok:1,stato:x.stato});      // già confermata (o in verifica): niente da trattenere
+ if(x.scaduta)return res.status(410).json({err:'Il tempo per il pagamento è scaduto: premi «Continua al pagamento» per riprovare.',code:'SCADUTA'});
+ const config=await cfg(req),g=days(x.da,x.a),ND={err:'Mentre compilavi i dati queste notti sono state prenotate da qualcun altro: non ti è stato addebitato nulla. Scegli altre date.',code:'NON_DISPONIBILE'};
+ let h;try{h=await E.holdAcquire(x.id,g,x.code,E.T.payHoldSec)}catch(e){console.error('checkout_hold:',e.message);return res.status(503).json(NV)}
+ if(!h.ok)return res.status(409).json(ND);
+ try{const post=await E.checkRange(config,x.id,x.da,x.a,{ignoreHold:x.code,mode:'admin'});      // admin: preavviso e orizzonte valgono all'avvio della prenotazione, non qui
+  if(post.status==='unverifiable'){await E.holdRelease(x.id,g,x.code);return res.status(503).json(NV)}
+  if(post.conflicts.length){await E.holdRelease(x.id,g,x.code);return res.status(409).json(ND)}}
+ catch(e){await E.holdRelease(x.id,g,x.code).catch(()=>{});console.error('checkout_hold/post:',e.message);return res.status(503).json(NV)}
+ return res.json({ok:1,fino:new Date(h.exp).toISOString()})}
+if(a==='checkout_release'){ // il pagamento non è andato (carta rifiutata, conferma della banca non riuscita): le notti tornano subito libere,
+ // ma la prenotazione e il pagamento restano aperti e l'ospite può riprovare (con «Paga» le notti si ritrattengono)
  const code=String(b.code||'').trim().toUpperCase();
  if(code&&await ACC.verify(code,b.t)){const x=await E.bkGet(code);if(x&&x.stato==='in_attesa')await E.holdRelease(x.id,days(x.da,x.a),x.code)}
  return res.json({ok:1})}

@@ -5,19 +5,22 @@ Come funziona e come controllare che una prenotazione pagata arrivi davvero (a t
 ## Dove paga l'ospite
 
 1. Nella pagina dell'appartamento sceglie le date e gli ospiti: **adulti** e **bambini sotto i 4 anni** (gratis: non pagano il supplemento degli ospiti in più, ma contano per il massimo dell'appartamento). «Prenota» apre la **pagina di prenotazione** del sito (`prenota.html`), con il riepilogo a lato: foto, date, ospiti, il conto riga per riga e la regola di annullamento.
-2. Scrive **nome, cognome, email e telefono** (facoltativo) e preme «Continua al pagamento»: la prenotazione si registra e le notti vengono trattenute.
-3. Sotto compaiono i **campi della carta**, con i colori e il carattere del sito (anche Apple Pay e Google Pay, se attivi su Stripe). I numeri della carta li riceve solo Stripe: il sito non li vede mai. Se la banca chiede una conferma (codice via SMS o app) compare una finestra della banca, oppure si passa per un attimo dalla pagina della banca e si torna su quella del sito.
-4. Pagamento riuscito: la stessa pagina dice «Prenotazione confermata» con il codice.
+2. Scrive **nome, cognome, email e telefono** (facoltativo) e preme «Continua al pagamento»: il sito ricontrolla le date e registra la prenotazione «in attesa», **senza trattenere le notti**: mentre l'ospite guarda i campi della carta le date restano libere per tutti.
+3. Sotto compaiono i **campi della carta**, con i colori e il carattere del sito (anche Apple Pay e Google Pay, se attivi su Stripe), con l'importo da pagare in evidenza. I numeri della carta li riceve solo Stripe: il sito non li vede mai.
+4. Preme **«Paga»**: solo adesso le notti si **trattengono** (al massimo 15 minuti, il tempo della conferma) e il sito ricontrolla che siano ancora libere. Se nel frattempo le ha prese qualcun altro, l'ospite lo legge subito, **prima di qualsiasi addebito**, e sceglie altre date. Altrimenti parte il pagamento; se la banca chiede una conferma (codice via SMS o app) compare una finestra della banca, oppure si passa per un attimo dalla pagina della banca e si torna su quella del sito.
+5. Pagamento riuscito (confermato da Stripe): la prenotazione diventa **confermata** e le notti si **chiudono definitivamente**. La pagina dice «Prenotazione confermata» con il codice.
 
-L'ospite può tornare ai dati («Modifica») o alle date («← Modifica date e ospiti»): le notti trattenute si liberano subito, così come se lascia la pagina senza pagare. Una carta rifiutata mostra il messaggio della banca e si riprova. Dopo 30 minuti senza pagare la pagina torna ai dati (già scritti) e le notti non sono più trattenute.
+- **Carta rifiutata** (o conferma della banca non riuscita): il messaggio compare accanto al pulsante, le notti tornano **subito libere** e si può riprovare (anche con un'altra carta): con «Paga» si ritrattengono.
+- **Pagamento abbandonato**: se l'ospite torna ai dati («Modifica»), alle date («← Modifica date e ospiti») o lascia la pagina, le notti si liberano e il pagamento si **chiude su Stripe**: quella prenotazione non si può più pagare dopo. Dopo 30 minuti senza pagare la pagina torna ai dati (già scritti).
+- **Nessuna prenotazione confermata senza pagamento**: la conferma arriva solo da Stripe (pagamento «paid»). Un pagamento arrivato quando le date non sono più libere non si conferma da solo (vedi «da verificare», sotto).
 
-**Senza la chiave pubblicabile** (`STRIPE_PUBLISHABLE_KEY`, vedi sotto) tutto funziona come prima: dopo i dati l'ospite paga sulla pagina di Stripe e poi torna sulla pagina di prenotazione. Gestione → Sito → Sistema → «Pagamenti ed email» lo segnala («Pagamento nella pagina del sito»).
+**Senza la chiave pubblicabile** (`STRIPE_PUBLISHABLE_KEY`, vedi sotto) tutto funziona come prima: dopo i dati l'ospite paga sulla pagina di Stripe e poi torna sulla pagina di prenotazione. In questo caso il sito non sa quando l'ospite preme «Paga» sulla pagina di Stripe, quindi le notti si trattengono già alla partenza verso Stripe (35 minuti al massimo, liberate subito se annulla). Gestione → Sito → Sistema → «Pagamenti ed email» lo segnala («Pagamento nella pagina del sito»).
 
 ## Cosa succede quando un ospite paga
 
-1. L'ospite sceglie le date: le notti vengono **trattenute** per 35 minuti mentre paga.
+1. L'ospite preme «Paga» nella pagina del sito: le notti vengono **trattenute** solo per il tempo della conferma (15 minuti al massimo). Le notti trattenute non sono prenotabili da altri sul sito, ma **non vanno mai nei calendari iCal** letti da Booking e Airbnb (nemmeno nel calendario «completo»): lì compaiono solo le prenotazioni pagate.
 2. Pagamento riuscito → la prenotazione diventa **confermata**, le notti si **chiudono** (sito e calendario iCal per Booking/Airbnb), la riga va sul **foglio**, ti arriva l'**email di nuova prenotazione**, all'ospite arriva la **conferma** con il link all'area clienti.
-3. Se l'ospite non paga, le notti tornano libere da sole.
+3. Se l'ospite non paga (carta rifiutata, pagamento abbandonato o scaduto), le notti tornano libere subito o al più tardi alla scadenza.
 
 La conferma parte da **tre strade**, tutte con lo stesso percorso (nessun doppione se arrivano insieme):
 
@@ -48,8 +51,8 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 
 ## Webhook su Stripe (Sviluppatori → Webhook)
 
-- **Questo sito**: indirizzo `https://la-columbera.vercel.app/api/stripe-webhook`, eventi `checkout.session.completed` e `checkout.session.expired`.
-- **App di check-in** (tassa di soggiorno): `https://checkin-six-coral.vercel.app/api/stripeWebhook`, evento `checkout.session.completed`.
+- **Questo sito**: indirizzo `https://la-columbera.vercel.app/api/stripe-webhook`, eventi `checkout.session.completed` e `checkout.session.expired` (consigliati anche `checkout.session.async_payment_succeeded` e `checkout.session.async_payment_failed`: oggi si paga solo con carta, ma sono già gestiti).
+- **App di check-in** (tassa di soggiorno): `https://checkin-six-coral.vercel.app/api/stripeWebhook`, evento `checkout.session.completed`. Anche il check-in ora fa pagare nella sua pagina, con lo stesso aspetto di questo sito, se nel suo progetto Vercel c'è `STRIPE_PUBLISHABLE_KEY` (vedi il repository Check-in).
 - Ogni webhook ha il proprio «signing secret», da copiare nella variabile del progetto giusto. Con un solo account Stripe i due sistemi ricevono gli eventi l'uno dell'altro: il check-in ignora i pagamenti delle prenotazioni; questo sito, dai pagamenti del check-in, prende solo il numero di prenotazione per sapere che il check-in è fatto (vedi sotto).
 
 ## Check-in online e area clienti
@@ -68,7 +71,7 @@ Compaiono tra i campi della carta se sono attivi in Stripe → Impostazioni → 
 ## Prova completa (una volta, e dopo ogni modifica alle chiavi)
 
 1. Gestione → Sito → Sistema → «Pagamenti ed email»: tutto verde; «Invia email di prova» e controlla la posta (anche lo spam).
-2. Fai una prenotazione di prova per una data lontana pagando con una carta vera (poi rimborsala da Stripe) oppure, con le chiavi di prova (segreta e pubblicabile), con la carta `4242 4242 4242 4242`; con la carta `4000 0025 0000 3155` vedi anche la conferma della banca. Prova un'altra volta con 1 bambino: il prezzo non cambia e l'email dice «di cui 1 bambino sotto i 4 anni».
+2. Fai una prenotazione di prova per una data lontana (con due schede sulle stesse date: dopo «Continua al pagamento» le date risultano ancora libere nel calendario; premi «Paga» in una e paga, poi «Paga» nell'altra: deve dire che le date non sono più disponibili senza addebitare nulla; con la carta `4000 0000 0000 0002` vedi la carta rifiutata e le notti di nuovo libere) pagando con una carta vera (poi rimborsala da Stripe) oppure, con le chiavi di prova (segreta e pubblicabile), con la carta `4242 4242 4242 4242`; con la carta `4000 0025 0000 3155` vedi anche la conferma della banca. Prova un'altra volta con 1 bambino: il prezzo non cambia e l'email dice «di cui 1 bambino sotto i 4 anni».
 3. Controlla: email a te, email all'ospite, riga sul foglio, notti chiuse sul sito, «Ultimo avviso da Stripe» compilato nella scheda.
 4. Annulla la prenotazione di prova da Gestione → Prenotazioni.
 

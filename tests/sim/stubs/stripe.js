@@ -33,6 +33,15 @@ module.exports = key => ({
         metadata: p.metadata, client_reference_id: p.client_reference_id, customer_email: p.customer_email, customer_details: { email: p.customer_email },
         amount_total: p.line_items[0].price_data.unit_amount };
     },
+    expire: async id => {      // come Stripe: si chiude solo una sessione ancora aperta
+      if (global.__stripeExpireFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
+      const s = (global.__stripeSessions || []).find(x => x.id === id), st = state(id);
+      if (!s) { const e = new Error('No such checkout.session: ' + id); e.code = 'resource_missing'; throw e; }
+      if (st.paid || st.status === 'complete' || st.status === 'expired') throw invalid('Only Checkout Sessions with a status in [\"open\"] can be expired.');
+      (global.__stripeState = global.__stripeState || {})[id] = Object.assign({}, st, { status: 'expired' });
+      (global.__stripeExpired = global.__stripeExpired || []).push(id);
+      return { id, status: 'expired' };
+    },
     list: async p => {
       global.__stripeListCalls = (global.__stripeListCalls || 0) + 1;
       if (global.__stripeSessionsListFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
