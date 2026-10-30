@@ -1554,6 +1554,22 @@ table.mx td.mx-multi{background:rgba(122,46,57,.16);color:var(--wine);font-weigh
 .ga-meta{font-size:.74rem;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .ga-meta .link-btn{margin:0;font-size:.74rem}
 .ga-orig{font-size:.86rem;color:var(--muted);font-style:italic;white-space:pre-wrap;margin-top:4px;max-width:100%}
+/* foto dei messaggi della struttura: miniature quadrate, una sola più grande; un tocco apre l'originale */
+.ga-foto{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;white-space:normal}
+.ga-bubble>.ga-foto:first-child{margin-top:0}
+.ga-foto a{display:block;line-height:0}
+.ga-foto img{width:112px;height:112px;object-fit:cover;border-radius:10px;background:var(--paper-2)}
+.ga-foto a:only-child img{width:min(240px,62vw);height:auto;max-height:300px}
+/* Gestione: foto della risposta e dei template, pannello del link */
+.msg-foto{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 6px}
+.msg-foto:empty{display:none}
+.msg-foto-i{position:relative;line-height:0}
+.msg-foto-i img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.msg-foto-x{position:absolute;top:-6px;right:-6px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--wine);font:700 .8rem var(--sans);cursor:pointer;line-height:1}
+.msg-tools{align-items:center}
+.msg-tools .upload-btn{flex:0 0 auto}
+.msg-tools input[type=file]{display:none}
+.msg-link{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:4px 0 10px;background:var(--paper)}
 .ga-compose label{display:block;font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--wine);margin-bottom:6px}
 .ga-compose textarea{width:100%;font:inherit;font-size:.96rem;padding:11px 14px;border:1px solid var(--line);border-radius:14px;background:var(--paper);color:var(--ink);resize:vertical;min-height:84px}
 .ga-compose textarea:focus{outline:none;border-color:var(--wine);box-shadow:0 0 0 3px rgba(122,46,57,.12)}

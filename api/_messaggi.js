@@ -3,30 +3,43 @@
 // Il prefisso "_" evita che Vercel lo esponga come endpoint: le azioni sono in x.js (a=msg_…), gli invii automatici partono dalla sincronizzazione.
 //
 // Chi scrive: le prenotazioni fatte sul sito e confermate. Gli ospiti di Booking e Airbnb usano la chat della piattaforma: per loro i template
-// si compilano in Gestione e si incollano là. Solo testo, al massimo 2000 caratteri; ogni testo si mostra sempre come testo (mai HTML).
+// si compilano in Gestione e si incollano là. Testo di al massimo 2000 caratteri, mostrato sempre come testo (mai HTML): diventano link gli
+// indirizzi http(s):// e www. e, nei testi della struttura, «[testo](https://…)». La struttura (risposte, template, messaggi programmati e
+// automatici) può aggiungere fino a 4 foto, caricate dalla Gestione su Vercel Blob (api/x?a=up: foto/msg/ per un messaggio, foto/msgtpl/ per
+// un template); l'ospite scrive solo testo.
 //
 // KV (chiavi separate dalla configurazione: il pulsante «Salva modifiche» della Gestione non le tocca mai):
-//   msg:<codice>        lista dei messaggi {id, da: 'ospite'|'host'|'auto', testo, lingua, ts, regola?}: al massimo 300, i più vecchi escono
+//   msg:<codice>        lista dei messaggi {id, da: 'ospite'|'host'|'auto', testo, lingua, ts, regola?, foto?}: al massimo 300, i più vecchi escono
 //   msg:v:<codice>      versione della conversazione (cresce a ogni messaggio): chi controlla se c'è qualcosa di nuovo legge solo questa
 //   msg:tr:<codice>     traduzioni, campo "<id>:<lingua>" → testo
 //   msg:idx             conversazioni, campo codice → {ts, da, anteprima}
 //   msg:nh / msg:no     non letti dal titolare / dall'ospite, campo codice → numero
 //   msg:lo              ultima lettura dell'ospite (per «letto»), campo codice → ms
 //   msg:lingua          lingua dell'area ospiti (it, en, de), campo codice → lingua
-//   msg:tpl             template [{id, nome, testo}] (finché il titolare non li salva valgono quelli di DEFAULT_TPL)
+//   msg:tpl             template [{id, nome, testo, foto?}] (finché il titolare non li salva valgono quelli di DEFAULT_TPL)
 //   msg:auto            regole dei messaggi automatici [{id, nome, attiva, tpl, base, giorni, ora, apt, nottiMin, ritardo, dal}]
-//   msg:prog            messaggi programmati a mano, campo id → {id, code, testo, quando}
+//   msg:prog            messaggi programmati a mano, campo id → {id, code, testo, quando, foto?}
 //   msg:imp             impostazioni {conservazione, avvisaTitolare, avvisaOspite}
 //   msg:fatto:<regola>:<codice> · msg:fatto:p:<id>   invio fatto, saltato o in corso: mai due volte la stessa cosa (SET NX)
 //   msg:avv:h:<codice> · msg:avv:o:<codice>           ultimo avviso email al titolare / all'ospite (15 minuti: dopo il primo non letto, al massimo uno ogni 15 minuti)
 //   tr:tpl:<impronta>:<lingua>                        traduzione di un template (senza i dati della prenotazione)
 // Traduzione (api/_traduci.js, DeepL): i messaggi automatici si traducono dal template, con le variabili protette: a DeepL non arrivano
-// mai nomi, codici o Wi-Fi della prenotazione. I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono.
+// mai nomi, codici o Wi-Fi della prenotazione. I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono; in quelli
+// del titolare gli indirizzi dei link restano fuori dalla traduzione (come le variabili).
+// Foto: le foto di un messaggio (foto/msg/) si cancellano da Vercel Blob insieme alla conversazione, o quando un messaggio programmato non parte;
+// quelle dei template (foto/msgtpl/) restano, come le altre foto del sito (le usano anche i messaggi già mandati).
 // Nessun log con testi, nomi o codici.
 const crypto = require('crypto');
 const AV = require('./_avail.js');
 
-const MAX_TESTO = 2000, MAX_MSG = 300, LATE_MS = 36 * 3600e3, FATTO_TTL = 400 * 86400, DAY = 864e5;
+const MAX_TESTO = 2000, MAX_MSG = 300, LATE_MS = 36 * 3600e3, FATTO_TTL = 400 * 86400, DAY = 864e5, MAX_FOTO = 4;
+// foto ammesse: solo quelle caricate dalla Gestione per i messaggi (Vercel Blob, archivio pubblico del sito)
+const RE_FOTO = /^https:\/\/[\w-]+\.public\.blob\.vercel-storage\.com\/foto\/msg(?:tpl)?\/[\w\-./]+\.(?:jpe?g|png|webp)$/i;
+const pulisciFoto = l => Array.isArray(l) ? [...new Set(l.map(u => String(u == null ? '' : u).trim()).filter(u => RE_FOTO.test(u) && !u.includes('..')))].slice(0, MAX_FOTO) : [];
+const fotoMsg = l => (l || []).filter(u => /\/foto\/msg\//.test(u));      // le foto caricate per un solo messaggio (non quelle dei template)
+// link con un testo: «[testo](https://…)»; nell'anteprima dell'elenco delle conversazioni resta il testo
+const RE_MD = /\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)/g;
+const anteprima = m => String(m.testo || '').replace(RE_MD, '$1').slice(0, 140) || (m.foto && m.foto.length ? '📷 Foto' : '');      // elenco delle conversazioni
 const RE_HHMM = /^([01]\d|2[0-3]):[0-5]\d$/, BASI = ['conferma', 'arrivo', 'partenza'], LINGUE_AREA = ['it', 'en', 'de'];
 const INDIRIZZO = 'Via Centrale 48, 38123 Ravina (Trento)';
 const LOC = { it: 'it-IT', en: 'en-GB', de: 'de-DE' };
@@ -56,7 +69,11 @@ const romeMs = (day, hhmm) => { const [y, m, d] = day.split('-').map(Number), [h
 const fineGiorno = day => romeMs(AV.addDays(day, 1), '00:00') - 1;
 const cleanId = s => String(s == null ? '' : s).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
 // le variabili dei template non si traducono: <x>…</x> con il formato XML di DeepL (il resto del testo va reso XML valido)
-const proteggi = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\{([a-z_]+)\}/g, '<x>{$1}</x>');
+// anche gli indirizzi non si traducono: quello di un link «[testo](indirizzo)» (il testo sì) e quelli scritti da soli
+const proteggi = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/\]\s?\((https?:\/\/[^\s()<>"]+)\)/g, '](<x>$1</x>)')
+  .replace(/(^|[^>\w])((?:https?:\/\/|www\.)[^\s<()]*[^\s<().,;:!?\]'"])/g, '$1<x>$2</x>')
+  .replace(/\{([a-z_]+)\}/g, '<x>{$1}</x>');
 const sproteggi = s => s.replace(/<x>\s*(\{[a-z_]+\})\s*<\/x>/g, '$1').replace(/<\/?x>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 // Compila un template per una prenotazione (del sito o del foglio). Una variabile vuota (es. il nome per una prenotazione Booking) sparisce
@@ -73,13 +90,15 @@ function riempi(testo, b, config, site, lg) {
   return String(testo || '').replace(/[ \t]*\{([a-z_]+)\}/g, (m, k) => !(k in v) ? m : v[k] ? m.slice(0, m.indexOf('{')) + v[k] : '');
 }
 
-function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueToken, mail, log, now }) {
+function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueToken, mail, log, now, cancellaFoto }) {
   now = now || (() => Date.now());
   const T = traduci || { attiva: () => false, traduci: async () => ({ ok: false }), supportata: () => false };
   const jget = async k => parse(await kv('GET', k));
   const newId = () => now().toString(36) + crypto.randomBytes(4).toString('hex');
   const logE = m => Promise.resolve().then(() => log && log({ lvl: 'ERR', msg: m })).catch(() => {});
   const ms = () => Number(process.hrtime.bigint() / 1000000n);        // tempo reale (per il limite di durata dentro la sincronizzazione)
+  // foto di messaggi che non servono più (conversazione cancellata, messaggio programmato che non parte): solo quelle di un singolo messaggio
+  const via = async l => { if (cancellaFoto) for (const u of fotoMsg(l)) await Promise.resolve().then(() => cancellaFoto(u)).catch(() => {}); };
 
   /* ---------- impostazioni ---------- */
   async function impostazioni() {
@@ -99,15 +118,22 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   const versione = async code => +(await kv('GET', 'msg:v:' + code)) || 0;
   async function append(code, m) {
     const len = +(await kv('RPUSH', 'msg:' + code, JSON.stringify(m))) || 0;
-    const cmds = [['INCR', 'msg:v:' + code], ['HSET', 'msg:idx', code, JSON.stringify({ ts: m.ts, da: m.da, anteprima: m.testo.slice(0, 140) })], ['HINCRBY', m.da === 'ospite' ? 'msg:nh' : 'msg:no', code, '1']];
+    const cmds = [['INCR', 'msg:v:' + code], ['HSET', 'msg:idx', code, JSON.stringify({ ts: m.ts, da: m.da, anteprima: anteprima(m) })], ['HINCRBY', m.da === 'ospite' ? 'msg:nh' : 'msg:no', code, '1']];
     if (len > MAX_MSG) cmds.push(['LTRIM', 'msg:' + code, String(len - MAX_MSG), String(len - 1)]);
     await kvp(cmds);
     return m;
   }
+  // testi della struttura verso la lingua dell'ospite: gli indirizzi dei link non vanno a DeepL da tradurre (formato XML, come i template)
+  async function traduciHost(testi, verso) {
+    const xml = testi.some(t => /https?:\/\/|www\./i.test(t));
+    const r = await T.traduci(xml ? testi.map(proteggi) : testi, verso, { da: 'it', xml });
+    return r.ok && xml ? Object.assign({}, r, { testi: r.testi.map(sproteggi) }) : r;
+  }
   // traduzioni mancanti: una sola chiamata per tutti i testi, poi restano salvate (se DeepL non risponde si mostra l'originale)
   async function completa(code, msgs, tr, verso, o) {
+    msgs = msgs.filter(m => m.testo);
     if (!T.attiva() || !msgs.length) return tr;
-    const r = await T.traduci(msgs.map(m => m.testo), verso, o || {});
+    const r = o && o.da === 'it' ? await traduciHost(msgs.map(m => m.testo), verso) : await T.traduci(msgs.map(m => m.testo), verso, o || {});
     if (!r.ok) return tr;
     await kvp(msgs.map((m, i) => ['HSET', 'msg:tr:' + code, m.id + ':' + verso, r.testi[i]])).catch(() => {});
     msgs.forEach((m, i) => { tr[m.id + ':' + verso] = r.testi[i]; });
@@ -129,7 +155,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     return {
       v: +cur || 0, messaggi: msgs.map(m => {
         const t = m.da !== 'ospite' && (m.lingua || 'it') !== lingua ? tr[m.id + ':' + lingua] : null;
-        return Object.assign({ id: m.id, da: m.da === 'ospite' ? 'ospite' : 'host', testo: t || m.testo, ts: m.ts }, t ? { originale: m.testo } : {}, m.da === 'auto' ? { auto: true } : {});
+        return Object.assign({ id: m.id, da: m.da === 'ospite' ? 'ospite' : 'host', testo: t || m.testo, ts: m.ts }, t ? { originale: m.testo } : {}, m.da === 'auto' ? { auto: true } : {}, m.foto && m.foto.length ? { foto: m.foto } : {});
       })
     };
   }
@@ -145,15 +171,16 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     await avvisaTitolare(code, booking, site, m, it).catch(() => {});
     return { id: m.id, da: 'ospite', testo: m.testo, ts: m.ts };
   }
-  // Il titolare scrive (o parte un messaggio automatico). traduzioni = testi già pronti per lingua (template); verso = lingua dell'ospite
-  async function daHost(code, testo, { auto, regola, verso, traduzioni, booking, site } = {}) {
-    testo = pulisci(testo);
-    if (!testo) throw err(400, 'Scrivi un messaggio');
-    const m = Object.assign({ id: newId(), da: auto ? 'auto' : 'host', testo, lingua: 'it', ts: now() }, regola ? { regola } : {});
+  // Il titolare scrive (o parte un messaggio automatico): testo, foto o tutti e due. traduzioni = testi già pronti per lingua (template);
+  // verso = lingua dell'ospite
+  async function daHost(code, testo, { auto, regola, verso, traduzioni, booking, site, foto } = {}) {
+    testo = pulisci(testo); foto = pulisciFoto(foto);
+    if (!testo && !foto.length) throw err(400, 'Scrivi un messaggio o aggiungi una foto');
+    const m = Object.assign({ id: newId(), da: auto ? 'auto' : 'host', testo, lingua: 'it', ts: now() }, regola ? { regola } : {}, foto.length ? { foto } : {});
     await append(code, m);
     const cmds = [], tr = {};      // tr: il messaggio tradotto, per lingua (serve anche all'email per l'ospite)
     for (const [lg, t] of Object.entries(traduzioni || {})) if (lg !== 'it' && t) { tr[lg] = pulisci(t); cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + lg, tr[lg]]); }
-    if (verso && verso !== 'it' && !tr[verso] && T.attiva()) { const r = await T.traduci([testo], verso, { da: 'it' }); if (r.ok) { tr[verso] = r.testi[0]; cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + verso, r.testi[0]]); } }
+    if (testo && verso && verso !== 'it' && !tr[verso] && T.attiva()) { const r = await traduciHost([testo], verso); if (r.ok) { tr[verso] = r.testi[0]; cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + verso, r.testi[0]]); } }
     if (cmds.length) await kvp(cmds).catch(() => {});
     await avvisaOspite(code, booking, site, m, tr).catch(() => {});
     return m;
@@ -169,7 +196,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     const ospite = LINGUE_AREA.includes(lg) ? lg : null, letto = +loRaw || 0;
     return {
       v: +cur || 0, lo: letto, lingua: ospite, traduzione: T.attiva(),
-      messaggi: msgs.map(m => Object.assign({ id: m.id, da: m.da, testo: m.testo, ts: m.ts, lingua: m.lingua || 'it' }, m.regola ? { regola: m.regola } : {},
+      messaggi: msgs.map(m => Object.assign({ id: m.id, da: m.da, testo: m.testo, ts: m.ts, lingua: m.lingua || 'it' }, m.regola ? { regola: m.regola } : {}, m.foto && m.foto.length ? { foto: m.foto } : {},
         m.da === 'ospite' ? (tr[m.id + ':it'] ? { tradotto: tr[m.id + ':it'] } : {}) : Object.assign({ letto: letto >= m.ts }, ospite && ospite !== 'it' && tr[m.id + ':' + ospite] ? { tradotto: tr[m.id + ':' + ospite] } : {})))
     };
   }
@@ -213,7 +240,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     if (!(await libero(['msg:no', code], k))) return;
     const lg = await linguaDi(code);      // la lingua scelta dall'ospite nell'area (null = non ha ancora aperto i messaggi)
     let tk = null; try { tk = issueToken ? await issueToken(b) : null; } catch (e) { tk = null; }
-    const mm = mail().avvisoOspite(b, site, tk, { testo: m && m.testo, lingua: lg, tradotto: lg && lg !== 'it' ? (tr || {})[lg] || '' : '' });
+    const mm = mail().avvisoOspite(b, site, tk, { testo: m && m.testo, lingua: lg, tradotto: lg && lg !== 'it' ? (tr || {})[lg] || '' : '', foto: m && m.foto });
     if ((await sendMail(b.email, mm.subject, mm.html, Object.assign({ text: mm.text }, replyTo ? { replyTo } : {}))) === false) await kv('DEL', k).catch(() => {});
   }
 
@@ -223,10 +250,10 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     if (!Array.isArray(list) || list.length > 50) throw err(400, 'Elenco dei template non valido (al massimo 50)');
     const out = [], ids = new Set();
     for (const x of list) {
-      const nome = pulisci(x && x.nome, 80), testo = pulisci(x && x.testo);
-      if (!nome || !testo) throw err(400, 'Ogni template ha bisogno di un nome e di un testo');
+      const nome = pulisci(x && x.nome, 80), testo = pulisci(x && x.testo), foto = pulisciFoto(x && x.foto);
+      if (!nome || (!testo && !foto.length)) throw err(400, 'Ogni template ha bisogno di un nome e di un testo (o di una foto)');
       let id = cleanId(x.id) || newId(); if (ids.has(id)) id = newId(); ids.add(id);
-      out.push({ id, nome, testo });
+      out.push(Object.assign({ id, nome, testo }, foto.length ? { foto } : {}));
     }
     return out;
   }
@@ -249,7 +276,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   }
   async function testiDaTemplate(testo, b, config, site) {
     const out = { it: riempi(testo, b, config, site, 'it') };
-    if (T.attiva()) for (const lg of ['en', 'de']) { const t = await templateIn(testo, lg); if (t) out[lg] = riempi(t, b, config, site, lg); }
+    if (T.attiva() && out.it) for (const lg of ['en', 'de']) { const t = await templateIn(testo, lg); if (t) out[lg] = riempi(t, b, config, site, lg); }
     return out;
   }
 
@@ -326,16 +353,21 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
 
   /* ---------- messaggi programmati a mano ---------- */
   async function programmati() { return Object.values(hashObj(await kv('HGETALL', 'msg:prog'))).map(parse).filter(Boolean).sort((a, b) => String(a.quando).localeCompare(String(b.quando))); }
-  async function programma(code, testo, quando) {
-    testo = pulisci(testo);
+  async function programma(code, testo, quando, foto) {
+    testo = pulisci(testo); foto = pulisciFoto(foto);
     const q = Date.parse(quando);
-    if (!testo) throw err(400, 'Scrivi il messaggio');
+    if (!testo && !foto.length) throw err(400, 'Scrivi il messaggio o aggiungi una foto');
     if (!(q > now() + 60e3) || q > now() + 400 * DAY) throw err(400, 'Scegli un momento futuro (al massimo tra 400 giorni)');
-    const p = { id: newId(), code, testo, quando: new Date(q).toISOString(), creato: new Date(now()).toISOString() };
+    const p = Object.assign({ id: newId(), code, testo, quando: new Date(q).toISOString(), creato: new Date(now()).toISOString() }, foto.length ? { foto } : {});
     await kv('HSET', 'msg:prog', p.id, JSON.stringify(p));
     return p;
   }
-  const annullaProgrammato = id => kv('HDEL', 'msg:prog', cleanId(id));
+  async function annullaProgrammato(id) {
+    id = cleanId(id);
+    const p = parse(await kv('HGET', 'msg:prog', id));
+    await kv('HDEL', 'msg:prog', id);
+    if (p) await via(p.foto);
+  }
 
   /* ---------- invii automatici (dalla sincronizzazione) ---------- */
   // Idempotente: ogni invio prende prima il suo marcatore (SET NX), così due sincronizzazioni insieme non mandano due volte lo stesso messaggio.
@@ -357,7 +389,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
           if ((await kv('SET', key, 'in_corso', 'NX', 'EX', '300')) !== 'OK') continue;      // un'altra sincronizzazione lo sta mandando
           try {
             const testi = await testiDaTemplate(tpl.testo, b, config, site);
-            await daHost(b.code, testi.it, { auto: true, regola: r.id, traduzioni: testi, booking: b, site });
+            await daHost(b.code, testi.it, { auto: true, regola: r.id, traduzioni: testi, booking: b, site, foto: tpl.foto });
             await kv('SET', key, 'inviato', 'EX', String(FATTO_TTL));
             out.inviati++;
           } catch (e) { await kv('DEL', key).catch(() => {}); out.errori++; }
@@ -367,10 +399,10 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
         if (tardi()) break;
         if (!(Date.parse(p.quando) <= t)) continue;
         const b = conf.find(x => x.code === p.code), key = 'msg:fatto:p:' + p.id;
-        if (!b) { await kv('HDEL', 'msg:prog', p.id); out.saltati++; continue; }      // prenotazione annullata o non più confermata: non si manda
+        if (!b) { await kv('HDEL', 'msg:prog', p.id); await via(p.foto); out.saltati++; continue; }      // prenotazione annullata o non più confermata: non si manda
         if ((await kv('SET', key, 'in_corso', 'NX', 'EX', '300')) !== 'OK') continue;
         try {
-          await daHost(p.code, p.testo, { verso: await linguaDi(p.code), booking: b, site });
+          await daHost(p.code, p.testo, { verso: await linguaDi(p.code), booking: b, site, foto: p.foto });
           await kvp([['SET', key, 'inviato', 'EX', String(FATTO_TTL)], ['HDEL', 'msg:prog', p.id]]);
           out.inviati++;
         } catch (e) { await kv('DEL', key).catch(() => {}); out.errori++; }
@@ -391,10 +423,12 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
       for (const code of Object.keys(idx)) {
         const b = by.get(code), ultimo = (parse(idx[code]) || {}).ts || 0;
         if (b ? !(AV.isIso(b.a) && AV.addDays(b.a, imp.conservazione) < oggi) : now() - ultimo < imp.conservazione * DAY) continue;
+        const foto = (await lista(code)).flatMap(m => m.foto || []);
         await kvp([['DEL', 'msg:' + code], ['DEL', 'msg:tr:' + code], ['DEL', 'msg:v:' + code], ['HDEL', 'msg:idx', code], ['HDEL', 'msg:nh', code], ['HDEL', 'msg:no', code], ['HDEL', 'msg:lo', code], ['HDEL', 'msg:lingua', code]]);
+        await via(foto);
         n++;
       }
-      for (const p of await programmati()) if (!by.has(p.code)) await kv('HDEL', 'msg:prog', p.id);
+      for (const p of await programmati()) if (!by.has(p.code)) { await kv('HDEL', 'msg:prog', p.id); await via(p.foto); }
       return { cancellate: n };
     } catch (e) { return { cancellate: 0, errore: true }; }
   }

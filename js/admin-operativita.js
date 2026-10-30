@@ -225,8 +225,11 @@ Object.assign(A.act,{
   bookDel:a=>{if(confirm('Rimuovere definitivamente questa prenotazione dallo storico?'))A.api('book_del',{code:a.dataset.code}).then(async()=>{await A.refreshAdm();if(a.dataset.back)location.hash='#prenotazioni';else A.body()}).catch(x=>alert(x.message))},
   bkFill:async a=>{const id=($('#bk-tpl')||{}).value,tp=(V.tpl||[]).find(x=>x.id===id),o=$('#bk-fill-msg'),out=$('#bk-fill');if(!tp){o.textContent='Scegli un template';return}
     o.className='admin-msg';o.textContent='Preparo…';
-    try{const r=await A.api('msg_fill',{code:a.dataset.code,testo:tp.testo});out.value=r.testo;out.hidden=false;
-      A.copy(r.testo);o.className='admin-msg ok';o.textContent=navigator.clipboard?'Copiato: incollalo nella chat o in una email.':'Copialo dal riquadro qui sotto.'}
+    // per la chat del portale, WhatsApp o un'email: i link «[testo](indirizzo)» diventano «testo: indirizzo», le foto del template indirizzi da aprire
+    try{const r=await A.api('msg_fill',{code:a.dataset.code,testo:tp.testo}),foto=tp.foto||[];
+      const testo=String(r.testo||'').replace(/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)/g,'$1: $2')+(foto.length?(r.testo?'\n\n':'')+(foto.length>1?'Foto:\n':'Foto: ')+foto.join('\n'):'');
+      out.value=testo;out.hidden=false;
+      A.copy(testo);o.className='admin-msg ok';o.textContent=navigator.clipboard?'Copiato: incollalo nella chat o in una email.':'Copialo dal riquadro qui sotto.'}
     catch(x){o.className='admin-msg warn';o.textContent=x.message}},
   gcAuth:async()=>{const o=$('#gcout');o.textContent='Reindirizzo a Trentino Marketing…';try{const{url}=await A.api('gc_oauth_start',{});location.href=url}catch(x){o.textContent='Errore: '+x.message}},
   gcTip:async()=>{const o=$('#gcout');o.textContent='Carico…';try{o.textContent=JSON.stringify(await A.api('gc_tipologie',{}),null,2)}catch(x){o.textContent='Errore: '+x.message}},

@@ -196,7 +196,7 @@ async function syncAlerts(config,req){
 
 // ---- Messaggi (area clienti ↔ Gestione), template, invii automatici e traduzione: api/_messaggi.js e api/_traduci.js ----
 const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a)});
-const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e)});
+const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e),cancellaFoto:u=>del(u)});      // foto dei messaggi su Vercel Blob
 const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
 // ---- Annullamento con rimborso (api/_annulla.js) e ricevuta su richiesta (api/_ricevute.js) ----
 const ANN=require('./_annulla.js').makeAnnulla({kv,E,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),sheet:b=>sheetUpsertBooking(b),log:e=>E.log(e)});
@@ -570,8 +570,8 @@ if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet
  if(!bk)return res.status(404).json({err:'Conversazione non trovata'});
  if(a==='msg_thread')return res.json(Object.assign(await MSG.perHost(bk.code,b.v,b.lo),{prenotazione:{code:bk.code,nome:bk.nome||'',email:bk.email||'',tel:bk.tel||'',apt:bk.id,dal:bk.da,al:bk.a,ospiti:bk.ospiti,notti:bk.notti,stato:bk.stato},scrivibile:chatOk({origine:'sito',stato:bk.stato})}));
  if(!chatOk({origine:'sito',stato:bk.stato}))return res.status(409).json({err:'Si può scrivere solo alle prenotazioni confermate'});
- try{if(a==='msg_prog_add')return res.json(await MSG.programma(bk.code,b.testo,b.quando));
-  return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false?null:await MSG.linguaDi(bk.code),booking:bk,site:siteOf(req)}))}catch(e){return msgErr(res,e)}}
+ try{if(a==='msg_prog_add')return res.json(await MSG.programma(bk.code,b.testo,b.quando,b.foto));
+  return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false?null:await MSG.linguaDi(bk.code),booking:bk,site:siteOf(req),foto:b.foto}))}catch(e){return msgErr(res,e)}}
 if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI,regole:await MSG.regole()});      // con le regole: l'invio automatico si sceglie anche nel template
 if(a==='msg_tpl_save')try{return res.json({templates:await MSG.salvaTemplates(b.templates)})}catch(e){return msgErr(res,e)}
 if(a==='msg_auto'){const bks=await E.bkAll(),by=new Map(bks.map(x=>[x.code,x]));

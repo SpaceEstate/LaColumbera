@@ -130,8 +130,17 @@ Telefono: ${tel||'—'}${b.pagamento?'\nRif. Stripe: '+b.pagamento:''}`;
 
 // ---------------- AVVISI DEI MESSAGGI (api/_messaggi.js) ----------------
 // Al titolare: un ospite ha scritto. Senza il testo del messaggio (resta nell'area riservata): solo chi, quale soggiorno e il link per rispondere.
-// Il testo di un messaggio in un riquadro: a capo dove l'ha messo chi scrive, mai HTML (esc).
-const msgBox=(testo,nota)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-left:3px solid ${C.gold};border-radius:6px"><tr><td style="padding:14px 18px">${nota?`<div style="font-family:${SANS};font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:6px">${esc(nota)}</div>`:''}<div style="font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};word-wrap:break-word">${esc(testo).replace(/\r?\n/g,'<br>')}</div></td></tr></table>`;
+// Il testo di un messaggio in un riquadro: a capo dove l'ha messo chi scrive, mai HTML (esc). Diventano link gli indirizzi http(s) e www.
+// e, nei messaggi della struttura (md), «[testo](https://…)»; in quelli dell'ospite quella forma resta com'è, con l'indirizzo cliccabile.
+const RE_LINK=/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)|((?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]'])/gi;
+const linkMsg=(s,md)=>{s=String(s==null?'':s);let o='',i=0;
+  const a=(u,l)=>`<a href="${esc(/^www\./i.test(u)?'https://'+u:u)}" target="_blank" style="color:${C.wine};font-weight:700;word-break:break-all">${esc(l)}</a>`;
+  for(const m of s.matchAll(RE_LINK)){o+=esc(s.slice(i,m.index))+(m[2]?(md?a(m[2],m[1]):esc('['+m[1]+'](')+a(m[2],m[2])+esc(')')):a(m[3],m[3]));i=m.index+m[0].length}
+  return (o+esc(s.slice(i))).replace(/\r?\n/g,'<br>')};
+const semplice=s=>String(s==null?'':s).replace(/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)/g,'$1: $2');      // per la parte di solo testo
+const msgBox=(testo,nota,md)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-left:3px solid ${C.gold};border-radius:6px"><tr><td style="padding:14px 18px">${nota?`<div style="font-family:${SANS};font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:6px">${esc(nota)}</div>`:''}<div style="font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};word-wrap:break-word">${linkMsg(testo,md)}</div></td></tr></table>`;
+// foto di un messaggio della struttura (Vercel Blob): larghe quanto il riquadro, ognuna apre l'originale
+const fotoBox=l=>(l||[]).map(u=>`<a href="${esc(u)}" target="_blank" style="text-decoration:none"><img src="${esc(u)}" width="496" alt="" style="display:block;width:100%;max-width:496px;height:auto;border:0;border-radius:8px;margin:10px 0 0"></a>`).join('');
 const pc=(t,extra)=>`<p style="margin:0;font-family:${SANS};font-size:15px;line-height:24px;color:${C.ink};text-align:center${extra||''}">${t}</p>`;
 const piede=t=>`<p style="margin:0;font-family:${SANS};font-size:12px;line-height:19px;color:${C.muted};text-align:center">${t}</p>`;
 // Al titolare, quando scrive un ospite: il testo (con la traduzione in italiano, se ha scritto in un'altra lingua) e «Rispondi»,
@@ -150,23 +159,23 @@ const avvisoTitolare=(b,site,m)=>{m=m||{};
 // e «Rispondi», che apre la scheda Messaggi della sua area ospiti senza chiedere il codice (token nel frammento "#").
 // Lingua non nota (l'ospite non ha ancora aperto i messaggi): italiano e inglese insieme.
 const OSP={
-  it:{sub:'Nuovo messaggio da La Columbera',eye:'Nuovo messaggio',ciao:n=>'Ciao'+(n?' '+n:'')+'!',intro:'Ti abbiamo scritto sul tuo soggiorno:',orig:'Testo originale (italiano)',btn:'Rispondi',
+  it:{sub:'Nuovo messaggio da La Columbera',eye:'Nuovo messaggio',ciao:n=>'Ciao'+(n?' '+n:'')+'!',intro:'Ti abbiamo scritto sul tuo soggiorno:',orig:'Testo originale (italiano)',btn:'Rispondi',foto:'Foto',
     piede:'Il pulsante apre i messaggi nella tua area ospiti, senza bisogno del codice: non inoltrare questa email a chi non soggiorna con te.',codice:'Per entrare nella tua area ospiti ti serve il codice di prenotazione: lo trovi nella email di conferma.',priv:'Informativa privacy'},
-  en:{sub:'New message from La Columbera',eye:'New message',ciao:n=>'Hi'+(n?' '+n:'')+'!',intro:'We have written to you about your stay:',orig:'Original text (Italian)',btn:'Reply',
+  en:{sub:'New message from La Columbera',eye:'New message',ciao:n=>'Hi'+(n?' '+n:'')+'!',intro:'We have written to you about your stay:',orig:'Original text (Italian)',btn:'Reply',foto:'Photos',
     piede:'The button opens the messages in your guest area, no code needed: please do not forward this email to anyone who is not staying with you.',codice:'To open your guest area you need your booking code: you will find it in the confirmation email.',priv:'Privacy notice'},
-  de:{sub:'Neue Nachricht von La Columbera',eye:'Neue Nachricht',ciao:n=>'Hallo'+(n?' '+n:'')+'!',intro:'Wir haben Ihnen zu Ihrem Aufenthalt geschrieben:',orig:'Originaltext (Italienisch)',btn:'Antworten',
+  de:{sub:'Neue Nachricht von La Columbera',eye:'Neue Nachricht',ciao:n=>'Hallo'+(n?' '+n:'')+'!',intro:'Wir haben Ihnen zu Ihrem Aufenthalt geschrieben:',orig:'Originaltext (Italienisch)',btn:'Antworten',foto:'Fotos',
     piede:'Die Schaltfläche öffnet die Nachrichten in Ihrem Gästebereich, ohne Code: Bitte leiten Sie diese E-Mail nicht an Personen weiter, die nicht mit Ihnen übernachten.',codice:'Um Ihren Gästebereich zu öffnen, benötigen Sie Ihren Buchungscode: Sie finden ihn in der Bestätigungs-E-Mail.',priv:'Datenschutzhinweis'}};
 const avvisoOspite=(b,site,token,m)=>{m=m||{};
   const lg=OSP[m.lingua]?m.lingua:'',L=OSP[lg||'it'],E=OSP.en,due=!lg;
   const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token)+'&s=messaggi':'');
-  const nome=String(b.nome||'').trim().split(/\s+/)[0],testo=String(m.testo||''),tr=lg&&lg!=='it'&&m.tradotto&&m.tradotto!==testo?String(m.tradotto):'';
+  const nome=String(b.nome||'').trim().split(/\s+/)[0],testo=String(m.testo||''),tr=lg&&lg!=='it'&&m.tradotto&&m.tradotto!==testo?String(m.tradotto):'',foto=Array.isArray(m.foto)?m.foto:[];
   const nota=x=>token?x.piede:x.codice;      // senza il token (non è stato possibile crearlo) il pulsante apre l'area e serve il codice
   const html=shell({site,lang:lg||'it',eyebrow:due?L.eye+' · '+E.eye:L.eye,preheader:(tr||testo).slice(0,110)||L.sub,title:esc(L.ciao(nome)),
     body:sec(pc(esc(L.intro))+(due?pc(esc(E.intro),';margin-top:4px;font-size:14px;color:'+C.muted):''),'16px 32px 0')+
-      sec(tr?msgBox(tr)+'<div style="height:10px;line-height:10px">&nbsp;</div>'+msgBox(testo,L.orig):msgBox(testo),'14px 32px 0')+
+      sec((tr?msgBox(tr,'',true)+'<div style="height:10px;line-height:10px">&nbsp;</div>'+msgBox(testo,L.orig,true):testo?msgBox(testo,'',true):'')+fotoBox(foto),'14px 32px 0')+
       sec(button(link,due?L.btn+' · '+E.btn:L.btn),'24px 32px 0')+
       sec(piede(esc(nota(L))+(due?'<br>'+esc(nota(E)):'')+`<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'22px 32px 32px')});
-  const text=`${L.ciao(nome)} ${L.intro}${due?'\n'+E.intro:''}\n\n${tr||testo}\n${tr?'\n'+L.orig+':\n'+testo+'\n':''}\n${due?L.btn+' · '+E.btn:L.btn}: ${link}\n\n${nota(L)}${due?'\n'+nota(E):''}\n${L.priv}: ${site}/privacy.html`;
+  const text=`${L.ciao(nome)} ${L.intro}${due?'\n'+E.intro:''}\n\n${semplice(tr||testo)}\n${tr?'\n'+L.orig+':\n'+semplice(testo)+'\n':''}${foto.length?'\n'+L.foto+':\n'+foto.join('\n')+'\n':''}\n${due?L.btn+' · '+E.btn:L.btn}: ${link}\n\n${nota(L)}${due?'\n'+nota(E):''}\n${L.priv}: ${site}/privacy.html`;
   return{subject:due?'Nuovo messaggio da La Columbera · New message':L.sub,html,text}};
 
 // ---------------- ANNULLAMENTO CON RIMBORSO (api/_annulla.js) ----------------

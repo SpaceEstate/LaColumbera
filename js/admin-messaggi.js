@@ -1,12 +1,33 @@
 // La Columbera · Gestione → Messaggi: conversazioni con gli ospiti del sito, template, messaggi automatici e programmati.
 // Tutto si salva subito sul server (chiavi separate dalla configurazione del sito): la barra «Salva modifiche» qui non serve.
-// Ogni testo si mostra come testo (mai HTML); i soli indirizzi http(s) diventano link.
+// Ogni testo si mostra come testo (mai HTML); diventano link gli indirizzi http(s) e www. e, nei testi della struttura, «[testo](https://…)»
+// (il pulsante «Link» lo scrive da sé). Risposte, messaggi programmati e template possono avere fino a 4 foto: ridimensionate qui come le altre
+// foto della Gestione e caricate su Vercel Blob (api/x?a=up: msg per un messaggio, msgtpl per un template).
 // Montato da js/admin.js nella sezione #messaggi (sotto-viste: #messaggi/c/<codice>, #messaggi/template, #messaggi/automatici).
 (function () {
 'use strict';
 const $ = (s, r) => (r || document).querySelector(s), $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const linkify = s => esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, u => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+// md: anche «[testo](https://…)» (solo nei testi della struttura: in quelli dell'ospite resta com'è, con l'indirizzo cliccabile)
+const RE_LINK = /\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)|((?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]'])/gi;
+const linkify = (s, md) => {
+  s = String(s == null ? '' : s); let o = '', i = 0;
+  const a = (u, l) => `<a href="${esc(/^www\./i.test(u) ? 'https://' + u : u)}" target="_blank" rel="noopener noreferrer">${esc(l)}</a>`;
+  for (const m of s.matchAll(RE_LINK)) { o += esc(s.slice(i, m.index)) + (m[2] ? (md ? a(m[2], m[1]) : esc('[' + m[1] + '](') + a(m[2], m[2]) + esc(')')) : a(m[3], m[3])); i = m.index + m[0].length; }
+  return o + esc(s.slice(i));
+};
+const fotoHtml = l => l && l.length ? `<span class="ga-foto">${l.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><img src="${esc(u)}" alt="Foto" loading="lazy"></a>`).join('')}</span>` : '';
+const MAX_FOTO = 4;
+// foto: ridimensionata nel browser (lato lungo 1600 px, JPEG) come le altre foto della Gestione
+const resize = f => new Promise((res, rej) => { const im = new Image(); im.onload = () => { const k = Math.min(1, 1600 / Math.max(im.width, im.height)), cv = document.createElement('canvas'); cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k); cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height); res(cv.toDataURL('image/jpeg', .82)); }; im.onerror = () => rej(Error('Immagine non leggibile')); im.src = URL.createObjectURL(f); });
+// k: 'r' = la risposta che si sta scrivendo, 't<i>' = il template i
+const fotoDi = k => k === 'r' ? ST.allegati : ((ST.tpl || [])[+k.slice(1)] || {}).foto || [];
+const fotoEd = k => { const l = fotoDi(k); return `<div class="msg-foto" id="msg-foto-${k}" data-testid="msg-foto-${k}">${l.map((u, j) => `<span class="msg-foto-i"><img src="${esc(u)}" alt="Foto ${j + 1}"><button type="button" class="msg-foto-x" data-act="fotoDel" data-k="${k}" data-j="${j}" aria-label="Togli la foto ${j + 1}" data-testid="msg-foto-del-${k}-${j}">✕</button></span>`).join('')}</div>`; };
+const strumenti = k => `<div class="msg-bar msg-tools">${fotoDi(k).length < MAX_FOTO ? `<label class="upload-btn">+ Foto<input type="file" accept="image/*" multiple data-foto="${k}" data-testid="msg-foto-up-${k}"></label>` : ''}<button type="button" class="adm-chip" data-act="linkOpen" data-k="${k}" data-testid="msg-link-${k}">🔗 Link</button><span class="admin-msg" id="msg-foto-out-${k}"></span></div>`;
+const linkPanel = k => `<div class="msg-link" id="msg-link-${k}" data-testid="msg-link-panel-${k}"><div class="fields-grid"><div class="field"><label for="msg-link-t-${k}">Testo del link (facoltativo)</label><input id="msg-link-t-${k}" maxlength="80" placeholder="es. Prenota un tavolo" data-testid="msg-link-t-${k}"></div>
+  <div class="field"><label for="msg-link-u-${k}">Indirizzo</label><input id="msg-link-u-${k}" type="url" inputmode="url" placeholder="https://…" data-testid="msg-link-u-${k}"></div></div>
+  <div class="msg-bar"><button type="button" class="btn btn-line" data-act="linkOk" data-k="${k}" data-testid="msg-link-ok-${k}">Inserisci il link</button><button type="button" class="link-btn" data-act="linkNo" data-k="${k}">Annulla</button><span class="admin-msg" id="msg-link-err-${k}"></span></div></div>`;
+const testoDi = k => k === 'r' ? $('#msg-testo', root) : $('[data-tf=testo][data-i="' + k.slice(1) + '"]', root);
 const fmtD = s => s ? new Date(s + 'T12:00:00Z').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'UTC' }) : '';
 const fmtT = ms => ms ? new Date(ms).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
 const ago = ms => { if (!ms) return ''; const m = Math.max(0, Math.round((Date.now() - ms) / 60000)); return m < 1 ? 'adesso' : m < 60 ? m + ' min fa' : m < 1440 ? Math.round(m / 60) + ' h fa' : fmtT(ms); };
@@ -23,7 +44,7 @@ const quandoTxt = r => { const q = quandoDi(r), n = Math.abs(r.giorni) || 1; ret
 const POLL_MS = 30000;
 
 let root = null, ctx = null, timer = null, lastFocus = null, ST = fresh();
-function fresh() { return { view: '', code: '', inbox: null, thread: null, tpl: null, tplReg: null, vars: [], auto: null, autoDirty: false, tplDirty: false }; }
+function fresh() { return { view: '', code: '', inbox: null, thread: null, tpl: null, tplReg: null, vars: [], auto: null, autoDirty: false, tplDirty: false, allegati: [] }; }
 
 /* ---------- server ---------- */
 async function call(a, b) {
@@ -60,6 +81,7 @@ function vThread() {
    ${x.scrivibile ? `<form id="msg-reply" class="msg-compose" novalidate>
     <div class="msg-bar"><select id="msg-tpl" aria-label="Inserisci un template" data-testid="msg-tpl-pick"><option value="">Inserisci un template…</option>${tpls}</select></div>
     <div class="field"><label for="msg-testo">Risposta</label><textarea id="msg-testo" rows="4" maxlength="2000" data-testid="msg-testo"></textarea></div>
+    ${fotoEd('r')}${strumenti('r')}
     ${x.traduzione && lg ? `<label class="msg-check"><input type="checkbox" id="msg-traduci" checked data-testid="msg-traduci"> Traduci anche in ${esc(LINGUA[lg] || lg)} (l'ospite vede la traduzione e, se vuole, il tuo testo originale)</label>` : ''}
     <div class="msg-bar"><button class="btn btn-wine" data-testid="msg-invia">Invia</button><button type="button" class="btn btn-line" data-act="progOpen" data-testid="msg-prog-open">Programma l'invio…</button></div>
     <div class="msg-bar" id="msg-prog" hidden><label for="msg-quando">Invia il</label><input type="datetime-local" id="msg-quando" data-testid="msg-quando"><button type="button" class="btn btn-line" data-act="progOk" data-testid="msg-prog-ok">Programma</button></div>
@@ -70,9 +92,9 @@ function threadHtml(x) {
   return x.messaggi.map(m => {
     const me = m.da !== 'ospite', tr = m.tradotto, main = me ? m.testo : (tr || m.testo), alt = me ? tr : (tr ? m.testo : '');
     const meta = me ? [m.da === 'auto' ? 'Automatico' : 'Tu', fmtT(m.ts), m.letto ? '✓✓ letto' : 'inviato'] : ['Ospite', fmtT(m.ts)];
-    return `<div class="ga-msg ${me ? 'me' : 'them'}" data-testid="msg-m-${esc(m.id)}"><div class="ga-bubble">${linkify(main)}</div>
+    return `<div class="ga-msg ${me ? 'me' : 'them'}" data-testid="msg-m-${esc(m.id)}"><div class="ga-bubble">${linkify(main, me)}${fotoHtml(m.foto)}</div>
      <div class="ga-meta">${meta.map(esc).join(' · ')}${alt ? ` · <button type="button" class="link-btn" data-alt="${esc(m.id)}">${me ? 'come lo legge l\'ospite' : 'originale' + (m.lingua && LINGUA[m.lingua] ? ' (' + LINGUA[m.lingua] + ')' : '')}</button>` : ''}</div>
-     ${alt ? `<div class="ga-orig" id="msg-alt-${esc(m.id)}" hidden>${linkify(alt)}</div>` : ''}</div>`;
+     ${alt ? `<div class="ga-orig" id="msg-alt-${esc(m.id)}" hidden>${linkify(alt, me)}</div>` : ''}</div>`;
   }).join('');
 }
 const paintThread = () => { const el = $('#msg-thread', root); if (!el || !ST.thread) return; const near = el.scrollHeight - el.scrollTop - el.clientHeight < 80; el.innerHTML = threadHtml(ST.thread); if (near) el.scrollTop = el.scrollHeight; };
@@ -102,10 +124,12 @@ function vTpl() {
    <div class="adm-head"><h2>Template</h2><button type="button" class="btn btn-wine" data-act="tplSave" data-testid="msg-tpl-save">Salva template</button></div>
    <p class="book-note">Testi pronti. Per ognuno scegli se parte da solo (appena la prenotazione è confermata, oppure qualche giorno prima o dopo il check-in o il check-out) o se lo usi a mano: nelle risposte ai messaggi, oppure dalla scheda della prenotazione (Prenotazioni → «Prepara e copia») per incollarlo nella chat di Booking e Airbnb. Gli invii automatici arrivano solo a chi ha prenotato sul sito, nella sua lingua se la traduzione è attiva.</p>
    <p class="book-note">Le variabili tra graffe si riempiono da sole (clicca per inserirle nel testo su cui stai scrivendo); una variabile vuota sparisce, per esempio il nome per una prenotazione Booking.</p>
+   <p class="book-note">Link: gli indirizzi che iniziano con https:// o www. diventano cliccabili da soli; con «🔗 Link» il link ha un testo tuo (nel testo compare come [testo](indirizzo)). Foto: fino a ${MAX_FOTO} per template, partono con il messaggio (anche quello automatico) e l'ospite le vede nell'area ospiti e nell'email. Nel testo da copiare per Booking e Airbnb diventano indirizzi da aprire.</p>
    <div class="msg-vars">${ST.vars.map(([k, d]) => `<button type="button" class="adm-chip" data-var="${esc(k)}" title="${esc(d)}">{${esc(k)}}</button>`).join('')}</div>
    ${ST.tpl.map((x, i) => `<div class="msg-tpl${regoleDi(x).some(r => r.attiva) ? ' on' : ''}" data-i="${i}" data-testid="msg-tpl-${i}">
      <div class="field"><label>Nome</label><input data-tf="nome" data-i="${i}" value="${esc(x.nome)}" maxlength="80"></div>
      <div class="field"><label>Testo</label><textarea data-tf="testo" data-i="${i}" rows="5" maxlength="2000">${esc(x.testo)}</textarea></div>
+     ${fotoEd('t' + i)}${strumenti('t' + i)}
      ${ST.tplReg ? `<div class="msg-ta" id="msg-ta-${i}" data-testid="msg-tpl-auto-${i}">${autoHtml(x, i)}</div>` : ''}
      <div class="msg-bar"><button type="button" class="stato-select" data-act="tplDel" data-i="${i}" data-testid="msg-tpl-del-${i}">Elimina</button></div></div>`).join('')}
    <div class="msg-bar"><button type="button" class="btn btn-line" data-act="tplAdd" data-testid="msg-tpl-add">+ Nuovo template</button><span class="admin-msg" id="tpl-out" data-testid="msg-tpl-out"></span></div></div>`;
@@ -132,7 +156,7 @@ function vAuto() {
      ${q !== 'conferma' ? `<label class="msg-check"><input type="checkbox" data-rf="ritardo" data-i="${i}"${r.ritardo ? ' checked' : ''}> Se la prenotazione arriva quando quel momento è già passato, invia subito (finché ha senso)</label>` : ''}</div>`;
   }).join('');
   const pr = x.prossimi.map(p => `<tr data-testid="msg-next-${esc(p.regola)}-${esc(p.code)}"><td data-label="Quando">${esc(fmtT(p.quando))}</td><td data-label="Ospite">${esc(p.nome || fmtCode(p.code))}<br><small>${esc(apt(p.apt))} · ${esc(fmtD(p.dal))} → ${esc(fmtD(p.al))}</small></td><td data-label="Regola">${esc(p.nomeRegola)}<br><small>${esc(p.template)}</small></td><td class="td-azioni">${p.stato === 'saltato' ? `<span class="stato annullata">saltato</span> <button type="button" class="stato-select" data-act="unskip" data-r="${esc(p.regola)}" data-c="${esc(p.code)}">Ripristina</button>` : `<button type="button" class="stato-select" data-act="skip" data-r="${esc(p.regola)}" data-c="${esc(p.code)}" data-testid="msg-skip-${esc(p.regola)}-${esc(p.code)}">Salta</button>`}</td></tr>`).join('');
-  const pg = x.programmati.map(p => `<tr><td data-label="Quando">${esc(fmtT(Date.parse(p.quando)))}</td><td data-label="Ospite">${esc(p.nome || fmtCode(p.code))} · ${esc(apt(p.apt))}</td><td data-label="Messaggio">${esc(String(p.testo).slice(0, 120))}</td><td class="td-azioni"><button type="button" class="stato-select" data-act="progDel" data-id="${esc(p.id)}">Annulla</button></td></tr>`).join('');
+  const pg = x.programmati.map(p => `<tr><td data-label="Quando">${esc(fmtT(Date.parse(p.quando)))}</td><td data-label="Ospite">${esc(p.nome || fmtCode(p.code))} · ${esc(apt(p.apt))}</td><td data-label="Messaggio">${esc(String(p.testo).slice(0, 120))}${p.foto && p.foto.length ? ' 📷 ' + p.foto.length : ''}</td><td class="td-azioni"><button type="button" class="stato-select" data-act="progDel" data-id="${esc(p.id)}">Annulla</button></td></tr>`).join('');
   const im = x.impostazioni;
   return `<div class="admin-card" data-testid="msg-auto"><a class="link-btn" href="#messaggi">← Messaggi</a>
    <div class="adm-head"><h2>Messaggi automatici</h2><button type="button" class="btn btn-wine" data-act="autoSave" data-testid="msg-auto-save">Salva regole</button></div>
@@ -183,16 +207,52 @@ function poll() {
   }, POLL_MS);
 }
 
+/* ---------- foto e link (risposta e template) ---------- */
+// al più MAX_FOTO per messaggio o template; se Vercel Blob non va si dice cosa sistemare (messaggio del server)
+async function caricaFoto(k, files) {
+  const t = k === 'r' ? null : ST.tpl[+k.slice(1)], l = t ? (t.foto = t.foto || []) : ST.allegati, sel = files.slice(0, Math.max(0, MAX_FOTO - l.length));
+  const out = $('#msg-foto-out-' + k, root);
+  if (out) { out.className = 'admin-msg'; out.textContent = sel.length > 1 ? 'Carico le foto…' : 'Carico la foto…'; }
+  try {
+    for (const f of sel) l.push((await call('up', { id: t ? 'msgtpl' : 'msg', img: await resize(f) })).url);
+    if (t) { ST.tplDirty = true; say('tpl-out', 'Ricordati di salvare'); }
+    ridisegnaFoto(k, files.length > sel.length ? 'Al massimo ' + MAX_FOTO + ' foto: le altre non sono state aggiunte.' : '');
+  } catch (e) { ridisegnaFoto(k, e.message); }
+}
+function ridisegnaFoto(k, avviso) {
+  const box = $('#msg-foto-' + k, root), bar = box && box.nextElementSibling;
+  if (box) box.outerHTML = fotoEd(k);
+  if (bar && bar.classList.contains('msg-tools')) bar.outerHTML = strumenti(k);
+  const o = $('#msg-foto-out-' + k, root); if (o && avviso) { o.className = 'admin-msg warn'; o.textContent = avviso; }
+}
+
 /* ---------- azioni ---------- */
 const ACT = {
+  fotoDel: a => { const k = a.dataset.k; fotoDi(k).splice(+a.dataset.j, 1); if (k !== 'r') { ST.tplDirty = true; say('tpl-out', 'Ricordati di salvare'); } ridisegnaFoto(k); },
+  // link con un testo: «[testo](indirizzo)» nel punto del cursore (senza testo, l'indirizzo da solo)
+  linkOpen: a => { const k = a.dataset.k, p = $('#msg-link-' + k, root); if (p) { p.remove(); return; } a.closest('.msg-tools').insertAdjacentHTML('afterend', linkPanel(k)); $('#msg-link-u-' + k, root).focus(); },
+  linkNo: a => { const p = $('#msg-link-' + a.dataset.k, root); if (p) p.remove(); },
+  linkOk: a => {
+    const k = a.dataset.k, ta = testoDi(k), err = $('#msg-link-err-' + k, root);
+    let u = ($('#msg-link-u-' + k, root).value || '').trim().replace(/\(/g, '%28').replace(/\)/g, '%29');
+    const l = ($('#msg-link-t-' + k, root).value || '').replace(/[[\]\n]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (/^www\./i.test(u)) u = 'https://' + u;
+    if (!/^https?:\/\/[^\s<>"]+\.[^\s<>"]+$/i.test(u)) { err.className = 'admin-msg warn'; err.textContent = 'Scrivi un indirizzo completo, per esempio https://www.esempio.it'; return; }
+    if (!ta) return;
+    const ins = l ? '[' + l + '](' + u + ')' : u, s0 = ta.selectionStart == null ? ta.value.length : ta.selectionStart, s1 = ta.selectionEnd == null ? s0 : ta.selectionEnd;
+    const prima = ta.value.slice(0, s0), sp = prima && !/\s$/.test(prima) ? ' ' : '';
+    ta.value = prima + sp + ins + ta.value.slice(s1); ta.focus(); ta.selectionStart = ta.selectionEnd = s0 + sp.length + ins.length;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    $('#msg-link-' + k, root).remove();
+  },
   newConv: () => { const v = $('#msg-new', root); if (v && v.value) location.hash = '#messaggi/c/' + v.value; },
   progOpen: () => { const p = $('#msg-prog', root); if (p) p.hidden = !p.hidden; },
   progOk: async a => {
-    const v = ($('#msg-testo', root).value || '').trim(), q = $('#msg-quando', root).value;
-    if (!v) { say('msg-out', 'Scrivi prima il messaggio da programmare'); return; }
+    const v = ($('#msg-testo', root).value || '').trim(), q = $('#msg-quando', root).value, foto = ST.allegati.slice();
+    if (!v && !foto.length) { say('msg-out', 'Scrivi prima il messaggio da programmare (o aggiungi una foto)'); return; }
     if (!q) { say('msg-out', 'Scegli giorno e ora'); return; }
     a.disabled = true;
-    try { await call('msg_prog_add', { code: ST.code, testo: v, quando: new Date(q).toISOString() }); $('#msg-testo', root).value = ''; $('#msg-prog', root).hidden = true; say('msg-out', 'Programmato per ' + fmtT(Date.parse(new Date(q).toISOString())) + ': lo trovi in Automatici → Messaggi programmati.', true); }
+    try { await call('msg_prog_add', { code: ST.code, testo: v, quando: new Date(q).toISOString(), foto }); $('#msg-testo', root).value = ''; ST.allegati = []; ridisegnaFoto('r'); $('#msg-prog', root).hidden = true; say('msg-out', 'Programmato per ' + fmtT(Date.parse(new Date(q).toISOString())) + ': lo trovi in Automatici → Messaggi programmati.', true); }
     catch (e) { say('msg-out', e.message); } finally { a.disabled = false; }
   },
   // l'id di un template nuovo lo sceglie la pagina, così il suo invio automatico lo indica già nello stesso salvataggio
@@ -229,19 +289,25 @@ const ACT = {
 async function onSubmit(e) {
   if (e.target.id !== 'msg-reply') return;
   e.preventDefault();
-  const ta = $('#msg-testo', root), btn = e.target.querySelector('[data-testid=msg-invia]'), v = (ta.value || '').trim(), tr = $('#msg-traduci', root);
-  if (!v || btn.disabled) return;
+  const ta = $('#msg-testo', root), btn = e.target.querySelector('[data-testid=msg-invia]'), v = (ta.value || '').trim(), tr = $('#msg-traduci', root), foto = ST.allegati.slice();
+  if ((!v && !foto.length) || btn.disabled) return;
   btn.disabled = true; say('msg-out', 'Invio…', true);
-  try { await call('msg_reply', { code: ST.code, testo: v, traduci: tr ? tr.checked : false }); ta.value = ''; say('msg-out', ''); await loadThread(false); }
+  try { await call('msg_reply', { code: ST.code, testo: v, traduci: tr ? tr.checked : false, foto }); ta.value = ''; ST.allegati = []; say('msg-out', ''); await loadThread(false); }
   catch (er) { say('msg-out', er.message); } finally { const b = $('[data-testid=msg-invia]', root); if (b) b.disabled = false; }
 }
 async function onChange(e) {
   const el = e.target;
-  if (el.id === 'msg-tpl' && el.value) {      // template nella risposta: compilato per questa prenotazione
+  if (el.dataset.foto && el.files && el.files.length) { const f = [...el.files]; el.value = ''; await caricaFoto(el.dataset.foto, f); return; }
+  if (el.id === 'msg-tpl' && el.value) {      // template nella risposta: compilato per questa prenotazione, con le sue foto
     const t = (ST.tpl || []).find(x => x.id === el.value); el.value = '';
     if (!t) return;
-    try { const x = await call('msg_fill', { code: ST.code, testo: t.testo }), ta = $('#msg-testo', root); ta.value = (ta.value ? ta.value.replace(/\s*$/, '\n\n') : '') + x.testo; ta.focus(); }
-    catch (er) { say('msg-out', er.message); }
+    try {
+      const x = await call('msg_fill', { code: ST.code, testo: t.testo }), ta = $('#msg-testo', root);
+      if (x.testo) ta.value = (ta.value ? ta.value.replace(/\s*$/, '\n\n') : '') + x.testo;
+      const nuove = (t.foto || []).filter(u => !ST.allegati.includes(u)).slice(0, MAX_FOTO - ST.allegati.length);
+      if (nuove.length) { ST.allegati.push(...nuove); ridisegnaFoto('r'); }
+      ta.focus();
+    } catch (er) { say('msg-out', er.message); }
     return;
   }
   const ta = el.dataset.ta;
@@ -316,7 +382,7 @@ async function mount(el, c, sub, arg) {
   const view = sub === 'c' && arg ? 'thread' : sub === 'template' ? 'tpl' : sub === 'automatici' ? 'auto' : 'inbox';
   const code = view === 'thread' ? String(arg).toUpperCase() : '';
   if (view === ST.view && code === ST.code && view !== 'inbox') return;
-  ST.view = view; ST.code = code; if (view === 'thread') ST.thread = null;
+  ST.view = view; ST.code = code; if (view === 'thread') { ST.thread = null; ST.allegati = []; }
   render();
   try {
     if (view === 'thread') { if (!ST.tpl) await loadTpl(); await loadThread(false); }

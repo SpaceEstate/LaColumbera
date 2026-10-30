@@ -1957,6 +1957,58 @@ test('U38 ISTAT: la scheda ISTAT non cambia Alloggiati Web e viceversa (stato se
   await goto(r, '#adempimenti/istat', '[data-testid=ist-table]'); assert.equal(nRows(r), 20); assert(r.doc.querySelector('[data-testid=adp-tab-istat]').classList.contains('on'));
 });
 
+test('W38 Gestione · Messaggi: foto e link nella risposta e nei template; l\'ospite li vede nell\'area (link con il testo, foto che si aprono); «Prepara e copia» li trasforma in indirizzi', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const r = await loadAdmin('#messaggi/c/' + c.code), $ = s => r.doc.querySelector(s); fintaFoto(r);
+  await waitFor(() => $('[data-testid=msg-testo]'), 'risposta');
+  // una foto dalla risposta
+  const up = $('[data-testid=msg-foto-up-r]'), file = new r.w.File(['x'], 'cassetta.jpg', { type: 'image/jpeg' });
+  Object.defineProperty(up, 'files', { value: [file], configurable: true }); up.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  const img = await waitFor(() => $('[data-testid=msg-foto-r] img'), 'anteprima della foto');
+  const url = img.getAttribute('src'); assert(/^https:\/\/teststore\.public\.blob\.vercel-storage\.com\/foto\/msg\/f-\d+\.jpg$/.test(url), url);
+  // un link con il testo, nel punto del cursore
+  const ta = $('[data-testid=msg-testo]'); ta.value = 'Ecco come arrivare'; ta.selectionStart = ta.selectionEnd = ta.value.length;
+  $('[data-testid=msg-link-r]').click();
+  $('[data-testid=msg-link-u-r]').value = 'esempio'; $('[data-testid=msg-link-ok-r]').click();
+  assert(/indirizzo completo/.test(text($('#msg-link-err-r'))) && ta.value === 'Ecco come arrivare', 'indirizzo sbagliato: niente');
+  $('[data-testid=msg-link-t-r]').value = 'la mappa [nuova]'; $('[data-testid=msg-link-u-r]').value = 'www.esempio.it/mappa(1)'; $('[data-testid=msg-link-ok-r]').click();
+  assert.equal(ta.value, 'Ecco come arrivare [la mappa nuova](https://www.esempio.it/mappa%281%29)'); assert(!$('[data-testid=msg-link-panel-r]'), 'pannello chiuso');
+  $('#msg-reply').requestSubmit();
+  const bub = await waitFor(() => $('[data-testid=msg-messages] .ga-msg.me .ga-bubble'), 'inviato');
+  const a = bub.querySelector('a[href="https://www.esempio.it/mappa%281%29"]');
+  assert(a && text(a) === 'la mappa nuova' && a.target === '_blank' && bub.querySelector('.ga-foto img[src="' + url + '"]'), 'link con il testo e foto nella conversazione: ' + bub.innerHTML);
+  assert(!$('[data-testid=msg-foto-r] img'), 'dopo l\'invio la risposta torna vuota');
+  // template con una foto: la risposta con il template porta anche la foto
+  await goto(r, '#messaggi/template', '[data-testid=msg-tpl]');
+  const tup = $('[data-testid=msg-foto-up-t0]'); Object.defineProperty(tup, 'files', { value: [file, file, file, file, file], configurable: true }); tup.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  await waitFor(() => r.doc.querySelectorAll('[data-testid=msg-foto-t0] img').length === 4, 'al massimo 4 foto');
+  assert(/Al massimo 4 foto/.test(text($('#msg-foto-out-t0'))) && !$('[data-testid=msg-foto-up-t0]'), 'avviso e niente più «+ Foto»');
+  $('[data-testid=msg-foto-del-t0-3]').click(); $('[data-testid=msg-foto-del-t0-2]').click(); $('[data-testid=msg-foto-del-t0-1]').click();
+  assert(r.doc.querySelectorAll('[data-testid=msg-foto-t0] img').length === 1 && $('[data-testid=msg-foto-up-t0]'), 'tolte');
+  $('[data-testid=msg-tpl-save]').click(); await waitFor(() => /Template salvati/.test(text($('[data-testid=msg-tpl-out]'))), 'salvati');
+  const tf = JSON.parse(kv.exec(['GET', 'msg:tpl']))[0]; assert(tf.foto.length === 1 && /\/foto\/msgtpl\//.test(tf.foto[0]), JSON.stringify(tf));
+  await goto(r, '#messaggi/c/' + c.code, '[data-testid=msg-thread]');
+  const pick = await waitFor(() => $('[data-testid=msg-tpl-pick]'), 'template'); pick.value = tf.id; pick.dispatchEvent(new r.w.Event('change', { bubbles: true }));
+  await waitFor(() => $('[data-testid=msg-foto-r] img[src="' + tf.foto[0] + '"]'), 'la foto del template nella risposta');
+  // l'ospite vede link e foto nella sua area
+  const g = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: ['js/site.js', 'js/pages.js', 'js/area.js'] });
+  await waitFor(() => g.doc.querySelector('[data-testid=ga-tab-messaggi]'), 'scheda Messaggi'); g.doc.querySelector('[data-testid=ga-tab-messaggi]').click();
+  const gb = await waitFor(() => g.doc.querySelector('[data-testid=ga-thread] .ga-msg.them .ga-bubble'), 'messaggio della struttura');
+  assert(text(gb.querySelector('a[href^="https://www.esempio.it"]')) === 'la mappa nuova' && gb.querySelector('.ga-foto a[href="' + url + '"] img'), gb.innerHTML);
+  // l'ospite che scrive «[testo](indirizzo)» non nasconde l'indirizzo dietro un testo
+  const gt = g.doc.querySelector('[data-testid=ga-testo]'); gt.value = 'Guarda [qui](https://altro.example/x) e www.ok.example'; g.doc.querySelector('#ga-send').requestSubmit();
+  const mine = await waitFor(() => g.doc.querySelector('[data-testid=ga-thread] .ga-msg.me .ga-bubble'), 'messaggio dell\'ospite');
+  assert(/\[qui\]\(https:\/\/altro\.example\/x\)/.test(text(mine)) && text(mine.querySelector('a[href="https://altro.example/x"]')) === 'https://altro.example/x' && mine.querySelector('a[href="https://www.ok.example"]'), mine.innerHTML);
+  // «Prepara e copia» (Prenotazioni): il link diventa «testo: indirizzo», le foto del template indirizzi da aprire
+  await H.adminApi('msg_tpl_save', { templates: [{ id: 'z', nome: 'Con link', testo: 'Ciao! [Mappa](https://maps.example/p)', foto: tf.foto }] });
+  await goto(r, '#prenotazioni/' + c.code, '[data-testid=admin-book-fill]');
+  const bt = await waitFor(() => $('[data-testid=admin-book-tpl] option[value=z]') && $('[data-testid=admin-book-tpl]'), 'template'); bt.value = 'z';
+  $('[data-testid=admin-book-fill]').click();
+  await waitFor(() => !$('[data-testid=admin-book-text]').hidden, 'testo pronto');
+  assert.equal($('[data-testid=admin-book-text]').value, 'Ciao! Mappa: https://maps.example/p\n\nFoto: ' + tf.foto[0]);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

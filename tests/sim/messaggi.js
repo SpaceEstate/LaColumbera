@@ -339,6 +339,72 @@ test('M10 conservazione: la conversazione si cancella N giorni dopo la partenza 
   eq(resto, [], 'nessuna chiave dei messaggi rimasta');
 });
 
+// foto caricate dalla Gestione come nel browser (ridimensionate, JPEG): Vercel Blob finto, indirizzi della stessa forma di quelli veri
+const IMG = 'data:image/jpeg;base64,' + Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]).toString('base64');
+const carica = async id => { const r = await H.adminApi('up', { id, img: IMG }); eq(r.status, 200, JSON.stringify(r.body)); return r.body.url; };
+
+test('M14 foto e link: il titolare manda foto (anche senza testo) e link; l\'ospite li vede nell\'area e nell\'email; solo foto caricate dalla Gestione; l\'ospite scrive solo testo; la traduzione non tocca gli indirizzi', async () => {
+  await base({ DEEPL_API_KEY: 'chiave-prova:fx' });
+  const c = await confermata(), f1 = await carica('msg'), f2 = await carica('msg');
+  assert(/^https:\/\/teststore\.public\.blob\.vercel-storage\.com\/foto\/msg\/f-\d+\.jpg$/.test(f1), f1);
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: '  ', foto: [] })).status, 400, 'né testo né foto: no');
+  const no = await H.adminApi('msg_reply', { code: c.code, testo: '', foto: ['https://evil.example/x.jpg', 'javascript:alert(1)', f1.replace('/foto/msg/', '/foto/altro/')] });
+  eq(no.status, 400, 'foto non caricate dalla Gestione: non valgono'); assert(/foto/.test(no.body.err));
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: '', foto: [f1, f1, f2, 'https://evil.example/y.jpg'] })).status, 200, 'solo foto');
+  let m = mailsTo('mario.prova@esempio.it')[0];
+  assert(m && m.html.includes('<img src="' + f1 + '"') && m.html.includes(f2) && m.text.includes(f1) && !m.html.includes('evil.example'), 'email all\'ospite con le foto');
+  eq((await H.adminApi('msg_inbox', {})).body.conversazioni[0].anteprima, '📷 Foto');
+  // l'ospite apre i messaggi (in inglese): le foto ci sono, una volta sola ciascuna
+  let l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+  eq([l.length, l[0].testo, l[0].foto], [1, '', [f1, f2]], 'senza testo nessuna traduzione');
+  eq(global.__deepl.calls.length, 0);
+  // link con un testo: l'indirizzo non si traduce (va a DeepL protetto, come le variabili dei template)
+  global.__mails.length = 0;
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example', foto: [f2] })).status, 200);
+  const body = global.__deepl.calls[global.__deepl.calls.length - 1].body;
+  eq([body.tag_handling, body.text[0]], ['xml', 'Prenota qui: [il ristorante](<x>https://r.example/x?a=1&amp;b=2</x>) o <x>www.museo.example</x>'], 'indirizzi protetti');
+  l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+  eq([l[1].testo, l[1].originale, l[1].foto], ['[EN] Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example', 'Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example', [f2]]);
+  m = mailsTo('mario.prova@esempio.it')[0];
+  assert(m && m.html.includes('<a href="https://r.example/x?a=1&amp;b=2"') && />il ristorante<\/a>/.test(m.html) && m.html.includes('href="https://www.museo.example"'), 'link cliccabili nell\'email');
+  assert(m.text.includes('il ristorante: https://r.example/x?a=1&b=2') && !m.text.includes(']('), 'nella parte di solo testo «testo: indirizzo»');
+  eq((await H.adminApi('msg_inbox', {})).body.conversazioni[0].anteprima, 'Prenota qui: il ristorante o www.museo.example');
+  // la Gestione vede le foto; l'ospite non può mandarne (il campo si ignora)
+  const th = await thread(c.code); eq([th.messaggi[0].foto, th.messaggi[1].foto], [[f1, f2], [f2]]);
+  eq((await ospite('msg_send', { code: c.code, t: c.t, testo: 'Thanks', lingua: 'en', foto: [f1] })).status, 200);
+  const g = (await thread(c.code)).messaggi[2]; eq([g.da, g.testo, g.foto], ['ospite', 'Thanks', undefined]);
+});
+
+test('M15 template con foto: salvataggio (solo foto caricate, al massimo 4), il messaggio automatico parte con le foto; messaggio programmato con foto; via da Vercel Blob le foto dei messaggi cancellati o non partiti, mai quelle dei template', async () => {
+  await base();
+  const t1 = await carica('msgtpl'), t2 = await carica('msgtpl'), altre = [await carica('msgtpl'), await carica('msgtpl'), await carica('msgtpl')];
+  eq((await H.adminApi('msg_tpl_save', { templates: [{ id: 'x', nome: 'Vuoto', testo: ' ', foto: ['https://evil.example/a.jpg'] }] })).status, 400, 'né testo né foto valide');
+  const sv = await H.adminApi('msg_tpl_save', { templates: [{ id: 'arrivo', nome: 'Come entrare', testo: 'Ecco la cassetta: [mappa](https://maps.example/p)', foto: [t1, 'https://evil.example/a.jpg', t2].concat(altre) }, { id: 'solo', nome: 'Solo foto', testo: '', foto: [t2] }] });
+  eq(sv.status, 200, JSON.stringify(sv.body)); eq(sv.body.templates[0].foto, [t1, t2, altre[0], altre[1]], 'solo quelle caricate, al massimo 4'); eq(sv.body.templates[1].foto, [t2]);
+  eq((await H.adminApi('msg_tpl', {})).body.templates[0].foto.length, 4);
+  // regola alla conferma: il messaggio automatico porta le foto del template
+  eq((await H.adminApi('msg_auto_save', { regole: [{ id: 'conf', nome: 'Alla conferma', attiva: true, tpl: 'arrivo', base: 'conferma' }] })).status, 200);
+  const c = await confermata(); await sync();
+  let th = await thread(c.code); eq([th.messaggi.length, th.messaggi[0].da, th.messaggi[0].foto], [1, 'auto', [t1, t2, altre[0], altre[1]]]);
+  assert(mailsTo('mario.prova@esempio.it')[0].html.includes(t1), 'email con le foto del template');
+  // messaggio programmato con una foto sua; annullato: la foto va via da Blob
+  const p1 = await carica('msg'), p2 = await carica('msg');
+  const pr = await H.adminApi('msg_prog_add', { code: c.code, testo: '', foto: [p1], quando: new Date(clock.now() + 3600e3).toISOString() }); eq(pr.status, 200, JSON.stringify(pr.body));
+  eq((await H.adminApi('msg_auto', {})).body.programmati[0].foto, [p1]);
+  global.__blobDel = [];
+  eq((await H.adminApi('msg_prog_del', { id: pr.body.id })).status, 200); eq(global.__blobDel, [p1], 'annullato: via la sua foto');
+  // programmato che parte (con una foto sua e una del template)
+  eq((await H.adminApi('msg_prog_add', { code: c.code, testo: 'Domani piove', foto: [p2, t1], quando: new Date(clock.now() + 3600e3).toISOString() })).status, 200);
+  clock.advance(2 * 3600e3); await sync();
+  th = await thread(c.code); eq([th.messaggi.length, th.messaggi[1].testo, th.messaggi[1].foto], [2, 'Domani piove', [p2, t1]]);
+  // conservazione: 8 giorni dopo la partenza la conversazione si cancella con le sue foto, non con quelle dei template
+  const r = await carica('msg'); eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Ultima', foto: [r] })).status, 200);
+  global.__blobDel = [];
+  clock.set('2026-12-21T10:00:00Z'); await sync();
+  eq((await thread(c.code)).messaggi.length, 0, 'cancellata');
+  eq(global.__blobDel.sort(), [p2, r].sort(), 'via le foto dei messaggi, restano quelle dei template');
+});
+
 test('M11 controllo leggero (msg_v): solo con il token, pochissimi comandi, limite suo (non consuma le consultazioni dell\'area); senza prenotazioni nessuna cancellazione', async () => {
   await base();
   const c = await confermata(), ip1 = { headers: { 'x-real-ip': '192.0.2.77' } };

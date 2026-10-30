@@ -40,7 +40,7 @@ const L={
   luoghi:'Luoghi di interesse',luoghiD:'Trento, laghi, castelli e montagna',conv:'Convenzioni',convD:'Vantaggi per gli ospiti',trovarciD:'Auto, autobus e parcheggio',tutti:'Eventi a Trento',tuttiD:'Il calendario completo',
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area clienti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
   chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatNotaEmail:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile e la risposta ti arriva anche via email. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
-  scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti',
+  scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',foto:'Foto',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti',
   annTit:'Annullamento',annOk:(d,i)=>'Puoi annullare gratis fino a '+d+' (7 giorni prima dell\'arrivo): ti rimborsiamo '+i+' sulla carta con cui hai pagato.',annBtn:'Annulla la prenotazione',
   annConf:i=>'Vuoi davvero annullare? La prenotazione non si potrà recuperare e le notti tornano disponibili. Ti rimborsiamo '+i+'.',annSi:'Sì, annulla e rimborsa',annNo:'No, la tengo',annInCorso:'Annullo…',
   annScaduto:d=>'Si annulla gratis fino a 7 giorni prima dell\'arrivo (fino a '+d+'): ora la prenotazione non è più rimborsabile. Per qualsiasi necessità scrivici.',annNonPagata:'Per annullare questa prenotazione scrivici.',
@@ -71,7 +71,7 @@ const L={
   luoghi:'Places to visit',luoghiD:'Trento, lakes, castles and mountains',conv:'Partner offers',convD:'Perks for our guests',trovarciD:'Car, bus and parking',tutti:'Events in Trento',tuttiD:'The full calendar',
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
   chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatNotaEmail:'Write to us here with any question about your stay: we will reply as soon as possible and you will also get our answer by email. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
-  scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left',
+  scrivi:'Your message',scriviPh:'Write here…',foto:'Photo',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left',
   annTit:'Cancellation',annOk:(d,i)=>'You can cancel free of charge until '+d+' (7 days before arrival): we refund '+i+' to the card you paid with.',annBtn:'Cancel the booking',
   annConf:i=>'Do you really want to cancel? The booking cannot be restored and the nights become available again. We will refund '+i+'.',annSi:'Yes, cancel and refund',annNo:'No, keep it',annInCorso:'Cancelling…',
   annScaduto:d=>'Free cancellation is possible up to 7 days before arrival (until '+d+'): the booking is no longer refundable. If you need anything, write to us.',annNonPagata:'To cancel this booking, write to us.',
@@ -102,7 +102,7 @@ const L={
   luoghi:'Sehenswürdigkeiten',luoghiD:'Trient, Seen, Burgen und Berge',conv:'Partnerangebote',convD:'Vorteile für unsere Gäste',trovarciD:'Auto, Bus und Parkplatz',tutti:'Veranstaltungen in Trient',tuttiD:'Der ganze Kalender',
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
   chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatNotaEmail:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich, und unsere Antwort erhalten Sie auch per E-Mail. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
-  scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen',
+  scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',foto:'Foto',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen',
   annTit:'Stornierung',annOk:(d,i)=>'Sie können bis zum '+d+' (7 Tage vor der Anreise) kostenlos stornieren: Wir erstatten '+i+' auf die Karte, mit der Sie bezahlt haben.',annBtn:'Buchung stornieren',
   annConf:i=>'Möchten Sie wirklich stornieren? Die Buchung kann nicht wiederhergestellt werden, und die Nächte werden wieder frei. Wir erstatten '+i+'.',annSi:'Ja, stornieren und erstatten',annNo:'Nein, behalten',annInCorso:'Wird storniert…',
   annScaduto:d=>'Eine kostenlose Stornierung ist bis 7 Tage vor der Anreise möglich (bis zum '+d+'): Die Buchung ist nicht mehr erstattungsfähig. Wenn Sie etwas brauchen, schreiben Sie uns.',annNonPagata:'Um diese Buchung zu stornieren, schreiben Sie uns.',
@@ -332,8 +332,14 @@ async function paintEvents(s){
    return `<li data-testid="ga-ev-${esc(x.date)}">${u?`<a href="${esc(u)}"${ext}>${inner}</a>`:inner}</li>`}).join('')}</ul>`:`<p class="book-note" data-testid="ga-ev-none">${esc(t('nessunEvento'))}</p>`}
 
 /* ---------------- messaggi (solo prenotazioni fatte sul sito) ---------------- */
-// testo sempre come testo; i soli indirizzi http(s) diventano link (si aprono in un'altra scheda)
-const linkify=s=>esc(s).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g,u=>`<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
+// testo sempre come testo; diventano link (in un'altra scheda) gli indirizzi http(s) e www. e, nei messaggi della struttura (md), «[testo](https://…)»:
+// in quelli dell'ospite quella forma resta com'è, con l'indirizzo cliccabile
+const RE_LINK=/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)|((?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]'])/gi;
+const linkify=(s,md)=>{s=String(s==null?'':s);let o='',i=0;const a=(u,l)=>`<a href="${esc(/^www\./i.test(u)?'https://'+u:u)}" target="_blank" rel="noopener noreferrer">${esc(l)}</a>`;
+ for(const m of s.matchAll(RE_LINK)){o+=esc(s.slice(i,m.index))+(m[2]?(md?a(m[2],m[1]):esc('['+m[1]+'](')+a(m[2],m[2])+esc(')')):a(m[3],m[3]));i=m.index+m[0].length}
+ return o+esc(s.slice(i))};
+// foto della struttura (caricate dalla Gestione): un tocco apre l'originale in un'altra scheda
+const fotoHtml=l=>l&&l.length?`<span class="ga-foto">${l.map(u=>`<a href="${esc(u)}" target="_blank" rel="noopener noreferrer"><img src="${esc(u)}" alt="${esc(t('foto'))}" loading="lazy" decoding="async"></a>`).join('')}</span>`:'';
 const ora=ts=>{try{return new Date(ts).toLocaleString(LOC[lang],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch{return ''}};
 const chatOn=()=>{const s=sog();return !!(s.messaggi&&s.messaggi.attivi)};
 function pMessaggi(){
@@ -347,9 +353,9 @@ function pMessaggi(){
 function threadHtml(){
  if(!MS.list.length)return `<p class="book-note" data-testid="ga-chat-vuota">${esc(t('chatVuota'))}</p>`;
  return MS.list.map(m=>{const me=m.da==='ospite';
-  return `<div class="ga-msg ${me?'me':'them'}" data-testid="ga-msg-${esc(m.id)}"><div class="ga-bubble">${linkify(m.testo)}</div>
+  return `<div class="ga-msg ${me?'me':'them'}" data-testid="ga-msg-${esc(m.id)}"><div class="ga-bubble">${linkify(m.testo,!me)}${fotoHtml(m.foto)}</div>
    <div class="ga-meta">${esc(me?t('tu'):t('noi'))} · ${esc(ora(m.ts))}${m.originale?` · <span>${esc(t('tradotto'))}</span> · <button type="button" class="link-btn" data-orig="${esc(m.id)}">${esc(t('originale'))}</button>`:''}</div>
-   ${m.originale?`<div class="ga-orig" id="ga-o-${esc(m.id)}" hidden>${linkify(m.originale)}</div>`:''}</div>`}).join('')}
+   ${m.originale?`<div class="ga-orig" id="ga-o-${esc(m.id)}" hidden>${linkify(m.originale,true)}</div>`:''}</div>`}).join('')}
 function paintThread(scroll){const el=$('#ga-thread');if(!el)return;const near=el.scrollHeight-el.scrollTop-el.clientHeight<80;el.innerHTML=threadHtml();if(scroll||near)el.scrollTop=el.scrollHeight}
 function setBadge(n){const s=sog();if(s.messaggi)s.messaggi.nonLetti=n;const b=$('#ga-t-messaggi .adm-badge');if(n>0){if(b)b.textContent=n;else{const tb=$('#ga-t-messaggi');if(tb)tb.insertAdjacentHTML('beforeend',`<span class="adm-badge">${n}</span>`)}}else if(b)b.remove()}
 // chiamata con il token della sessione; se è scaduto (4 ore) si rientra con il solo codice, come all'accesso

@@ -1,6 +1,6 @@
 # Messaggi, template, messaggi automatici e traduzione – La Columbera
 
-Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M13) e `tests/sim/ui.js` (U4j, W13, W31).
+Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M15; foto e link: M14, M15) e `tests/sim/ui.js` (U4j, W13, W31, W38).
 
 ---
 
@@ -12,7 +12,8 @@ Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), templ
 | Booking.com / Airbnb (dal foglio) | No | L'ospite usa la chat della piattaforma. Nella scheda della prenotazione (Gestione → Prenotazioni) il titolare sceglie un template, «Prepara e copia» lo compila per quella prenotazione e lo incolla nella chat di Booking o Airbnb (per esempio il link all'area ospiti). I messaggi automatici non arrivano a questi ospiti |
 | Annullata o non confermata | No | La conversazione già fatta resta leggibile in Gestione, ma non si scrive più |
 
-- **Solo testo**, al massimo 2000 caratteri. Si mostra sempre come testo: niente HTML; gli indirizzi `http(s)://…` diventano link (si aprono in un'altra scheda).
+- **Testo** di al massimo 2000 caratteri, mostrato sempre come testo (niente HTML). Diventano **link** (si aprono in un'altra scheda) gli indirizzi che iniziano con `http://`, `https://` o `www.` e, nei messaggi della struttura, i link con un testo scritti così: `[Prenota un tavolo](https://…)`. Se lo scrive un ospite, quella forma resta com'è con l'indirizzo cliccabile (un testo non può nascondere dove porta il link).
+- **Foto** (solo dalla struttura): fino a **4** per messaggio, anche senza testo, nelle risposte, nei messaggi programmati e nei template (quindi anche nei messaggi automatici). L'ospite le vede nella conversazione (un tocco apre la foto intera) e nell'email di avviso. Gli ospiti scrivono solo testo.
 - **Limite:** 20 messaggi l'ora per prenotazione (dalla parte dell'ospite).
 - **L'ospite legge i messaggi quando apre l'area ospiti.** Per avvisarlo subito c'è l'opzione «Avvisa l'ospite via email» (paragrafo 5), spenta di partenza.
 
@@ -24,8 +25,9 @@ Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), templ
   - i tuoi con «inviato» / «✓✓ letto»;
   - «Inserisci un template» lo compila per questa prenotazione;
   - «Traduci anche in …» (se l'ospite usa l'area in inglese o tedesco e la traduzione è attiva);
-  - «Programma l'invio…» manda il messaggio al giorno e all'ora scelti.
-- **Template:** testi pronti con le variabili qui sotto. Per ogni template si sceglie l'**invio automatico** (paragrafo 3): «No, lo uso a mano», «Appena la prenotazione è confermata», oppure N giorni prima o dopo il check-in o il check-out (o il giorno stesso), all'ora scelta. Nella scelta c'è il caso semplice, una regola per tutti gli appartamenti; se un template ha più regole o una regola con i filtri (appartamento, notti) si vede il riepilogo e si modifica in Automatici. «No» spegne la regola, che resta in Automatici. Eliminare un template toglie anche le sue regole, nello stesso salvataggio (chiede conferma). Il testo per una prenotazione di Booking o Airbnb si prepara dalla scheda della prenotazione («Prepara e copia»): «Compila per una prenotazione» qui non c'è più.
+  - «Programma l'invio…» manda il messaggio al giorno e all'ora scelti;
+  - **+ Foto** aggiunge fino a 4 foto (ridimensionate nel telefono o nel computer, come le altre foto della Gestione) e **🔗 Link** inserisce un link con il testo che scegli nel punto in cui stai scrivendo. Inserendo un template arrivano anche le sue foto (le togli con ✕).
+- **Template:** testi pronti con le variabili qui sotto, con **+ Foto** e **🔗 Link** come nelle risposte (un template può avere solo foto). Per ogni template si sceglie l'**invio automatico** (paragrafo 3): «No, lo uso a mano», «Appena la prenotazione è confermata», oppure N giorni prima o dopo il check-in o il check-out (o il giorno stesso), all'ora scelta. Nella scelta c'è il caso semplice, una regola per tutti gli appartamenti; se un template ha più regole o una regola con i filtri (appartamento, notti) si vede il riepilogo e si modifica in Automatici. «No» spegne la regola, che resta in Automatici. Eliminare un template toglie anche le sue regole, nello stesso salvataggio (chiede conferma). Il testo per una prenotazione di Booking o Airbnb si prepara dalla scheda della prenotazione («Prepara e copia»): «Compila per una prenotazione» qui non c'è più. Nel testo copiato i link diventano «testo: indirizzo» e le foto del template i loro indirizzi, da aprire (le chat dei portali non ricevono foto dal sito).
 - **Automatici:**
   - le regole;
   - i prossimi invii (7 giorni) con «Salta» per un singolo invio;
@@ -98,13 +100,15 @@ Regole del motore (`esegui` in `api/_messaggi.js`), pensate per non sbagliare ma
 
 Tutto su Upstash (KV), separato dalla configurazione:
 
-- `msg:<codice>`: i messaggi (al massimo 300 per conversazione);
+- `msg:<codice>`: i messaggi (al massimo 300 per conversazione), con gli indirizzi delle eventuali foto;
 - `msg:tr:<codice>`: le traduzioni;
 - `msg:idx`, `msg:nh`, `msg:no`, `msg:lo`, `msg:lingua`: indice e stato di lettura;
 - `msg:tpl`, `msg:auto`, `msg:prog`, `msg:imp`: template, regole, messaggi programmati, impostazioni;
 - `msg:fatto:*`: invii fatti o saltati (400 giorni).
 
 L'elenco completo è in testa ad `api/_messaggi.js`.
+
+**Foto:** stanno su **Vercel Blob**, lo stesso archivio pubblico delle foto del sito (indirizzi lunghi e casuali, che non si indovinano), nelle cartelle `foto/msg/` (foto di un solo messaggio) e `foto/msgtpl/` (foto dei template). Il server accetta solo indirizzi di quelle cartelle, al massimo 4 per messaggio o template. Le foto di un messaggio si cancellano da Blob con la sua conversazione, o subito se un messaggio programmato viene annullato o non parte; quelle dei template restano, come le altre foto del sito (le usano anche i messaggi già mandati). Una foto caricata e poi tolta prima dell'invio resta su Blob (come per le altre foto della Gestione). **Non mandare foto di documenti o di persone:** l'archivio è pubblico.
 
 - **Conservazione:** le conversazioni si cancellano da sole **7 giorni dopo la partenza** (dall'ottavo giorno; si allunga in Automatici → Impostazioni, fino a 730 giorni). Anche l'area clienti si chiude 7 giorni dopo il check-out, per il codice e per i link delle email. Se in Impostazioni avevi già salvato un altro numero, vale quello: rimettilo a 7. Il controllo gira al massimo una volta ogni 20 ore, dentro la sincronizzazione (test M10). Se l'elenco delle prenotazioni non arriva (KV non risponde) non si cancella nulla; una conversazione senza prenotazione si cancella solo se è ferma da quel numero di giorni (test M11).
 - **Log:** nessun testo, nome o codice.
@@ -139,6 +143,6 @@ Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi ema
 - Se spegni l'avviso via email all'ospite, l'ospite vede i tuoi messaggi solo quando apre l'area ospiti.
 - In una conversazione «dal vivo» (l'altro legge subito) ogni messaggio porta un'email: è la regola del primo messaggio non letto.
 - Le email contengono il testo dei messaggi: chi ha accesso alla casella le legge (vale anche per le conferme di prenotazione).
-- Niente allegati (foto, PDF): le foto del sito stanno su un archivio pubblico, non adatto ai documenti degli ospiti.
+- Le foto le manda solo la struttura, e niente PDF: le foto stanno su un archivio pubblico, non adatto ai documenti degli ospiti. Per lo stesso motivo gli ospiti non possono mandare foto dal sito.
 - Niente notifiche push sul telefono: richiederebbero chiavi VAPID e un consenso del browser (fase facoltativa, da decidere).
 - Gli ospiti di Booking e Airbnb non hanno chat nel sito, per scelta: scrivono sulla piattaforma.
