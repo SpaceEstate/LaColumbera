@@ -168,7 +168,12 @@ const ACT = {
 // ---------- disegno ----------
 function render() {
   if (!root || !root.isConnected) return;
+  // Il campo «Carica file TXT» resta lo stesso elemento da un disegno all'altro: se la pagina si ridisegna mentre la finestra di scelta del file
+  // è aperta (es. arriva lo stato della configurazione), il file scelto arriva a un campo ancora nella pagina e non a uno già tolto (file perso)
+  const fi = root.querySelector('input[data-file]');
   root.innerHTML = vHead() + vRisultato() + vStatus() + vOrigine() + (ST.records.length ? vElenco() + vVerifica() + vInvio() : '');
+  const nu = fi && root.querySelector('input[data-file]');
+  if (nu) { fi.disabled = nu.disabled; nu.replaceWith(fi); }
 }
 function steps() {
   const v = ST.view, r = ST.result, done = [ST.records.length > 0, !!(v && v.riepilogo.inviabile), !!(ST.check && ST.check.stato === 'test_ok') || !!(r && r.stato === 'inviato'), !!(r && r.stato === 'inviato')], cur = done.indexOf(false);

@@ -1787,6 +1787,20 @@ test('U13 Adempimenti: voce di menu, stato della configurazione e tabelle uffici
   await waitFor(() => /Mancano variabili/.test(text(r2.doc.querySelector('[data-testid=adp-status]'))), 'variabili mancanti');
   const t2 = text(r2.doc.querySelector('[data-testid=adp-status]')); assert(/ALLOGGIATI_WSKEY/.test(t2) && !/Configurazione valida/.test(t2), t2); assert(r2.doc.querySelector('[data-testid=adp-status] details').open, 'con un problema la sezione si apre da sola');
 });
+test('U14b Adempimenti: il TXT scelto mentre la pagina si aggiorna (stato della configurazione in arrivo) si carica lo stesso, al primo tentativo', async () => {
+  const r = await openAdp({ soapOpts: { delay: 150 } }, false);      // servizio lento: lo stato arriva dopo qualche istante
+  // l'utente apre la scelta del file subito, mentre lo stato della configurazione è ancora in arrivo: la pagina si ridisegna sotto la finestra aperta
+  const input = r.doc.querySelector('input[data-file]');
+  await waitFor(() => /Configurazione valida/.test(text(r.doc.querySelector('[data-testid=adp-status]'))), 'configurazione valida');
+  assert(input.isConnected && r.doc.querySelector('input[data-file]') === input, 'il campo del file resta lo stesso anche dopo il ridisegno');
+  const file = new r.w.File([FX('famiglia.txt')], 'famiglia.txt', { type: 'text/plain' }); Object.defineProperty(input, 'files', { value: [file], configurable: true }); fire(input, 'change');
+  await waitFor(() => r.doc.querySelectorAll('[data-testid^=adp-row-]').length === 4, 'file letto al primo tentativo');
+  // anche con un altro aggiornamento in mezzo (Controlla configurazione) e lo stesso file scelto di nuovo
+  const in2 = r.doc.querySelector('input[data-file]'); r.doc.querySelector('[data-testid=adp-status-btn]').click();
+  await waitFor(() => !r.doc.querySelector('[data-testid=adp-status-btn]').disabled, 'controllo finito');
+  r.w.confirm = () => true; Object.defineProperty(in2, 'files', { value: [new r.w.File([FX('famiglia.txt')], 'famiglia.txt', { type: 'text/plain' })], configurable: true }); fire(in2, 'change');
+  await waitFor(() => /File letto: 4 schedine/.test(text(r.doc.querySelector('[data-testid=adp-msg]'))), 'riletto');
+});
 test('U14 Adempimenti: carico il TXT → anteprima per nucleo con nomi decodificati, controlli superati, nessuna chiamata di verifica o invio', async () => {
   const r = await openAdp(); pickFile(r, FX('famiglia.txt'), 'famiglia.txt');
   await waitFor(() => r.doc.querySelectorAll('[data-testid^=adp-row-]').length === 4, 'quattro schede'); await waitFor(() => r.doc.querySelector('[data-testid=adp-ready]'), 'controlli superati');

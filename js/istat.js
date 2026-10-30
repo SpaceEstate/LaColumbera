@@ -149,8 +149,10 @@ const ACT = {
 function render() {
   if (!root || !root.isConnected) return;
   const a = document.activeElement, keep = a && root.contains(a) && a.matches && a.matches('input.ist-in') ? { i: a.dataset.i, f: a.dataset.f, s: a.selectionStart, e: a.selectionEnd } : null;
-  const w = root.querySelector('.ist-wrap'), sl = w ? w.scrollLeft : 0;
+  const w = root.querySelector('.ist-wrap'), sl = w ? w.scrollLeft : 0, fi = root.querySelector('input[data-file]');
   root.innerHTML = vHead() + vRisultato() + vStatus() + vOrigine() + (ST.rows.length ? vTabella() + '<div id="ist-flow">' + vFlow() + '</div>' : '');
+  // il campo del file resta lo stesso elemento: un file scelto mentre la pagina si ridisegna (stato in arrivo) non va perso
+  const nu = fi && root.querySelector('input[data-file]'); if (nu) { fi.disabled = nu.disabled; nu.replaceWith(fi); }
   const w2 = root.querySelector('.ist-wrap'); if (w2) w2.scrollLeft = sl;
   if (keep) { const el = root.querySelector('input.ist-in[data-i="' + keep.i + '"][data-f="' + keep.f + '"]'); if (el) { try { el.focus(); el.setSelectionRange(keep.s, keep.e); } catch (e) { /* niente */ } } }
 }
