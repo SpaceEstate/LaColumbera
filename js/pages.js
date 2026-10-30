@@ -198,6 +198,12 @@ async function apt(c){
 
   // disponibilità e prenotazione
   const box=$('#bk'),qp=new URLSearchParams(location.search),pagamento=qp.get('pagamento');
+  // Sugli schermi larghi la scheda segue la pagina (position:sticky in css/main.css) a 84 px dall'alto, sotto l'intestazione. Se lì non ci sta
+  // intera (schermo basso, un messaggio in più) si ferma più in alto, con il fondo in vista: mai tagliata in basso né con uno scorrimento interno.
+  // hb = fondo dell'intestazione fissa; vedi() riporta in vista l'inizio della scheda, in cima alla sua colonna (lì la scheda scorre con la pagina).
+  const card=$('.book-card'),fit=()=>card.style.setProperty('--bk-top',Math.min(84,innerHeight-card.offsetHeight-16)+'px'),
+    hb=()=>{const h=$('.site-header');return h?h.getBoundingClientRect().bottom:0},vedi=()=>card.parentElement.scrollIntoView({behavior:'smooth',block:'start'});
+  fit();addEventListener('resize',fit);if(window.ResizeObserver)new ResizeObserver(fit).observe(card);
   if(pagamento==='successo'){
     history.replaceState(null,'',location.pathname);
     // La conferma arriva di norma dal webhook di Stripe pochi secondi dopo il pagamento. Qui si chiede lo stato al server (che, se il webhook ritarda,
@@ -271,7 +277,9 @@ async function apt(c){
       <p class="bk-secure">Il pagamento avviene sulla pagina sicura di Stripe: l'importo è quello che vedi qui sopra.</p>
     </form>
   </div>`;
-  const msg=t=>{const el=$('#e');el.textContent=t||'';if(t&&el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})};
+  // il messaggio è in cima alla scheda: se resta sotto l'intestazione (scheda ferma con il fondo in vista) torna in vista l'inizio della scheda
+  const msg=t=>{const el=$('#e');el.textContent=t||'';if(!t)return;fit();
+    if(el.getBoundingClientRect().top<hb())vedi();else if(el.scrollIntoView)el.scrollIntoView({block:'nearest',behavior:'smooth'})};
   if(pagamento==='annullato'){
     const cc=(qp.get('code')||'').trim().toUpperCase(),s=accGet();if(cc&&s&&s.c===cc)api('checkout_cancel',{code:cc,t:s.t}).catch(()=>{});      // libera subito le notti trattenute durante il pagamento (serve il token del checkout)
     history.replaceState(null,'',location.pathname);$('#e').textContent='Pagamento annullato: le date sono ancora libere, puoi riprovare quando vuoi.'}
@@ -307,9 +315,9 @@ async function apt(c){
   // passo 1 (date e ospiti) → passo 2 (dati e pagamento)
   const goStep=k=>{$('#p1').hidden=k!==1;$('#p2').hidden=k!==2;
     box.querySelectorAll('.bk-steps li').forEach(li=>{const s=+li.dataset.s;li.classList.toggle('on',s===k);li.classList.toggle('done',s<k);li.firstElementChild.textContent=s<k?'✓':String(s)});
-    const card=$('.book-card');card.classList.toggle('step2',k===2);      // con il modulo aperto basta il riepilogo: la carta resta corta
-    // la scheda segue la pagina: cambiando passo torna in vista su telefono e, sugli schermi larghi, se il suo inizio è uscito dallo schermo
-    if(window.matchMedia&&matchMedia('(max-width:960px)').matches||card.getBoundingClientRect().top<0)card.scrollIntoView({behavior:'smooth',block:'start'})};
+    card.classList.toggle('step2',k===2);fit();      // con il modulo aperto basta il riepilogo: la carta resta corta
+    // cambiando passo l'inizio della scheda torna in vista: su telefono sempre, sugli schermi larghi se è uscito dallo schermo o è sotto l'intestazione
+    if(window.matchMedia&&matchMedia('(max-width:960px)').matches||card.getBoundingClientRect().top<hb())vedi()};
   $('#go').onclick=()=>{if(!a)return;msg('');
     const nn=days(da,a).length;
     $('#r-apt').textContent=short(p);$('#r-dates').textContent=`${fmtW(da)} → ${fmtW(a)} · ${nn} ${nn===1?'notte':'notti'} · ${n} ${n===1?'ospite':'ospiti'}`;$('#r-tot').textContent=money(tot(p,da,a,n));$('#r-ann').textContent=annullo(da);

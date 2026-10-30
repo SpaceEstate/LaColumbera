@@ -321,8 +321,8 @@ test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, info
   assert(/3 notti × €\s?180/.test(pay) && /€\s?540/.test(text(r.doc.querySelector('[data-testid=ga-pay-total]'))) && /Pagato online con carta il ven 2 ott 2026/.test(pay) && /imposta di soggiorno/i.test(pay), pay);
   assert(!/Mario|Rossi|mario@test\.it/.test(text(app)), 'nessun dato personale nella pagina');
   const mie = r.log.calls.find(x => x.a === 'mie' && x.status === 200); assert(mie, 'risposta del server');
-  const info = tabOf(r, 'info'), it = text(info), MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)');
-  assert.deepEqual(['ga-route', 'ga-arrivo-maps', 'ga-parcheggio-maps'].map(k => r.doc.querySelector('[data-testid=' + k + ']').getAttribute('href')), [MAPS, MAPS, PARK], 'indicazioni: il punto scelto dal titolare; parcheggio: Via Val Gola 22');
+  const info = tabOf(r, 'info'), it = text(info), MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://maps.app.goo.gl/VWHWQCMWUzAvgSYM7?g_st=ic';
+  assert.deepEqual(['ga-route', 'ga-arrivo-maps', 'ga-parcheggio-maps'].map(k => r.doc.querySelector('[data-testid=' + k + ']').getAttribute('href')), [MAPS, MAPS, PARK], 'indicazioni: il punto scelto dal titolare; parcheggio: il suo link, scelto dal titolare');
   assert(/Regole della casa/.test(it) && /Niente feste <b>dopo<\/b> le 22/.test(it) && !info.querySelector('b b, li b'), 'testi della struttura come testo, mai HTML: ' + it);
   assert(/Carta il martedì/.test(it) && /Via Val Gola 22/.test(it) && /check-in online/.test(it), it);
   assert(!/segreta-torre/.test(it) && /dal mar 8 dic 2026/.test(text(r.doc.querySelector('[data-testid=ga-riservate-dal]'))), 'Wi-Fi non ancora visibile: ' + it);
@@ -1247,14 +1247,13 @@ test('W25 Come trovarci: indirizzo, parcheggio e fermata con i pulsanti per il n
   await setup();
   const { doc } = await load('mappa.html', { scripts: ['js/site.js', 'js/mappa.js'] }), $ = s => doc.querySelector(s), href = s => $(s).getAttribute('href');
   // la casa apre il link di Google Maps scelto dal titolare (cercata per indirizzo portava gli ospiti nel punto sbagliato);
-  // il parcheggio (correzione voluta, 29/10/2026) ha le sue indicazioni stradali fino a Via Val Gola 22, non l'ingresso della casa
-  const MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)');
+  // il parcheggio (Via Val Gola 22) ha il suo link di Google Maps, anche questo scelto dal titolare (correzione voluta, 30/10/2026), non l'ingresso della casa
+  const MAPS = 'https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic', PARK = 'https://maps.app.goo.gl/VWHWQCMWUzAvgSYM7?g_st=ic';
   assert.equal(href('[data-testid=mappa-naviga]'), MAPS, 'navigatore fino alla struttura');
   assert.equal(href('[data-testid=mappa-google]'), MAPS, 'la mappa su Google Maps');
   for (const s of ['[data-testid=mappa-naviga-parcheggio]', '[data-testid=mappa-auto-parcheggio]']) {
-    const u = new URL(href(s));
-    assert(u.origin === 'https://www.google.com' && u.pathname === '/maps/dir/' && u.searchParams.get('api') === '1' && u.searchParams.get('destination') === 'Via Val Gola 22, 38123 Ravina (Trento)', s + ': destinazione ' + href(s));
     assert.equal(href(s), PARK, s); assert.notEqual(href(s), MAPS, s + ': il parcheggio non porta all\'ingresso della casa');
+    assert($(s).getAttribute('target') === '_blank' && /noopener/.test($(s).getAttribute('rel')), s + ': si apre in una nuova scheda');
   }
   const park = [...doc.querySelectorAll('main a')].filter(a => /parcheggio/i.test(text(a)));
   assert(park.length === 2 && park.every(a => a.getAttribute('href') === PARK), 'ogni «Naviga al parcheggio» porta al parcheggio: ' + park.map(a => a.getAttribute('href')).join(' | '));

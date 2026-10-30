@@ -9,7 +9,7 @@
 //  S6 immagini leggere per il telefono: nessuna foto pesante, ogni foto degli appartamenti ha la sua miniatura
 //  S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli del piè di pagina, numero di telefono
 //  S8 cache delle immagini (vercel.json)
-//  S9 scheda di prenotazione: segue la pagina, senza altezza massima né scorrimento interno; nessun prezzo fisso nell'HTML
+//  S9 scheda di prenotazione: compatta, sugli schermi larghi segue la pagina restando intera (mai altezza massima né scorrimento interno); nessun prezzo fisso nell'HTML
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -104,17 +104,34 @@ test('S8 cache delle immagini: un giorno, con rinnovo in background (vercel.json
   assert(h && /max-age=86400/.test(h.headers.find(k => k.key === 'Cache-Control').value), 'intestazione Cache-Control per /img');
 });
 
-test('S9 scheda di prenotazione: segue la pagina (niente altezza massima, scorrimento interno né barra fissata); nessun prezzo fisso nell\'HTML', () => {
-  const css = read('css/main.css').replace(/\/\*[\s\S]*?\*\//g, '');
-  const regole = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(m => /\.book-card(?![\w-])|\.bk-quote(?![\w-])|#bk\b/.test(m[1]));
-  assert(regole.length > 3, 'regole della scheda trovate');
-  for (const [, sel, dec] of regole) assert(!/max-height|overflow(-y)?\s*:\s*(auto|scroll|hidden)|position\s*:\s*sticky/.test(dec), 'la scheda non deve scorrere dentro sé stessa: ' + sel.trim() + ' { ' + dec.trim() + ' }');
+test('S9 scheda di prenotazione: più compatta; sugli schermi larghi segue la pagina restando intera (mai altezza massima, scorrimento interno né barra fissata); nessun prezzo fisso nell\'HTML', () => {
+  // regole del CSS con la loro @media (una regola dentro una @media porta la condizione)
+  const css = read('css/main.css').replace(/\/\*[\s\S]*?\*\//g, ''), regole = [];
+  for (let i = 0, media = '', sel = '', depth = 0, buf = ''; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') { const t = buf.trim(); buf = ''; if (t.startsWith('@media')) media = t; else sel = t; depth++; }
+    else if (ch === '}') { if (sel) regole.push({ media: depth > 1 ? media : '', sel, dec: buf.trim() }); else media = ''; sel = ''; buf = ''; depth--; }
+    else buf += ch;
+  }
+  const scheda = regole.filter(r => /\.book-card(?![\w-])|\.bk-quote(?![\w-])|#bk\b/.test(r.sel));
+  assert(scheda.length > 3, 'regole della scheda trovate');
+  for (const r of scheda) assert(!/max-height|overflow(-y)?\s*:\s*(auto|scroll|hidden)/.test(r.dec), 'la scheda non deve scorrere dentro sé stessa: ' + r.media + ' ' + r.sel + ' { ' + r.dec + ' }');
+  const sticky = regole.filter(r => /position\s*:\s*(sticky|fixed)/.test(r.dec) && /\.book-card|\.bk-|#bk\b|\.cal\b/.test(r.sel));
+  assert(sticky.length === 1 && sticky[0].sel === '.book-card', 'solo la scheda intera segue la pagina (nessuna barra fissata sopra il calendario): ' + sticky.map(r => r.sel).join(' | '));
+  assert(/min-width:\s*961px/.test(sticky[0].media) && /min-height:\s*\d+px/.test(sticky[0].media), 'solo sugli schermi larghi e abbastanza alti: ' + sticky[0].media);
+  assert(/top\s*:\s*var\(--bk-top/.test(sticky[0].dec), 'la distanza dall\'alto la calcola la pagina (--bk-top): ' + sticky[0].dec);
+  // più compatta: celle del calendario al massimo 40 px (38 sugli schermi larghi), margine interno della scheda al massimo 24 px
+  const px = (sel, prop, media) => { const r = regole.filter(x => x.sel === sel && x.media === (media || '') && new RegExp('(^|;)\\s*' + prop + '\\s*:').test(x.dec)).pop(); return r ? r.dec.match(new RegExp('(?:^|;)\\s*' + prop + '\\s*:\\s*([^;]+)'))[1].trim() : null; };
+  assert(parseFloat(px('.cal .d', 'height')) <= 40, 'celle del calendario: ' + px('.cal .d', 'height'));
+  assert(parseFloat(px('.cal .d', 'height', '@media(min-width:961px)')) <= 38, 'celle del calendario sugli schermi larghi: ' + px('.cal .d', 'height', '@media(min-width:961px)'));
+  const pad = px('.book-card', 'padding'); assert(/^clamp\(\d+px,[\d.]+vw,(\d+)px\)$/.test(pad) && +pad.match(/,(\d+)px\)$/)[1] <= 24, 'margine interno della scheda: ' + pad);
+  const js = read('js/pages.js');
+  assert(/setProperty\('--bk-top',Math\.min\(84,innerHeight-card\.offsetHeight-16\)/.test(js) && /ResizeObserver\(fit\)\.observe\(card\)/.test(js), 'la pagina tiene la scheda intera nello schermo (--bk-top ricalcolato quando cambia altezza)');
   for (const f of ['torre.html', 'corte.html']) {
     const h = read(f), price = /<div class="price"[^>]*>[\s\S]*?<\/div>/.exec(h);
     assert(price && / hidden[ >]/.test(price[0]) && !/€\s?\d/.test(price[0]), f + ': la riga del prezzo parte nascosta e senza importo: ' + (price && price[0]));
     assert(!/€\s?(120|180)\b/.test(h), f + ': importo fisso nella pagina');
   }
-  const js = read('js/pages.js');
   assert(!/booking-limit|notice-note|Prenotabile fino al/.test(js), 'niente note fisse su orizzonte e preavviso sotto il calendario');
 });
 

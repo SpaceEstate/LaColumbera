@@ -13,8 +13,8 @@ const TEL='+39 351 704 3594',TEL_H='+393517043594',MAIL='lacolumbera@gmail.co
 const INDIRIZZO='Via Centrale 48, 38123 Ravina (Trento)';
 const CHECKIN_URL='https://spaceestate.github.io/Checkin/index.html',REVIEW_URL='https://search.google.com/local/writereview?placeid=ChIJmXdr3vNzgkcR3O0jehZOocQ';
 // Google Maps: la casa apre il punto scelto dal titolare (cercata per indirizzo portava gli ospiti nel punto sbagliato);
-// il parcheggio ha le sue indicazioni stradali, con la destinazione Via Val Gola 22 (non l'ingresso della casa)
-const MAPS='https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic',MAPS_PARCHEGGIO='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent('Via Val Gola 22, 38123 Ravina (Trento)');
+// il parcheggio (Via Val Gola 22) ha il suo punto, anche questo scelto dal titolare (non l'ingresso della casa)
+const MAPS='https://maps.app.goo.gl/mVBZWREejSuVEGqQ7?g_st=ic',MAPS_PARCHEGGIO='https://maps.app.goo.gl/VWHWQCMWUzAvgSYM7?g_st=ic';
 const ss=(k,v)=>{try{if(v===undefined)return sessionStorage.getItem(k);if(v===null)sessionStorage.removeItem(k);else sessionStorage.setItem(k,v)}catch{return null}};
 
 /* ---------------- lingua ---------------- */
