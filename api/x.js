@@ -612,6 +612,29 @@ if(a==='pul_set'){const k=String(b.k||'').trim();if(!/^[A-Za-z0-9:._-]{3,80}$/.t
  const letto=mat||sing?'':b.letto==='m'||b.letto==='s'?b.letto:'',nota=String(b.nota||'').replace(/\s+/g,' ').trim().slice(0,200),partenza=/^\d{4}-\d\d-\d\d$/.test(b.a||'')?b.a:'',fuori=b.fuori===true;      // fuori: tolta dal testo per le pulizie
  if(!letto&&!nota&&!fuori&&!mat&&!sing&&!culla){await kv('HDEL','pul:info',k);return res.json({ok:1})}
  await kv('HSET','pul:info',k,JSON.stringify(Object.assign({letto,nota,a:partenza},mat||sing?{mat,sing}:{},culla?{culla:true}:{},fuori?{fuori:true}:{})));return res.json({ok:1,letto,nota,fuori,mat,sing,culla})}
+// ---- Da fare (Gestione → Oggi): spunte delle cose da fare e cose scritte a mano dal titolare ----
+// KV todo = {dal, fatti:{id: giorno della spunta}, manuali:[{id, testo, creata, fatto}]}. Le voci automatiche (registrare gli ospiti su Alloggiati Web
+// a ogni arrivo, ISTAT a fine mese) le calcola la pagina; qui si ricorda solo quando sono state spuntate. dal = primo giorno della lista:
+// gli arrivi di prima non diventano cose da fare. Una voce spuntata resta (sbiadita) fino a sera e dal giorno dopo non c'è più:
+// le voci a mano spuntate prima di oggi si tolgono alla lettura, le spunte delle voci automatiche dopo 120 giorni (la pagina guarda gli ultimi 90).
+const RE_TODO=/^[A-Za-z0-9:._-]{3,80}$/;
+const todoGet=async()=>{const t=(await jg('todo'))||{},oggi=todayRome(),lim=addDays(oggi,-120);let cambiato=!t.dal;
+ const o={dal:t.dal||oggi,fatti:{},manuali:[]};
+ for(const[k,v]of Object.entries(t.fatti||{}))if(RE_TODO.test(k)&&AV.isIso(v)&&v>=lim)o.fatti[k]=v;else cambiato=true;
+ for(const m of(Array.isArray(t.manuali)?t.manuali:[]))if(m&&m.id&&!(m.fatto&&m.fatto<oggi))o.manuali.push(m);else cambiato=true;
+ if(cambiato)await kv('SET','todo',JSON.stringify(o));
+ return Object.assign(o,{oggi})};
+if(a==='todo_get')return res.json(await todoGet());
+if(a==='todo_check'){const id=String(b.id||'').trim();if(!RE_TODO.test(id))return res.status(400).json({err:'Voce non valida'});
+ const t=await todoGet(),oggi=t.oggi,m=t.manuali.find(x=>x.id===id);delete t.oggi;
+ if(m)m.fatto=b.fatto?oggi:'';else if(b.fatto)t.fatti[id]=oggi;else delete t.fatti[id];
+ await kv('SET','todo',JSON.stringify(t));return res.json(Object.assign(t,{oggi}))}
+if(a==='todo_add'){const testo=String(b.testo||'').replace(/\s+/g,' ').trim().slice(0,200);if(!testo)return res.status(400).json({err:'Scrivi cosa c\'è da fare'});
+ const t=await todoGet(),oggi=t.oggi;delete t.oggi;if(t.manuali.length>=100)return res.status(400).json({err:'Troppe cose da fare: spunta o togli quelle vecchie'});
+ t.manuali.push({id:'m-'+c.randomBytes(5).toString('hex'),testo,creata:oggi,fatto:''});
+ await kv('SET','todo',JSON.stringify(t));return res.json(Object.assign(t,{oggi}))}
+if(a==='todo_del'){const id=String(b.id||'').trim(),t=await todoGet(),oggi=t.oggi;delete t.oggi;
+ t.manuali=t.manuali.filter(x=>x.id!==id);await kv('SET','todo',JSON.stringify(t));return res.json(Object.assign(t,{oggi}))}
 if(a==='msg_fill'){ // un template compilato per una prenotazione del sito o del foglio (anteprima, testo da copiare nella chat di Booking o Airbnb)
  const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase(),{live:false});
  if(!x)return res.status(404).json({err:'Prenotazione non trovata'});

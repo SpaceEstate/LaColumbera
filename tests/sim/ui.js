@@ -1153,6 +1153,48 @@ test('W14 Gestione · due aree: selettore Operatività | Sito sempre in alto, me
   }
   const r2 = await loadAdmin('#corte/disponibilita'); assert.equal(r2.w.location.hash, '#calendario/corte', 'anche aprendo la pagina da un segnalibro vecchio'); assert(r2.doc.querySelector('[data-testid=admin-closed-corte]'));
 });
+test('W15b Gestione · Oggi → Da fare: registrare gli ospiti a ogni arrivo, ISTAT a fine mese, cose scritte a mano; spuntate sbiadite fino a sera, poi spariscono', async () => {
+  await setup();      // 2 ottobre: oggi entra a Torre la prenotazione di Booking, il 5 a Corte quella di Airbnb
+  let r = await loadAdmin(); const $ = s => r.doc.querySelector(s), row = id => r.doc.querySelector('[data-testid="admin-todo-' + id + '"]'), chk = id => r.doc.querySelector('[data-testid="admin-todo-chk-' + id + '"]');
+  const T1 = 'all:torre:2026-10-02', C1 = 'all:corte:2026-10-05';
+  await waitFor(() => row(T1), 'arrivo di oggi tra le cose da fare');
+  assert(/Torre/.test(text(row(T1))) && /Entra oggi/.test(text(row(T1))) && row(T1).querySelector('a[href="#adempimenti"]') && /Registra ospiti/.test(text(row(T1))), text(row(T1)));
+  assert(!row(C1) && !$('[data-testid^="admin-todo-istat"]'), 'niente arrivi futuri, niente ISTAT a inizio mese');
+  // spunta: la riga si sbiadisce e resta per oggi, anche ricaricando
+  chk(T1).click(); await waitFor(() => JSON.parse(kv.exec(['GET', 'todo'])).fatti[T1] === '2026-10-02', 'spunta salvata');
+  assert(row(T1).classList.contains('todo-fatto') && chk(T1).checked, 'sbiadita');
+  // cose scritte a mano
+  const add = async testo => { $('[data-testid=admin-todo-testo]').value = testo; $('#todo-f').requestSubmit(); await waitFor(() => new RegExp(testo).test(text($('[data-testid=admin-todo-manuali]'))), testo); };
+  await add('Comprare il caffè'); await add('Cambiare la lampadina <b>x</b>');
+  assert(!$('[data-testid=admin-todo-manuali] b'), 'il testo resta testo');
+  const man = () => JSON.parse(kv.exec(['GET', 'todo'])).manuali, idOf = t => man().find(x => x.testo.startsWith(t)).id;
+  const caffe = idOf('Comprare'), lamp = idOf('Cambiare');
+  chk(caffe).click(); await waitFor(() => man().find(x => x.id === caffe).fatto === '2026-10-02', 'spunta a mano salvata');
+  assert(row(caffe).classList.contains('todo-fatto'), 'sbiadita');
+  // tolta la spunta per errore e rimessa
+  chk(caffe).click(); await waitFor(() => man().find(x => x.id === caffe).fatto === '', 'spunta tolta'); assert(!row(caffe).classList.contains('todo-fatto'));
+  chk(caffe).click(); await waitFor(() => man().find(x => x.id === caffe).fatto === '2026-10-02', 'spunta rimessa');
+  r = await loadAdmin(); await waitFor(() => row(T1), 'dopo aver ricaricato');
+  assert(row(T1).classList.contains('todo-fatto') && row(caffe).classList.contains('todo-fatto') && !row(lamp).classList.contains('todo-fatto'), 'spunte dal server');
+  // il giorno dopo le spuntate non ci sono più; quella non spuntata resta
+  clock.set('2026-10-03T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row(lamp), 'cosa non spuntata');
+  assert(!row(T1) && !row(caffe), 'le spuntate ieri sono sparite');
+  // l'arrivo di Corte non spuntato resta anche nei giorni dopo
+  clock.set('2026-10-07T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row(C1), 'arrivo di Corte');
+  assert(/Corte/.test(text(row(C1))) && /Entrato/.test(text(row(C1))) && /Registra ospiti/.test(text(row(C1))) && !row(T1), text(row(C1)));
+  // ISTAT: dagli ultimi 7 giorni del mese (ottobre: dal 25), finché non si spunta
+  clock.set('2026-10-24T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row(lamp), 'Da fare'); assert(!row('istat:2026-10'), 'il 24 ottobre ancora no');
+  clock.set('2026-10-25T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row('istat:2026-10'), 'ISTAT di ottobre');
+  assert(/ottobre 2026/.test(text(row('istat:2026-10'))) && row('istat:2026-10').querySelector('a[href="#adempimenti/istat"]') && /Registra ospiti ISTAT/.test(text(row('istat:2026-10'))), text(row('istat:2026-10')));
+  clock.set('2026-11-03T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row('istat:2026-10'), 'ISTAT non spuntato resta a novembre');
+  chk('istat:2026-10').click(); await waitFor(() => JSON.parse(kv.exec(['GET', 'todo'])).fatti['istat:2026-10'] === '2026-11-03', 'ISTAT spuntato');
+  clock.set('2026-11-04T08:00:00Z'); r = await loadAdmin(); await waitFor(() => row(lamp), 'Da fare'); assert(!row('istat:2026-10'), 'ISTAT spuntato ieri: sparito');
+  // togliere una cosa scritta a mano
+  r.w.confirm = () => true; $('[data-testid="admin-todo-del-' + lamp + '"]').click();
+  await waitFor(() => !row(lamp), 'tolta'); assert.equal(man().length, 0);
+  // senza accesso alla Gestione niente cose da fare
+  assert.equal((await H.api('todo_get', {})).status, 401); assert.equal((await H.api('todo_add', { testo: 'x' })).status, 401);
+});
 test('W15 Gestione · Oggi: arrivi e partenze di oggi e domani da sito, foglio e calendari senza doppioni; da gestire, messaggi da leggere, invii automatici; prossimi 7 giorni; semaforo unico', async () => {
   await setup();
   const c1 = (await checkout({ id: 'corte', da: '2026-10-03', a: '2026-10-05', nome: 'Mario Rossi' })).body; await H.webhook('checkout.session.completed', H.paidSession(c1.code));

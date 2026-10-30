@@ -51,6 +51,7 @@ A.view.oggi=()=>{
    ${semaforo()}</div></div>
   <div class="adm-cols">
    <div class="admin-card" data-testid="admin-oggi-fare"><h3>Da fare</h3>
+    <div id="oggi-todo" data-testid="admin-oggi-todo">${V.todo?todoHtml():'<p class="book-note">Carico…</p>'}</div>
     ${pend.length?`<h4 class="adm-h4">Prenotazioni da gestire</h4><ul class="adm-list">${pend.slice(0,5).map(x=>`<li><span class="adm-apt">${esc(aptName(x.id))}</span><span class="adm-who"><a href="#prenotazioni/${esc(x.code)}">${esc(x.nome||x.code)}</a> ${chip(x.stato)}</span><small class="adm-when">${fmtS(x.da)} → ${fmtS(x.a)}</small></li>`).join('')}</ul>`:''}
     <div id="oggi-msg">${nm?'<p class="book-note">Carico i messaggi…</p>':''}</div><div id="oggi-ric"></div>
     ${!pend.length&&!nm?'<p class="adm-ok" style="margin-top:0">Niente in sospeso: prenotazioni e messaggi sono in ordine.</p>':''}
@@ -59,7 +60,34 @@ A.view.oggi=()=>{
   <div class="admin-card"><h3 style="margin-top:0">Prossimi 7 giorni</h3>${settimana(st)}<p class="book-note">Tocca una casella per aprire il calendario di quell'appartamento.</p>
    <div class="adm-quick"><a class="btn btn-line" href="#calendario">Blocca notti o cambia prezzi</a><a class="btn btn-line" href="#prenotazioni">Cerca una prenotazione</a><a class="btn btn-line" href="#pulizie">Pulizie dei prossimi giorni</a><a class="btn btn-line" href="#messaggi">Scrivi a un ospite</a><a class="btn btn-line" href="#guestcard">Emetti Guest Card</a></div></div>`};
 const rep=(id,html)=>{const el=document.getElementById(id);if(el)el.outerHTML=html};
+// Cose da fare: registrare gli ospiti su Alloggiati Web a ogni arrivo (Torre e Corte), ISTAT negli ultimi 7 giorni del mese, e quelle scritte a mano.
+// Ogni voce ha la sua spunta: spuntata resta sbiadita per tutto il giorno, dal giorno dopo sparisce; non spuntata resta finché non la spunti.
+// Le spunte stanno sul server (todo_*): valgono su tutti i dispositivi. Contano gli arrivi dal giorno in cui la lista è partita (dal), al più 90 giorni fa.
+const MESI=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+function todoAuto(t){const out=[],dal=t.dal>addDays(today,-90)?t.dal:addDays(today,-90);
+  soggiorni().filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),
+    html:`${x.da===today?'Entra oggi':'Entrato '+esc(fmtS(x.da))}: ${x.code?`<a href="#prenotazioni/${esc(x.code)}">${esc(chi(x))}</a>`:esc(chi(x))}${x.ospiti?` <small>· ${x.ospiti} ${x.ospiti===1?'ospite':'ospiti'}</small>`:''}`,
+    fare:'<a href="#adempimenti">Registra ospiti</a> <small>Alloggiati Web</small>'}));
+  // ISTAT: dal primo degli ultimi 7 giorni del mese; un mese non spuntato resta anche nei mesi dopo (al più gli ultimi 3)
+  for(let k=2;k>=0;k--){const d=new Date(+today.slice(0,4),+today.slice(5,7)-1-k,1),y=d.getFullYear(),mo=d.getMonth(),ym=y+'-'+String(mo+1).padStart(2,'0'),last=new Date(y,mo+1,0).getDate(),da=ym+'-'+String(last-6).padStart(2,'0');
+    if(today>=da&&ym>=t.dal.slice(0,7))out.push({id:'istat:'+ym,apt:'ISTAT',html:`Movimento ospiti di ${MESI[mo]} ${y}`,fare:'<a href="#adempimenti/istat">Registra ospiti ISTAT</a>'})}
+  return out}
+const todoVisibile=f=>!f||f>=today;      // spuntata oggi: c'è ancora (sbiadita); spuntata prima: sparisce
+function todoHtml(){const t=V.todo;if(!t)return '';
+  const auto=todoAuto(t).filter(x=>todoVisibile(t.fatti[x.id])),man=t.manuali.filter(x=>todoVisibile(x.fatto)).sort((a,b)=>(!!a.fatto-!!b.fatto)||(a.creata<b.creata?-1:a.creata>b.creata?1:0));
+  const spunta=(id,f,lab)=>`<input type="checkbox" class="todo-chk" data-todo="${esc(id)}"${f?' checked':''} aria-label="${esc((f?'Fatto: ':'Segna come fatto: ')+lab)}" data-testid="admin-todo-chk-${esc(id)}">`;
+  return `${auto.length?`<ul class="adm-list todo-list" data-testid="admin-todo-auto">${auto.map(x=>{const f=t.fatti[x.id];
+    return `<li class="${f?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}"><span class="adm-apt">${esc(x.apt)}</span><span class="adm-who">${x.html}</span><span class="todo-fare">${x.fare} ${spunta(x.id,f,x.apt+' '+x.id)}</span></li>`}).join('')}</ul>`:''}
+   <h4 class="adm-h4">Le mie cose da fare</h4>
+   <div class="table-wrap"><table class="data todo-tab" data-testid="admin-todo-manuali"><tbody>${man.length?man.map(x=>`<tr class="${x.fatto?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}"><td class="todo-c">${spunta(x.id,x.fatto,x.testo)}</td><td>${esc(x.testo)}<br><small>scritta ${esc(fmtS(x.creata))}</small></td><td class="td-azioni"><button type="button" class="stato-select btn-del-book" data-act="todoDel" data-id="${esc(x.id)}" data-testid="admin-todo-del-${esc(x.id)}">Togli</button></td></tr>`).join('')
+     :'<tr><td colspan="3" class="td-empty">Nessuna cosa da fare scritta da te.</td></tr>'}</tbody></table></div>
+   <form id="todo-f" class="todo-add" data-testid="admin-todo-form"><input name="testo" maxlength="200" required placeholder="Aggiungi una cosa da fare" aria-label="Nuova cosa da fare" data-testid="admin-todo-testo"><button class="btn btn-line" data-testid="admin-todo-add">Aggiungi</button></form>
+   <p class="admin-msg" id="todo-msg" role="alert"></p>`}
+const todoPaint=()=>{const el=$('#oggi-todo');if(el)el.innerHTML=todoHtml()};
+const todoErr=e=>{const m=$('#todo-msg');if(m){m.className='admin-msg warn';m.textContent=e.message}};
+const todoCall=(a,b)=>A.api(a,b).then(t=>{V.todo=t;todoPaint()});
 A.after.oggi=()=>{
+  A.api('todo_get',{}).then(t=>{V.todo=t;todoPaint()},()=>{const el=$('#oggi-todo');if(el&&!V.todo)el.innerHTML='<p class="book-note">Cose da fare non disponibili in questo momento.</p>'});
   if(!V.health||Date.now()-V.health.ts>5*60e3)A.api('health',{}).then(d=>{V.health={ts:Date.now(),data:d}},()=>{V.health={ts:Date.now(),data:null}}).then(()=>rep('oggi-sem',semaforo()));
   if(+A.D.msgNonLetti)A.api('msg_inbox',{}).then(r=>{const el=$('#oggi-msg');if(!el)return;const c=(r.conversazioni||[]).filter(x=>x.nonLetti>0).slice(0,5);
     el.innerHTML=c.length?`<h4 class="adm-h4">Messaggi da leggere</h4><ul class="adm-list">${c.map(x=>`<li><span class="adm-apt">${esc(aptName(x.apt))}</span><span class="adm-who"><a href="#messaggi/c/${esc(x.code)}" data-testid="admin-oggi-conv-${esc(x.code)}">${esc(x.nome||x.code)}</a> <span class="adm-badge">${x.nonLetti}</span><small class="adm-prev1">${esc(x.anteprima)}</small></span></li>`).join('')}</ul>`:''},()=>{});
@@ -206,6 +234,7 @@ A.after.guestcard=()=>{if(V.gcFrom){gcFill(V.gcFrom);V.gcFrom=''}};
 
 Object.assign(A.act,{
   bkf:(a,e)=>{e.preventDefault();V.bkf=a.dataset.f;A.body()},
+  todoDel:a=>{if(confirm('Togliere questa cosa da fare?'))todoCall('todo_del',{id:a.dataset.id}).catch(todoErr)},
   bkGo:a=>{V.bkf=a.dataset.f||'tutte'},
   gcFrom:a=>{V.gcFrom=a.dataset.code},
   oggiRefresh:async a=>{a.disabled=true;V.health=null;await A.refreshAdm();A.body()},
@@ -237,10 +266,16 @@ Object.assign(A.act,{
 });
 A.onInput.push(el=>{if(el.id!=='bk-q')return false;V.bkq=el.value;bkUpdate();return true});
 A.onChange.push(el=>{
+  if(el.dataset.todo){const id=el.dataset.todo,fatto=el.checked,r=el.closest('li,tr');if(r)r.classList.toggle('todo-fatto',fatto);
+    todoCall('todo_check',{id,fatto}).catch(e=>{el.checked=!fatto;if(r)r.classList.toggle('todo-fatto',!fatto);todoErr(e)});return true}
   if(el.id==='bk-src'){V.bksrc=el.value;bkUpdate();return true}
   if(el.dataset.code&&el.tagName==='SELECT'){A.setStato(el.dataset.code,el.value);return true}
   if(el.id==='gc-pre'){gcFill(el.value);return true}
   return false});
+A.onSubmit.push((f,e)=>{if(f.id!=='todo-f')return false;e.preventDefault();
+  const testo=f.elements.testo.value.trim(),btn=f.querySelector('button');if(!testo)return true;btn.disabled=true;
+  todoCall('todo_add',{testo}).then(()=>{const i=$('#todo-f input');if(i)i.focus()}).catch(e=>{btn.disabled=false;todoErr(e)});
+  return true});
 A.onSubmit.push((f,e)=>{if(f.id!=='gcf')return false;e.preventDefault();
   const b=Object.fromEntries(new FormData(f)),msg=$('#gc-msg'),btn=$('#gc-go');
   if(b.a<=b.da){msg.textContent='La partenza deve essere dopo l\'arrivo';return true}

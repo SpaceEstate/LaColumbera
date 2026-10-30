@@ -1254,6 +1254,13 @@ a.adm-stat:hover{border-color:var(--wine);box-shadow:var(--shadow-soft)}
 .adm-who{min-width:0;overflow-wrap:anywhere}
 .adm-who a{color:var(--ink);font-weight:700}
 .adm-when{color:var(--muted);white-space:nowrap}
+.todo-fare{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.todo-fare small{color:var(--muted)}
+.todo-chk{width:20px;height:20px;margin:0;accent-color:var(--wine);cursor:pointer;flex:none}
+.todo-fatto>*{opacity:.45}.todo-fatto .adm-who,.todo-fatto td:nth-child(2){text-decoration:line-through}
+.todo-tab td{vertical-align:middle}.todo-tab .todo-c{width:36px}
+.todo-add{display:flex;gap:8px;margin-top:10px}.todo-add input{flex:1;min-width:0}
+@media (max-width:560px){.adm-list.todo-list li{grid-template-columns:minmax(0,1fr)}.todo-fare{white-space:normal;flex-wrap:wrap}}
 .adm-prev1{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-h4 small{color:var(--muted);font-weight:600}
 .oggi-stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
