@@ -343,13 +343,16 @@ async function guestcard(c){
   const copia=async t=>{
     try{await navigator.clipboard.writeText(t);return true}
     catch{try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}};
+  // dall'area clienti (o dal link #k=…) la prenotazione si riconosce da sola: il primo passo, il codice, non si mostra; resta a portata con «Usa un altro codice»
+  const form=$('[data-testid=gc-card]'),altro=auto=>auto?`<p class="book-note"><button type="button" class="link-btn" data-act="gc-altro" data-testid="gc-altro">Usa un altro codice di prenotazione</button></p>`:'';
   box.addEventListener('click',async e=>{
+    if(e.target.closest('[data-act=gc-altro]')){box.innerHTML='';if(form)form.hidden=false;$('#gc-code').focus();return}
     const b=e.target.closest('[data-copy]');if(!b)return;
     const orig=b.dataset.label||(b.dataset.label=b.textContent),ok=await copia(b.dataset.copy);
     b.textContent=ok?'Codice copiato ✓':'Copia non riuscita';
     clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent=orig},2200)});
   const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email||'l\'indirizzo indicato')}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">Copia codice</button>`:''}</div>`;
-  const renderConfirm=x=>{
+  const renderConfirm=(x,auto)=>{
     box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
       <h2>Prenotazione trovata</h2>
       <div class="bc-grid">
@@ -364,7 +367,7 @@ async function guestcard(c){
       <p class="book-note" data-testid="gc-privacy">Per emettere la card inviamo al sistema Trentino Guest Card la tua email, le date del soggiorno e il numero di ospiti. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
       <button class="btn btn-wine" style="width:100%;justify-content:center" id="gc-go" data-testid="gc-issue">Genera Trentino Guest Card</button>
       <p class="form-err" id="e2"></p>
-    </div>`;
+    </div>${altro(auto)}`;
     $('#gc-go').onclick=async()=>{
       const btn=$('#gc-go');if(btn.dataset.loading)return;
       const email=x.needsEmail?($('#gc-email').value||'').trim():undefined;
@@ -373,22 +376,23 @@ async function guestcard(c){
       try{const g=await api('gc_issue',Object.assign(accBody(x.code),{email}));box.innerHTML=renderCard(g)}
       catch(err){$('#e2').textContent=err.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   };
-  const check=async body=>{
-    $('#e').textContent='';box.innerHTML='';
+  const check=async(body,auto)=>{
+    $('#e').textContent='';box.innerHTML=auto?'<p class="book-note" data-testid="gc-cerco">Cerco la tua prenotazione…</p>':'';
+    if(auto&&form)form.hidden=true;
     try{let r;
       try{r=await api('gc_check',body)}
       catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('gc_check',{code:body.code})}      // sessione scaduta (404): si riprova con il solo codice; senza rete la sessione resta
       const code=r.code||body.code;if(r.t)accSet(code,r.t);
-      if(r.card){box.innerHTML=renderCard(r.card);return}
-      renderConfirm({...r.booking,code})}
-    catch(x){$('#e').textContent=x.message}};
+      if(r.card){box.innerHTML=renderCard(r.card)+altro(auto);return}
+      renderConfirm({...r.booking,code},auto)}
+    catch(x){box.innerHTML='';if(form)form.hidden=false;$('#e').textContent=x.message}};      // non riconosciuta: si torna al primo passo, con il codice già scritto
   $('#f').onsubmit=e=>{e.preventDefault();const code=codeIn($('#gc-code').value);if(code)check(accBody(code))};
   // dall'area clienti (stessa scheda) il token è già in sessionStorage; dal messaggio di benvenuto (#k=…) basta il codice;
   // dai link con ?code=… si precompila solo il codice
   const h=accFromHash()||accGet(),qc=q.get('code');
   if(qc)history.replaceState(null,'',location.pathname);
-  if(h&&h.t){$('#gc-code').value=fmtCode(h.c);check({code:h.c,t:h.t})}
-  else if(h&&h.k){const k=codeIn(h.k);$('#gc-code').value=k;check({code:k})}
+  if(h&&h.t){$('#gc-code').value=fmtCode(h.c);check({code:h.c,t:h.t},true)}
+  else if(h&&h.k){const k=codeIn(h.k);$('#gc-code').value=k;check(accBody(k),true)}
   else if(qc)$('#gc-code').value=codeIn(qc);
 }
 

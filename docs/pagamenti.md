@@ -38,7 +38,16 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 
 - **Questo sito**: indirizzo `https://la-columbera.vercel.app/api/stripe-webhook`, eventi `checkout.session.completed` e `checkout.session.expired`.
 - **App di check-in** (tassa di soggiorno): `https://checkin-six-coral.vercel.app/api/stripeWebhook`, evento `checkout.session.completed`.
-- Ogni webhook ha il proprio «signing secret», da copiare nella variabile del progetto giusto. Con un solo account Stripe i due sistemi ricevono gli eventi l'uno dell'altro e ognuno ignora quelli che non sono suoi.
+- Ogni webhook ha il proprio «signing secret», da copiare nella variabile del progetto giusto. Con un solo account Stripe i due sistemi ricevono gli eventi l'uno dell'altro: il check-in ignora i pagamenti delle prenotazioni; questo sito, dai pagamenti del check-in, prende solo il numero di prenotazione per sapere che il check-in è fatto (vedi sotto).
+
+## Check-in online e area clienti
+
+- **Dall'area clienti** il riquadro «Check-in online» apre il modulo del check-in con il codice della prenotazione e la lingua dell'area già dentro (nel frammento `#` dell'indirizzo, che non arriva a nessun server): il modulo verifica da solo la prenotazione e parte dai dati del soggiorno, senza chiedere il numero. Lo stesso per la **Trentino Guest Card**: arrivando dall'area la prenotazione è già riconosciuta e il campo del codice non si mostra («Usa un altro codice» lo riapre).
+- **Quando il check-in conta come fatto:** l'ospite l'ha aperto con il numero di prenotazione (dall'area clienti o scrivendolo nel primo passo) e il pagamento dell'imposta di soggiorno è riuscito. Chi sceglie «Non ho il numero di prenotazione» fa il check-in come prima, ma l'area clienti non lo sa.
+- **Come lo sa il sito:** il pagamento del check-in porta nei metadati di Stripe il numero della prenotazione; il webhook di questo sito (lo stesso di sempre, nessuna impostazione nuova) lo registra. Se il webhook non arriva, la sincronizzazione ricontrolla su Stripe, al più ogni 10 minuti, i pagamenti del check-in degli ultimi 3 giorni e nel registro eventi resta l'avviso.
+- **Nell'area clienti**, dopo il check-in: il riquadro diventa «Check-in completato» (sbiadito, non si tocca più) e compare il **codice della cassetta delle chiavi**, negli stessi giorni del Wi-Fi (da quanti giorni prima dell'arrivo lo decidi in Gestione → Sito → Regole di prenotazione) fino al giorno della partenza; prima compare il giorno da cui lo troverà. Se l'ospite torna sull'area mentre il check-in è aperto in un'altra scheda, la pagina si aggiorna da sola.
+- **Il codice della cassetta** lo scrivi in Gestione → Sito → Appartamenti → Area ospiti («Codice della cassetta delle chiavi»). È lo stesso che il check-in manda via email, che invece lo legge dalle variabili `CODICE_CASSETTA_TORRE` e `CODICE_CASSETTA_CORTE` del progetto Check-in su Vercel: **se cambi il codice, cambialo in tutti e due i posti**. Se il campo in Gestione è vuoto, l'area usa quelle stesse variabili, se le imposti anche in questo progetto; senza nessuna delle due, l'area dice solo che il codice è nell'email del check-in.
+- **Chi vede il codice:** chi entra nell'area con il codice della prenotazione (come per il Wi-Fi), solo dopo il check-in pagato e solo nei giorni del soggiorno. Prima arrivava soltanto con l'email del check-in.
 
 ## Prova completa (una volta, e dopo ogni modifica alle chiavi)
 

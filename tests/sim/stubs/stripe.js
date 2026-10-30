@@ -4,6 +4,8 @@
 // Rimborsi: global.__stripeRefunds = rimborsi creati ({ key, params, res }); stessa chiave di idempotenza = stesso rimborso (parametri diversi: errore,
 // come Stripe); global.__stripeRefundFail = Stripe non raggiungibile; global.__stripeRefunded[pi] = già rimborsato (es. dalla dashboard);
 // global.__stripeRefundStatus = stato restituito (predefinito 'succeeded').
+// Elenco delle sessioni (checkout.sessions.list, rete di sicurezza del check-in online): global.__stripeList = sessioni come le dà Stripe (con created
+// in secondi), filtrate per created.gte / created.lte; global.__stripeListCalls conta le chiamate; global.__stripeSessionsListFail = Stripe non raggiungibile.
 let n = 0;
 const state = id => (global.__stripeState && global.__stripeState[id]) || {};
 module.exports = key => ({
@@ -17,6 +19,12 @@ module.exports = key => ({
       return { id, status: st.status || (st.paid ? 'complete' : 'open'), payment_status: st.paid ? 'paid' : 'unpaid', payment_intent: st.paid ? 'pi_' + id : null,
         metadata: p.metadata, client_reference_id: p.client_reference_id, customer_email: p.customer_email, customer_details: { email: p.customer_email },
         amount_total: p.line_items[0].price_data.unit_amount };
+    },
+    list: async p => {
+      global.__stripeListCalls = (global.__stripeListCalls || 0) + 1;
+      if (global.__stripeSessionsListFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
+      const c = (p && p.created) || {};
+      return { data: (global.__stripeList || []).filter(s => !(c.gte != null && s.created < c.gte) && !(c.lte != null && s.created > c.lte)).slice(0, (p && p.limit) || 10), has_more: false };
     } } },
   refunds: { create: async (p, o) => {
     if (global.__stripeRefundFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }

@@ -303,11 +303,11 @@ test('S16 calendario per Booking e Airbnb (for=site): nessun codice di prenotazi
 test('S17 area ospiti: il soggiorno senza dati personali; istruzioni e Wi-Fi mai nella configurazione pubblica e solo nei giorni giusti; una Gestione vecchia non li cancella', async () => {
   await base();
   let c = (await H.adminApi('cfg_admin', {})).body;
-  for (const p of c.apts) { p.infoOspiti = '## Casa\n- Regola ' + p.id; p.infoRiservate = 'WIFI-SEGRETO-' + p.id; }
+  for (const p of c.apts) { p.infoOspiti = '## Casa\n- Regola ' + p.id; p.infoRiservate = 'WIFI-SEGRETO-' + p.id; p.cassetta = 'CAS-' + p.id; }
   Object.assign(c, { checkoutOra: '10:30', infoGiorni: 3 });
   eq((await H.adminApi('save', c)).status, 200);
   const pub = JSON.stringify((await H.api('cfg', {}, { method: 'GET' })).body);
-  assert(!/WIFI-SEGRETO|Regola torre|infoOspiti|infoRiservate/.test(pub), 'configurazione pubblica senza testi per gli ospiti: ' + pub.slice(0, 200));
+  assert(!/WIFI-SEGRETO|Regola torre|infoOspiti|infoRiservate|CAS-|cassetta/.test(pub), 'configurazione pubblica senza testi per gli ospiti né codice della cassetta: ' + pub.slice(0, 200));
   const k = await confermata();                                                     // 10 → 13 dicembre, Torre
   let r = await H.api('mie', { code: k.code }, as(ip())), sg = r.body.soggiorno, js = JSON.stringify(r.body);
   eq(r.status, 200); assert(!/Mario|Prova|mario\.prova|0000000/.test(js), 'nessun nome, email o telefono: ' + js);
@@ -316,16 +316,18 @@ test('S17 area ospiti: il soggiorno senza dati personali; istruzioni e Wi-Fi mai
   eq([sg.info.testo, sg.info.riservate, sg.info.riservateDal], ['## Casa\n- Regola torre', '', '2026-12-07'], 'Wi-Fi non ancora: dal 7 dicembre (3 giorni prima)');
   clock.set('2026-12-07T08:00:00Z');
   sg = (await H.api('mie', { code: k.code, t: k.t }, as(ip()))).body.soggiorno; eq(sg.info.riservate, 'WIFI-SEGRETO-torre', 'dal 7 dicembre sì');
+  eq([sg.checkin, sg.cassetta], [{ fatto: false }, null], 'il codice della cassetta no: serve il check-in online fatto con questo codice');
+  assert(!JSON.stringify(sg).includes('CAS-'), 'nemmeno nascosto nella risposta');
   clock.set('2026-12-14T08:00:00Z');
   sg = (await H.api('mie', { code: k.code, t: k.t }, as(ip()))).body.soggiorno; eq([sg.info.riservate, sg.info.riservateDal], ['', ''], 'dopo la partenza no');
   // il conto resta quello pagato anche se poi cambiano i prezzi
   c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(p => p.id === 'torre').base = 999; eq((await H.adminApi('save', c)).status, 200);
   eq((await H.api('mie', { code: k.code, t: k.t }, as(ip()))).body.soggiorno.pagamento.conto.righe[0].prezzo, 180);
   // una pagina di Gestione di prima (non invia i campi nuovi) non li cancella
-  c = (await H.adminApi('cfg_admin', {})).body; for (const p of c.apts) { delete p.infoOspiti; delete p.infoRiservate; } delete c.checkoutOra; delete c.infoGiorni; delete c.whatsapp;
+  c = (await H.adminApi('cfg_admin', {})).body; for (const p of c.apts) { delete p.infoOspiti; delete p.infoRiservate; delete p.cassetta; } delete c.checkoutOra; delete c.infoGiorni; delete c.whatsapp;
   eq((await H.adminApi('save', c)).status, 200);
   const st = JSON.parse(kv.exec(['GET', 'cfg']));
-  eq([st.apts.find(p => p.id === 'corte').infoRiservate, st.checkoutOra, st.infoGiorni], ['WIFI-SEGRETO-corte', '10:30', 3]);
+  eq([st.apts.find(p => p.id === 'corte').infoRiservate, st.apts.find(p => p.id === 'corte').cassetta, st.checkoutOra, st.infoGiorni], ['WIFI-SEGRETO-corte', 'CAS-corte', '10:30', 3]);
   // valori non validi: rifiutati senza cambiare nulla
   eq((await H.adminApi('save', Object.assign({}, st, { checkoutOra: '25:00' }))).status, 400);
   eq((await H.adminApi('save', Object.assign({}, st, { infoGiorni: 99 }))).status, 400);

@@ -242,6 +242,14 @@ test('U4b area clienti dal link della mail (#c=…&t=…): entra subito, il toke
   assert.equal(href, 'guest-card.html', 'nessun codice nell\'URL della Guest Card');
   const g = await load('guest-card.html', { session: { lc_acc: r.w.sessionStorage.getItem('lc_acc') }, scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => g.doc.querySelector('[data-testid=gc-confirm]'), 'Guest Card: prenotazione riconosciuta senza ridigitare nulla');
+  // il primo passo (il codice) non si mostra: resta a portata con «Usa un altro codice»
+  assert(g.doc.querySelector('[data-testid=gc-card]').hidden, 'modulo del codice nascosto');
+  g.doc.querySelector('[data-testid=gc-altro]').click();
+  assert(!g.doc.querySelector('[data-testid=gc-card]').hidden && !g.doc.querySelector('[data-testid=gc-confirm]') && g.doc.activeElement === g.doc.querySelector('#gc-code'), 'con «Usa un altro codice» torna il primo passo');
+  // senza sessione e con un codice che non c'è: torna il primo passo con il codice già scritto e il messaggio
+  const g2 = await load('guest-card.html', { hash: '#k=ZZZZZZZZZZZZZ', scripts: ['js/site.js', 'js/pages.js'] });
+  await waitFor(() => text(g2.doc.querySelector('#e')), 'errore');
+  assert(!g2.doc.querySelector('[data-testid=gc-card]').hidden && g2.doc.querySelector('#gc-code').value === 'ZZZZZZZZZZZZZ' && !g2.doc.querySelector('[data-testid=gc-cerco]'), 'non riconosciuta: primo passo di nuovo visibile');
 });
 test('U4c area clienti senza link: basta il codice (anche minuscolo e a gruppi); codice sbagliato = messaggio chiaro; ?code= precompila soltanto; #k= entra e sparisce', async () => {
   await setup();
@@ -303,7 +311,7 @@ const saveArea = async () => {      // testi per gli ospiti di Torre e Corte, ch
   assert.equal((await H.adminApi('save', c)).status, 200);
 };
 const tabOf = (r, k) => { r.doc.querySelector('[data-testid=ga-tab-' + k + ']').click(); return r.doc.querySelector('#ga-p-' + k); };
-test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, informazioni (riservate solo vicino all\'arrivo), eventi nelle date, calendario', async () => {
+test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, informazioni (riservate solo vicino all\'arrivo), eventi nelle date, recensione (al posto del calendario)', async () => {
   await setup(); await saveArea();
   assert.equal((await H.adminApi('event_add', { title: 'Mercatino <i>di</i> Natale', date: '2026-12-11', time: '10:00', location: 'Trento' })).status, 200);
   assert.equal((await H.adminApi('event_add', { title: 'Fuori dalle date', date: '2026-12-20', location: 'Trento' })).status, 200);
@@ -329,8 +337,10 @@ test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, info
   const dint = tabOf(r, 'dintorni');
   await waitFor(() => r.doc.querySelector('[data-testid="ga-ev-2026-12-11"]'), 'evento nelle date');
   assert(!r.doc.querySelector('[data-testid="ga-ev-2026-12-20"]') && !dint.querySelector('#ga-ev i'), 'solo gli eventi del soggiorno, titoli come testo');
-  const ics = r.w.LCArea.ics(JSON.parse(JSON.stringify({ code: c.code, da: '2026-12-10', a: '2026-12-13', apt: { nome: 'La Columbera Torre' }, orari: { checkin: '16:00', checkout: '10:00' } })));
-  assert(/DTSTART;TZID=Europe\/Rome:20261210T160000/.test(ics) && /DTEND;TZID=Europe\/Rome:20261213T100000/.test(ics) && /BEGIN:VTIMEZONE/.test(ics) && !ics.includes(c.code), 'calendario: ' + ics);
+  // «Lascia una recensione» al posto di «Aggiungi al calendario» (tolto): tra le azioni, nella terza casella
+  const azioni = [...r.doc.querySelectorAll('#ga-p-soggiorno .ga-actions .ga-act')], rec = r.doc.querySelector('[data-testid=review-link-' + c.code + ']');
+  assert(rec && azioni.indexOf(rec) === 2 && /Lascia una recensione/.test(text(rec)) && rec.getAttribute('href').startsWith('https://search.google.com/local/writereview') && rec.target === '_blank', 'recensione tra le azioni: ' + azioni.map(text).join(' | '));
+  assert(!r.doc.querySelector('[data-testid=ga-ics], [data-act=ics], .ga-review') && !/calendario/i.test(azioni.map(text).join(' ')) && !r.w.LCArea, 'niente più calendario');
   // tre giorni prima dell'arrivo compare il Wi-Fi; dopo la partenza "grazie"
   clock.set('2026-12-08T09:00:00Z'); await H.sync();
   const r2 = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
@@ -341,6 +351,43 @@ test('U4h area ospiti: riepilogo con orari, azioni, pagamento con il conto, info
   const r3 = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
   await waitFor(() => r3.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
   assert(/Grazie per aver soggiornato/.test(text(r3.doc.querySelector('[data-testid=ga-count]'))) && !/segreta/.test(text(r3.doc.querySelector('#ga-p-info'))), 'dopo la partenza niente Wi-Fi');
+});
+test('U4n area ospiti · check-in online: il link porta codice e lingua nel frammento (il modulo salta il primo passo); fatto il check-in il riquadro resta sbiadito e non cliccabile e compare il codice della cassetta; tornando dalla scheda del check-in la pagina si aggiorna da sola', async () => {
+  await setup(); await saveArea();
+  { const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(p => p.id === 'torre').cassetta = '4821'; assert.equal((await H.adminApi('save', c)).status, 200); }
+  const c = (await checkout({ da: '2026-10-05', a: '2026-10-08' })).body;      // arrivo tra 3 giorni: il codice si vede dopo il check-in, dal 3 ottobre
+  await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
+  const ln = await waitFor(() => r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']'), 'riquadro del check-in');
+  assert.equal(ln.getAttribute('href'), 'https://spaceestate.github.io/Checkin/index.html#k=' + c.code + '&lang=it', 'codice e lingua nel frammento');
+  assert(ln.target === '_blank' && /noopener/.test(ln.rel), 'si apre in un\'altra scheda');
+  assert(!r.doc.querySelector('[data-testid=ga-cassetta], [data-testid=ga-cassetta-dal], [data-testid=ga-arrivo-cassetta]') && !/4821/.test(text(r.doc.querySelector('[data-testid=guest-app]'))), 'prima del check-in nessun codice');
+  r.doc.querySelector('[data-testid=ga-lang-en]').click();
+  assert(/&lang=en$/.test(r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']').getAttribute('href')), 'la lingua scelta nell\'area passa al check-in');
+  r.doc.querySelector('[data-testid=ga-lang-it]').click();
+  r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']').dispatchEvent(new r.w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  // il check-in è pagato (con il numero di prenotazione) mentre l'ospite è nell'altra scheda; poi torna qui
+  const n0 = r.log.calls.filter(x => x.a === 'mie').length;
+  r.doc.dispatchEvent(new r.w.Event('visibilitychange')); await sleep(80);
+  assert.equal(r.log.calls.filter(x => x.a === 'mie').length, n0 + 1, 'tornando, la prenotazione si rilegge');
+  assert(r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']'), 'check-in non ancora fatto: il riquadro resta cliccabile');
+  await H.webhook('checkout.session.completed', { id: 'cs_ck_ui', payment_status: 'paid', metadata: { dataCheckin: '2026-10-05', numeroNotti: '3', numeroPrenotazione: c.code } });
+  r.doc.dispatchEvent(new r.w.Event('visibilitychange')); await sleep(80);
+  assert.equal(r.log.calls.filter(x => x.a === 'mie').length, n0 + 1, 'al più una rilettura ogni 15 secondi');
+  clock.advance(20e3); r.w.dispatchEvent(new r.w.Event('focus'));
+  const done = await waitFor(() => r.doc.querySelector('[data-testid=checkin-fatto-' + c.code + ']'), 'riquadro «Check-in completato»');
+  assert(done.tagName === 'DIV' && done.classList.contains('is-done') && !done.closest('a') && !done.querySelector('a') && !r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']'), 'non è più un link');
+  assert(/Check-in completato/.test(text(done)) && /Fatto il 2 ott/.test(text(done)), text(done));
+  assert(/compare qui dal sab 3 ott 2026/.test(text(r.doc.querySelector('[data-testid=ga-cassetta-dal]'))) && !/4821/.test(text(r.doc.querySelector('[data-testid=guest-app]'))), 'il codice compare due giorni prima dell\'arrivo');
+  const ora = r.log.calls.filter(x => x.a === 'mie').length; clock.advance(20e3); r.doc.dispatchEvent(new r.w.Event('visibilitychange')); await sleep(60);
+  assert.equal(r.log.calls.filter(x => x.a === 'mie').length, ora, 'check-in fatto: niente più riletture');
+  clock.set('2026-10-04T08:00:00Z');
+  const r2 = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
+  const cas = await waitFor(() => r2.doc.querySelector('[data-testid=ga-cassetta]'), 'codice della cassetta');
+  assert(/Codice della cassetta delle chiavi/.test(text(cas)) && text(cas.querySelector('.ga-cass-code')) === '4821', text(cas));
+  assert.equal(text(tabOf(r2, 'info').querySelector('[data-testid=ga-arrivo-cassetta]')), '4821', 'anche in Info utili → Come arrivare');
+  r2.doc.querySelector('[data-testid=ga-lang-de]').click();
+  assert(/Check-in abgeschlossen/.test(text(r2.doc.querySelector('[data-testid=checkin-fatto-' + c.code + ']'))) && /Schlüsselkasten/.test(text(r2.doc.querySelector('[data-testid=ga-cassetta]'))), 'in tedesco');
 });
 test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; Booking/Airbnb senza conto (pagamento sulla piattaforma); uscita', async () => {
   await setup(); await saveArea();
@@ -934,7 +981,7 @@ test('W12 Gestione · Area ospiti: testi per gli ospiti in ogni appartamento, ch
   const r = await loadAdmin('#torre/testi'), $ = s => r.doc.querySelector(s), set = (el, v) => { el.value = v; el.dispatchEvent(new r.w.Event('input', { bubbles: true })); };
   await waitFor(() => $('[data-testid=admin-info-ospiti-torre]'), 'campi area ospiti');
   assert(/non compaiono sul sito pubblico/.test(text($('[data-testid=admin-apt-torre]'))) && /cassetta delle chiavi/.test(text($('[data-testid=admin-apt-torre]'))), 'spiega chi vede i testi e cosa non scrivere');
-  set($('[data-testid=admin-info-ospiti-torre]'), '## Regole\n- Niente feste'); set($('[data-testid=admin-info-riservate-torre]'), 'Password: prova');
+  set($('[data-testid=admin-info-ospiti-torre]'), '## Regole\n- Niente feste'); set($('[data-testid=admin-info-riservate-torre]'), 'Password: prova'); set($('[data-testid=admin-cassetta-torre]'), ' 4821 ');
   await goto(r, '#regole', '[data-testid=admin-area-ospiti]');                      // Sito → Regole di prenotazione (prima era in Prenotazioni)
   assert.deepEqual([$('[data-testid=admin-checkout-time]').value, $('[data-testid=admin-info-giorni]').value, $('[data-testid=admin-whatsapp]').value], ['', '2', '+39 351 704 3594'], 'valori iniziali');
   set($('[data-testid=admin-checkout-time]'), '10:30'); set($('[data-testid=admin-info-giorni]'), '45');
@@ -943,7 +990,7 @@ test('W12 Gestione · Area ospiti: testi per gli ospiti in ogni appartamento, ch
   set($('[data-testid=admin-info-giorni]'), '3'); set($('[data-testid=admin-whatsapp]'), '');
   $('[data-testid=admin-save]').click(); await waitFor(() => /Salvato/.test(text($('[data-testid=admin-save-msg]'))), 'salvataggio');
   const st = JSON.parse(kv.exec(['GET', 'cfg'])), t = st.apts.find(a => a.id === 'torre');
-  assert.deepEqual([t.infoOspiti, t.infoRiservate, st.checkoutOra, st.infoGiorni, st.whatsapp], ['## Regole\n- Niente feste', 'Password: prova', '10:30', 3, ''], 'salvato in KV');
+  assert.deepEqual([t.infoOspiti, t.infoRiservate, t.cassetta, st.checkoutOra, st.infoGiorni, st.whatsapp], ['## Regole\n- Niente feste', 'Password: prova', '4821', '10:30', 3, ''], 'salvato in KV');
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
   const g = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
   await waitFor(() => g.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');

@@ -27,7 +27,11 @@ const L={
   esci:'Esci',tabSoggiorno:'Il soggiorno',tabInfo:'Info utili',tabDintorni:'Dintorni',tabMessaggi:'Messaggi',tabs:'Sezioni dell\'area clienti',
   prima:n=>n===1?'Arrivi domani':'Arrivi tra '+n+' giorni',oggiArrivo:'Benvenuto! Arrivi oggi',durante:'Buon soggiorno!',oggiPartenza:'Oggi è il giorno della partenza: buon viaggio!',dopo:'Grazie per aver soggiornato a La Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',nNotti:n=>n2(n,'notte','notti'),nOspiti:n=>n2(n,'ospite','ospiti'),dalle:h=>'dalle '+h,entro:h=>'entro le '+h,copia:'Copia codice',copiato:'Copiato ✓',confermata:'Confermata',
-  aCheckin:'Check-in online',aCheckinD:'Registra gli ospiti prima di arrivare',aGc:'Trentino Guest Card',aGcD:'Musei, trasporti e attrazioni',aCal:'Aggiungi al calendario',aCalD:'Date e orari del soggiorno',aStrada:'Indicazioni stradali',aChiama:'Chiama',aWa:'WhatsApp',aMail:'Email',aRec:'Lascia una recensione',aRecD:'Ci aiuti molto',
+  aCheckin:'Check-in online',aCheckinD:'Registra gli ospiti prima di arrivare',aGc:'Trentino Guest Card',aGcD:'Musei, trasporti e attrazioni',aStrada:'Indicazioni stradali',aChiama:'Chiama',aWa:'WhatsApp',aMail:'Email',aRec:'Lascia una recensione',aRecD:'Ci aiuti molto',
+  aCheckinOk:'Check-in completato',aCheckinOkD:d=>d?'Fatto il '+d:'Ospiti registrati',cassTit:'Codice della cassetta delle chiavi',
+  cassD:'Ti serve per prendere le chiavi all\'arrivo. È lo stesso che ti abbiamo mandato via email con il check-in, con le foto per trovare la cassetta.',
+  cassDal:d=>'Check-in fatto: il codice della cassetta delle chiavi compare qui dal '+d+'. Lo trovi anche nell\'email che ti abbiamo mandato con il check-in.',
+  cassEmail:'Check-in fatto: il codice della cassetta delle chiavi è nell\'email che ti abbiamo mandato con il check-in.',
   pagTit:'Pagamento',pagTot:'Totale',pagNotti:(n,p)=>n2(n,'notte','notti')+' × '+p,pagDal:d=>'dal '+d,pagSup:(n,p)=>'Ospiti in più · '+n2(n,'notte','notti')+' × '+p,pagPagato:d=>'Pagato online con carta'+(d?' il '+d:''),
   pagPortale:p=>'Hai prenotato tramite '+p+': pagamenti e ricevute sono gestiti dalla piattaforma.',pagAltro:'Per pagamenti e ricevute scrivici.',pagImposta:'L\'imposta di soggiorno si paga con il check-in online.',
   arrivo:'Come arrivare',parcheggio:'Parcheggio',parcheggioD:'Il parcheggio è in Via Val Gola 22, a 50 metri dalla dimora.',apriMaps:'Apri in Maps',trovarci:'Come trovarci',chiavi:'Le istruzioni per entrare (codici della cassetta delle chiavi) arrivano via email dopo il check-in online.',
@@ -35,7 +39,6 @@ const L={
   eventi:'Eventi durante il tuo soggiorno',nessunEvento:'Nessun evento in calendario per le tue date.',tuttiEventi:'Tutti gli eventi',caricoEventi:'Carico gli eventi…',
   luoghi:'Luoghi di interesse',luoghiD:'Trento, laghi, castelli e montagna',conv:'Convenzioni',convD:'Vantaggi per gli ospiti',trovarciD:'Auto, autobus e parcheggio',tutti:'Eventi a Trento',tuttiD:'Il calendario completo',
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area clienti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
-  calTitolo:a=>'Soggiorno a La Columbera · '+a,calArea:'Area clienti',
   chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatNotaEmail:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile e la risposta ti arriva anche via email. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
   scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti',
   annTit:'Annullamento',annOk:(d,i)=>'Puoi annullare gratis fino a '+d+' (7 giorni prima dell\'arrivo): ti rimborsiamo '+i+' sulla carta con cui hai pagato.',annBtn:'Annulla la prenotazione',
@@ -55,7 +58,11 @@ const L={
   esci:'Log out',tabSoggiorno:'Your stay',tabInfo:'Useful info',tabDintorni:'Nearby',tabMessaggi:'Messages',tabs:'Guest area sections',
   prima:n=>n===1?'You arrive tomorrow':'You arrive in '+n+' days',oggiArrivo:'Welcome! You arrive today',durante:'Enjoy your stay!',oggiPartenza:'Today is your departure day: have a safe trip!',dopo:'Thank you for staying at La Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',nNotti:n=>n2(n,'night','nights'),nOspiti:n=>n2(n,'guest','guests'),dalle:h=>'from '+h,entro:h=>'by '+h,copia:'Copy code',copiato:'Copied ✓',confermata:'Confirmed',
-  aCheckin:'Online check-in',aCheckinD:'Register your guests before you arrive',aGc:'Trentino Guest Card',aGcD:'Museums, transport and attractions',aCal:'Add to calendar',aCalD:'Dates and times of your stay',aStrada:'Directions',aChiama:'Call',aWa:'WhatsApp',aMail:'Email',aRec:'Leave a review',aRecD:'It helps us a lot',
+  aCheckin:'Online check-in',aCheckinD:'Register your guests before you arrive',aGc:'Trentino Guest Card',aGcD:'Museums, transport and attractions',aStrada:'Directions',aChiama:'Call',aWa:'WhatsApp',aMail:'Email',aRec:'Leave a review',aRecD:'It helps us a lot',
+  aCheckinOk:'Check-in completed',aCheckinOkD:d=>d?'Done on '+d:'Guests registered',cassTit:'Key box code',
+  cassD:'You need it to collect the keys when you arrive. It is the same code we emailed you after check-in, together with the photos showing where the key box is.',
+  cassDal:d=>'Check-in done: the key box code will appear here from '+d+'. You will also find it in the email we sent you after check-in.',
+  cassEmail:'Check-in done: the key box code is in the email we sent you after check-in.',
   pagTit:'Payment',pagTot:'Total',pagNotti:(n,p)=>n2(n,'night','nights')+' × '+p,pagDal:d=>'from '+d,pagSup:(n,p)=>'Extra guests · '+n2(n,'night','nights')+' × '+p,pagPagato:d=>'Paid online by card'+(d?' on '+d:''),
   pagPortale:p=>'You booked through '+p+': payments and receipts are handled by the platform.',pagAltro:'For payments and receipts, write to us.',pagImposta:'The tourist tax is paid during online check-in.',
   arrivo:'Getting here',parcheggio:'Parking',parcheggioD:'The car park is at Via Val Gola 22, 50 metres from the house.',apriMaps:'Open in Maps',trovarci:'How to find us',chiavi:'The instructions to get in (key box codes) are sent by email after online check-in.',
@@ -63,7 +70,6 @@ const L={
   eventi:'Events during your stay',nessunEvento:'No events scheduled for your dates.',tuttiEventi:'All events',caricoEventi:'Loading events…',
   luoghi:'Places to visit',luoghiD:'Trento, lakes, castles and mountains',conv:'Partner offers',convD:'Perks for our guests',trovarciD:'Car, bus and parking',tutti:'Events in Trento',tuttiD:'The full calendar',
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
-  calTitolo:a=>'Stay at La Columbera · '+a,calArea:'Guest area',
   chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatNotaEmail:'Write to us here with any question about your stay: we will reply as soon as possible and you will also get our answer by email. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
   scrivi:'Your message',scriviPh:'Write here…',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left',
   annTit:'Cancellation',annOk:(d,i)=>'You can cancel free of charge until '+d+' (7 days before arrival): we refund '+i+' to the card you paid with.',annBtn:'Cancel the booking',
@@ -83,7 +89,11 @@ const L={
   esci:'Abmelden',tabSoggiorno:'Ihr Aufenthalt',tabInfo:'Nützliche Infos',tabDintorni:'Umgebung',tabMessaggi:'Nachrichten',tabs:'Bereiche des Gästebereichs',
   prima:n=>n===1?'Sie reisen morgen an':'Sie reisen in '+n+' Tagen an',oggiArrivo:'Willkommen! Sie reisen heute an',durante:'Schönen Aufenthalt!',oggiPartenza:'Heute ist Ihr Abreisetag: Gute Reise!',dopo:'Danke für Ihren Aufenthalt in La Columbera',
   checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',nNotti:n=>n2(n,'Nacht','Nächte'),nOspiti:n=>n2(n,'Gast','Gäste'),dalle:h=>'ab '+h+' Uhr',entro:h=>'bis '+h+' Uhr',copia:'Code kopieren',copiato:'Kopiert ✓',confermata:'Bestätigt',
-  aCheckin:'Online-Check-in',aCheckinD:'Gäste vor der Anreise registrieren',aGc:'Trentino Guest Card',aGcD:'Museen, Verkehrsmittel und Attraktionen',aCal:'Zum Kalender hinzufügen',aCalD:'Daten und Zeiten Ihres Aufenthalts',aStrada:'Wegbeschreibung',aChiama:'Anrufen',aWa:'WhatsApp',aMail:'E-Mail',aRec:'Bewertung schreiben',aRecD:'Das hilft uns sehr',
+  aCheckin:'Online-Check-in',aCheckinD:'Gäste vor der Anreise registrieren',aGc:'Trentino Guest Card',aGcD:'Museen, Verkehrsmittel und Attraktionen',aStrada:'Wegbeschreibung',aChiama:'Anrufen',aWa:'WhatsApp',aMail:'E-Mail',aRec:'Bewertung schreiben',aRecD:'Das hilft uns sehr',
+  aCheckinOk:'Check-in abgeschlossen',aCheckinOkD:d=>d?'Erledigt am '+d:'Gäste registriert',cassTit:'Code des Schlüsselkastens',
+  cassD:'Sie brauchen ihn, um bei der Ankunft die Schlüssel zu nehmen. Es ist derselbe Code, den wir Ihnen nach dem Check-in per E-Mail geschickt haben, mit den Fotos, die zeigen, wo der Schlüsselkasten ist.',
+  cassDal:d=>'Check-in erledigt: Der Code des Schlüsselkastens erscheint hier ab dem '+d+'. Sie finden ihn auch in der E-Mail, die wir Ihnen nach dem Check-in geschickt haben.',
+  cassEmail:'Check-in erledigt: Der Code des Schlüsselkastens steht in der E-Mail, die wir Ihnen nach dem Check-in geschickt haben.',
   pagTit:'Zahlung',pagTot:'Gesamt',pagNotti:(n,p)=>n2(n,'Nacht','Nächte')+' × '+p,pagDal:d=>'ab '+d,pagSup:(n,p)=>'Zusätzliche Gäste · '+n2(n,'Nacht','Nächte')+' × '+p,pagPagato:d=>'Online per Karte bezahlt'+(d?' am '+d:''),
   pagPortale:p=>'Sie haben über '+p+' gebucht: Zahlungen und Belege laufen über die Plattform.',pagAltro:'Für Zahlungen und Belege schreiben Sie uns.',pagImposta:'Die Kurtaxe wird beim Online-Check-in bezahlt.',
   arrivo:'Anreise',parcheggio:'Parkplatz',parcheggioD:'Der Parkplatz befindet sich in der Via Val Gola 22, 50 Meter vom Haus entfernt.',apriMaps:'In Maps öffnen',trovarci:'Anfahrt',chiavi:'Die Anweisungen zum Einlass (Codes des Schlüsselkastens) erhalten Sie nach dem Online-Check-in per E-Mail.',
@@ -91,7 +101,6 @@ const L={
   eventi:'Veranstaltungen während Ihres Aufenthalts',nessunEvento:'Für Ihre Daten sind keine Veranstaltungen geplant.',tuttiEventi:'Alle Veranstaltungen',caricoEventi:'Veranstaltungen werden geladen…',
   luoghi:'Sehenswürdigkeiten',luoghiD:'Trient, Seen, Burgen und Berge',conv:'Partnerangebote',convD:'Vorteile für unsere Gäste',trovarciD:'Auto, Bus und Parkplatz',tutti:'Veranstaltungen in Trient',tuttiD:'Der ganze Kalender',
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
-  calTitolo:a=>'Aufenthalt in La Columbera · '+a,calArea:'Gästebereich',
   chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatNotaEmail:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich, und unsere Antwort erhalten Sie auch per E-Mail. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
   scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen',
   annTit:'Stornierung',annOk:(d,i)=>'Sie können bis zum '+d+' (7 Tage vor der Anreise) kostenlos stornieren: Wir erstatten '+i+' auf die Karte, mit der Sie bezahlt haben.',annBtn:'Buchung stornieren',
@@ -138,22 +147,6 @@ const IC={
 };
 const icon=k=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IC[k]||''}</svg>`;
 
-/* ---------------- calendario (.ics) ---------------- */
-// Un evento per tutto il soggiorno, nel fuso di Trento. Nessun codice di prenotazione (il calendario può essere condiviso o finire nel cloud).
-const icsOf=s=>{
- const d8=x=>x.replace(/-/g,''),hm=x=>x.replace(':','')+'00',nx=x=>{const d=new Date(x+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)};
- const ix=x=>String(x).replace(/\\/g,'\\\\').replace(/([,;])/g,'\\$1').replace(/\r?\n/g,'\\n');
- const h=s.orari||{},start=h.checkin?'DTSTART;TZID=Europe/Rome:'+d8(s.da)+'T'+hm(h.checkin):'DTSTART;VALUE=DATE:'+d8(s.da),end=h.checkout?'DTEND;TZID=Europe/Rome:'+d8(s.a)+'T'+hm(h.checkout):'DTEND;VALUE=DATE:'+d8(nx(s.a));
- const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,''),uid='soggiorno-'+d8(s.da)+'-'+Math.random().toString(36).slice(2,10)+'@lacolumbera';
- return['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//La Columbera//Area ospiti//IT','CALSCALE:GREGORIAN',
-  'BEGIN:VTIMEZONE','TZID:Europe/Rome','BEGIN:DAYLIGHT','TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU','END:DAYLIGHT',
-  'BEGIN:STANDARD','TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU','END:STANDARD','END:VTIMEZONE',
-  'BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+stamp,start,end,'SUMMARY:'+ix(t('calTitolo',short(s.apt&&s.apt.nome))),'LOCATION:'+ix(INDIRIZZO),
-  'DESCRIPTION:'+ix(t('calArea')+': '+location.origin+location.pathname),'END:VEVENT','END:VCALENDAR',''].join('\r\n')};
-const download=(name,text,type)=>{
- try{const u=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);return true}
- catch{return false}};
-
 /* ---------------- copia negli appunti (con ripiego) ---------------- */
 const copia=async v=>{
  try{await navigator.clipboard.writeText(v);return true}
@@ -169,6 +162,7 @@ const cards=(txt,title0)=>{const out=[];let cur=null;
 
 /* ---------------- stato della pagina ---------------- */
 let R=null,tab='soggiorno',evCache=null,deferredInstall=null;
+let ckAperto=0,ckVisto=0;      // tocco su «Check-in online» (il modulo si apre in un'altra scheda) e ultima rilettura della prenotazione al ritorno
 // messaggi: v = versione già mostrata (il server dice solo «niente di nuovo» se non cambia), poll = controlli fatti dall'ultima attività
 const MS={v:null,list:[],timer:null,poll:0,busy:false,err:''};
 const MAX_TESTO=2000,POLL_MS=20000,POLL_MAX=30;      // un controllo ogni 20 secondi, solo con la scheda Messaggi aperta e la pagina in primo piano, al massimo 10 minuti senza toccare nulla
@@ -214,14 +208,31 @@ function pSoggiorno(s){
    <button type="button" class="ga-copy" data-copy="${esc(code)}" data-testid="ga-copy-code">${esc(t('copia'))}</button>
   </article>`;
  const acts=[
-  act(CHECKIN_URL,'checkin',t('aCheckin'),t('aCheckinD'),ext+` data-testid="checkin-link-${esc(code)}"`),
+  actCheckin(s),
   act('guest-card.html','card',t('aGc'),t('aGcD'),` data-testid="gc-link-${esc(code)}"`),
-  `<button type="button" class="ga-act" data-act="ics" data-testid="ga-ics">${icon('cal')}<span><b>${esc(t('aCal'))}</b><small>${esc(t('aCalD'))}</small></span></button>`,
+  act(REVIEW_URL,'star',t('aRec'),t('aRecD'),ext+` data-testid="review-link-${esc(code)}"`),
   act(MAPS,'route',t('aStrada'),'Via Centrale 48, Ravina',ext+' data-testid="ga-route"')].join('');
  const chip=(href,ic,label,attrs)=>`<a href="${esc(href)}"${attrs}>${icon(ic)}<span>${esc(label)}</span></a>`;
  const contatti=`<div class="ga-contact">${chip('tel:'+TEL_H,'tel',t('aChiama'),' data-testid="ga-tel"')}${c.whatsapp?chip('https://wa.me/'+c.whatsapp,'wa',t('aWa'),ext+' data-testid="ga-wa"'):''}${chip('mailto:'+MAIL,'mail',t('aMail'),' data-testid="ga-mail"')}</div>`;
- const rec=`<p class="ga-review">${icon('star')}<a href="${esc(REVIEW_URL)}"${ext} data-testid="review-link-${esc(code)}">${esc(t('aRec'))}</a><span>· ${esc(t('aRecD'))}</span></p>`;
- return card+`<div class="ga-actions">${acts}</div>`+contatti+pPay(s,pay)+pRicevuta(s)+pAnnullo(s)+rec+installCard()}
+ return card+pCassetta(s)+`<div class="ga-actions">${acts}</div>`+contatti+pPay(s,pay)+pRicevuta(s)+pAnnullo(s)+installCard()}
+// Check-in online (sito a parte): il codice passa nel frammento "#" (non arriva a nessun server e il modulo lo toglie subito dall'indirizzo)
+// con la lingua dell'area, così il modulo verifica da solo la prenotazione e salta il primo passo. Quando è fatto (numero di prenotazione
+// verificato e imposta pagata, lo dice il server) il riquadro resta, sbiadito e non cliccabile.
+function actCheckin(s){
+ const ck=s.checkin||{};
+ if(ck.fatto)return `<div class="ga-act is-done" data-testid="checkin-fatto-${esc(s.code)}">${icon('checkin')}<span><b>${esc(t('aCheckinOk'))}</b><small>${esc(t('aCheckinOkD',ck.il?dShort(ck.il):''))}</small></span></div>`;
+ return act(CHECKIN_URL+'#k='+encodeURIComponent(s.code)+'&lang='+lang,'checkin',t('aCheckin'),t('aCheckinD'),ext+` data-act="checkin" data-testid="checkin-link-${esc(s.code)}"`)}
+// Codice della cassetta delle chiavi: solo dopo il check-in online e nei giorni decisi dal server (s.cassetta: il codice, oppure il giorno da cui compare)
+function pCassetta(s){
+ const c=s.cassetta;if(!(s.checkin&&s.checkin.fatto)||!c)return '';
+ return c.codice?`<section class="ga-card ga-cass" data-testid="ga-cassetta"><h3>${esc(t('cassTit'))}</h3><p class="ga-cass-code">${esc(c.codice)}</p><p class="book-note">${esc(t('cassD'))}</p></section>`
+  :c.dal?`<section class="ga-card ga-cass" data-testid="ga-cassetta-dal"><h3>${esc(t('cassTit'))}</h3><p>${esc(t('cassDal',dLong(c.dal)))}</p></section>`:''}
+// in «Come arrivare»: prima del check-in come entrare; dopo, il codice (o quando compare, o dove trovarlo)
+function chiaviInfo(s){
+ const c=s.cassetta;
+ if(!(s.checkin&&s.checkin.fatto))return `<p class="book-note">${esc(t('chiavi'))}</p>`;
+ if(c&&c.codice)return `<h4>${esc(t('cassTit'))}</h4><p class="ga-cass-code" data-testid="ga-arrivo-cassetta">${esc(c.codice)}</p>`;
+ return `<p class="book-note">${esc(c&&c.dal?t('cassDal',dLong(c.dal)):t('cassEmail'))}</p>`}
 // Annullamento (solo prenotazioni del sito pagate online): fino a 7 giorni prima dell'arrivo, con il rimborso totale. Due passi: il pulsante,
 // poi la conferma con l'importo. La regola la decide il server (s.annullo): qui si mostra soltanto.
 function pAnnullo(s){
@@ -300,7 +311,7 @@ function pInfo(s){
  return `<section class="ga-card" data-testid="ga-arrivo"><h3>${esc(t('arrivo'))}</h3><p><b>${esc(INDIRIZZO)}</b></p>
    <div class="ga-btns"><a class="btn btn-wine" href="${esc(MAPS)}"${ext} data-testid="ga-arrivo-maps">${esc(t('aStrada'))}</a><a class="btn btn-line" href="mappa.html">${esc(t('trovarci'))}</a></div>
    <h4>${esc(t('parcheggio'))}</h4><p>${esc(t('parcheggioD'))} <a href="${esc(MAPS_PARCHEGGIO)}"${ext} data-testid="ga-parcheggio-maps">${esc(t('apriMaps'))}</a></p>
-   <p class="book-note">${esc(t('chiavi'))}</p></section>
+   ${chiaviInfo(s)}</section>
   <section class="ga-card" data-testid="ga-orari"><h3>${esc(t('orari'))}</h3><div class="bc-grid">
    <div class="bc-cell"><span>${esc(t('checkin'))}</span><b>${esc(dDay(s.da))}</b>${h.checkin?`<small>${esc(t('dalle',h.checkin))}</small>`:''}</div>
    <div class="bc-cell"><span>${esc(t('checkout'))}</span><b>${esc(dDay(s.a))}</b>${h.checkout?`<small>${esc(t('entro',h.checkout))}</small>`:''}</div></div></section>
@@ -371,6 +382,20 @@ async function sendMsg(f){
  finally{MS.busy=false;btn.disabled=false;btn.textContent=t('invia');active()}}
 function cnt(){const ta=$('#ga-testo'),c=$('#ga-cnt');if(!ta||!c)return;const left=MAX_TESTO-ta.value.length;c.textContent=left<200?t('caratteri',left):''}
 
+/* ---------------- ritorno dal check-in online ---------------- */
+// Il modulo del check-in si apre in un'altra scheda: tornando qui la prenotazione si rilegge, così il riquadro diventa «Check-in completato»
+// e compare il codice della cassetta. Solo nell'ora dopo il tocco su «Check-in online» e al più ogni 15 secondi; se l'ospite sta scrivendo
+// (messaggio, ricevuta) la pagina non si ridisegna sotto le sue dita: il nuovo stato compare al disegno successivo.
+async function dopoCheckin(){
+ const s=sog(),t0=Date.now();
+ if(!R||!ckAperto||t0-ckAperto>36e5||t0-ckVisto<15e3||(s.checkin&&s.checkin.fatto))return;
+ ckVisto=t0;
+ try{const r=await callG('mie');
+  if(!R||!(r.soggiorno&&r.soggiorno.checkin&&r.soggiorno.checkin.fatto))return;
+  R=r;ckAperto=0;
+  if(!ricForm&&!(($('#ga-testo')||{}).value||'').trim())paint()}
+ catch{}}      // senza rete resta com'era: si riprova al ritorno successivo
+
 /* ---------------- app installabile (PWA) ---------------- */
 const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch{return false}};
 const isIos=()=>/iphone|ipad|ipod/i.test(navigator.userAgent||'')||(/Macintosh/.test(navigator.userAgent||'')&&navigator.maxTouchPoints>1);
@@ -409,7 +434,8 @@ function wire(){
  f.onsubmit=e=>{e.preventDefault();const code=codeIn($('#cd').value);if(!code)return;load(accBody(code),f.querySelector('[data-testid="area-clienti-submit"]'))};
  document.addEventListener('submit',e=>{if(e.target&&e.target.id==='ga-send'){e.preventDefault();sendMsg(e.target)}if(e.target&&e.target.id==='ga-ric-f'){e.preventDefault();sendRic(e.target)}});
  document.addEventListener('input',e=>{if(e.target&&e.target.id==='ga-testo'){cnt();active()}});
- document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&tab==='messaggi'&&R){loadMsgs(false);active()}});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;if(tab==='messaggi'&&R){loadMsgs(false);active()}dopoCheckin()});
+ window.addEventListener('focus',dopoCheckin);      // il check-in aperto in un'altra finestra (computer): la pagina resta "visibile"
  document.addEventListener('click',async e=>{
   const lb=e.target.closest('[data-lang]');
   if(lb){lang=lb.dataset.lang;ss('lc_lang',lang);if(R)paint();else i18nLogin();const nb=$(`[data-lang="${lang}"]`);if(nb)nb.focus();return}
@@ -420,7 +446,7 @@ function wire(){
   const a=e.target.closest('[data-act]');if(!a)return;
   const k=a.dataset.act;
   if(k==='logout')logout();
-  else if(k==='ics'){const s=sog();download('la-columbera-'+s.da+'.ics',icsOf(s),'text/calendar;charset=utf-8')}
+  else if(k==='checkin')ckAperto=Date.now();      // il link si apre da sé (altra scheda)
   else if(k==='install'&&deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch{}deferredInstall=null;if(R)paint()}
   else if(k==='noinstall'){ss('lc_pwa_no','1');const c=a.closest('.ga-install');if(c)c.remove()}
   else if(k==='annChiedi'||k==='annNo'){const box=$('#ga-ann-box');if(box){box.innerHTML=annBox(k==='annChiedi');const x=$(k==='annChiedi'?'[data-testid=ga-annulla-no]':'[data-testid=ga-annulla]');if(x)x.focus()}}
@@ -452,6 +478,5 @@ function start(){
  else if(qc)$('#cd').value=codeIn(qc)}
 
 // parte da sé (non aspetta la configurazione del sito: tutto ciò che serve arriva con la prenotazione), così si apre anche senza rete
-window.LCArea={ics:icsOf};
 start();
 })();

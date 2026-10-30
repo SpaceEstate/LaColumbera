@@ -408,6 +408,67 @@ test('F2 ricevuta per un ospite di Airbnb (serve l\'email); straniero senza codi
   eq((await H.adminApi('ricevuta_invia', { code: c, file: pdf() })).status, 409, 'senza richiesta non abbiamo l\'email di un ospite Airbnb');
 });
 
+/* ===================== check-in online fatto (api/_checkin.js) ===================== */
+// Sessione Stripe del check-in (progetto Checkin, stesso account Stripe): dataCheckin la distingue dai pagamenti del sito, numeroPrenotazione
+// c'è solo se l'ospite ha verificato la prenotazione nel primo passo del modulo.
+const ckSess = (numero, o) => Object.assign({ id: 'cs_ck_' + Math.random().toString(36).slice(2, 10), object: 'checkout.session', payment_status: 'paid', status: 'complete', amount_total: 900,
+  created: Math.floor(clock.now() / 1000), customer_details: { email: 'ospite@test.it' },
+  metadata: Object.assign({ dataCheckin: '2026-10-20', appartamento: 'La Columbera - Torre, Appartamento con 2 camere da letto', numeroOspiti: '2', numeroNotti: '3', totale: '9', lingua: 'it', temp_session_id: 'temp_1' }, numero == null ? {} : { numeroPrenotazione: numero }) }, o || {});
+const ckKey = code => kv.exec(['GET', 'ck:' + code]);
+const conCassetta = async (id, codice) => { const c = (await H.adminApi('cfg_admin', {})).body; c.apts.find(p => p.id === id).cassetta = codice; eq((await H.adminApi('save', c)).status, 200); };
+
+test('C1 check-in online pagato con il numero di prenotazione: l\'area clienti lo sa (Check-in completato); il codice della cassetta solo negli stessi giorni del Wi-Fi, mai nella configurazione pubblica; ripetere l\'evento non cambia nulla', async () => {
+  await base(); await conCassetta('torre', '4821');
+  const code = await pagata(); global.__mails = [];
+  let s = (await ospite('mie', { code })).body.soggiorno;
+  eq([s.checkin, s.cassetta], [{ fatto: false }, null], 'prima del check-in: niente');
+  eq((await H.webhook('checkout.session.completed', ckSess(' ' + code.toLowerCase() + ' '))).status, 200);
+  const reg = JSON.parse(ckKey(code)); assert(reg && reg.il && /^cs_ck_/.test(reg.sid), 'check-in registrato per il codice della prenotazione');
+  const ttl = kv.get('ck:' + code).exp - clock.now(); assert(ttl > 49 * 864e5 && ttl < 52 * 864e5, 'scade 30 giorni dopo la partenza: ' + ttl / 864e5);
+  eq([bk(code).stato, global.__mails.length], ['confermata', 0], 'il pagamento del check-in non tocca la prenotazione e non manda email dal sito');
+  s = (await ospite('mie', { code })).body.soggiorno;
+  eq([s.checkin, s.cassetta], [{ fatto: true, il: '2026-10-02' }, { dal: '2026-10-18' }], 'fatto; il codice compare 2 giorni prima dell\'arrivo (come il Wi-Fi)');
+  assert(!JSON.stringify(s).includes('4821'), 'prima di quei giorni il codice non c\'è');
+  const pub = await H.api('cfg', {}, { method: 'GET' }); assert(!/4821|cassetta/.test(pub.text), 'mai nella configurazione pubblica');
+  // stesso evento di nuovo (Stripe lo rimanda), anche il giorno dopo: la registrazione resta quella di prima
+  clock.advance(864e5); eq((await H.webhook('checkout.session.completed', ckSess(code, { id: reg.sid }))).status, 200); eq(JSON.parse(ckKey(code)).il, reg.il);
+  clock.set('2026-10-18T07:00:00Z'); s = (await ospite('mie', { code })).body.soggiorno;
+  eq(s.cassetta, { codice: '4821' }, 'dal giorno giusto il codice c\'è');
+  clock.set('2026-10-23T20:00:00Z'); eq((await ospite('mie', { code })).body.soggiorno.cassetta, { codice: '4821' }, 'fino al giorno della partenza');
+  clock.set('2026-10-24T08:00:00Z'); s = (await ospite('mie', { code })).body.soggiorno;
+  eq([s.checkin.fatto, s.cassetta], [true, null], 'dopo la partenza il check-in resta fatto, il codice sparisce');
+});
+
+test('C2 check-in non collegato: verifica saltata (senza numero), non pagato, numero non valido o di un pagamento del sito = nessuna registrazione. Airbnb: vale il numero del portale; senza codice in Gestione vale la variabile CODICE_CASSETTA_*', async () => {
+  await base(); const code = await pagata();
+  for (const x of [ckSess(null), ckSess(code, { payment_status: 'unpaid' }), ckSess('<b>' + code + '</b>'), ckSess('ab')]) eq((await H.webhook('checkout.session.completed', x)).status, 200);
+  eq([...kv.d.keys()].filter(k => /^ck:/.test(k)), [], 'niente registrato');
+  eq((await H.webhook('checkout.session.completed', Object.assign(H.paidSession(code), { metadata: { code, numeroPrenotazione: code } }))).status, 200);
+  eq(ckKey(code), null, 'un pagamento del sito non è un check-in');
+  eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: false });
+  // prenotazione Airbnb del foglio: il numero del portale (anche in minuscolo) è il codice dell'area clienti
+  regAirbnb(); process.env.CODICE_CASSETTA_CORTE = '7310';
+  eq((await H.webhook('checkout.session.completed', ckSess('hmsedeszcw', { metadata: { dataCheckin: '2026-11-05', numeroNotti: '3', numeroPrenotazione: 'hmsedeszcw', appartamento: 'La Columbera - Corte' } }))).status, 200);
+  clock.set('2026-11-04T09:00:00Z'); await H.sync(); regAirbnb();
+  const s = (await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno;
+  eq([s.checkin.fatto, s.cassetta], [true, { codice: '7310' }], 'Airbnb: check-in fatto e codice dalla variabile');
+  await conCassetta('corte', '5555'); eq((await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno.cassetta, { codice: '5555' }, 'il codice scritto in Gestione vale più della variabile');
+});
+
+test('C3 webhook perso: la sincronizzazione rilegge su Stripe le sessioni degli ultimi 3 giorni (chiuse da almeno 35 minuti) e registra il check-in, con l\'avviso nel registro eventi; al più ogni 10 minuti; Stripe giù non ferma la sincronizzazione', async () => {
+  await base(); const code = await pagata(), t = Math.floor(clock.now() / 1000);
+  global.__stripeList = [ckSess(code, { created: t - 3600 }), ckSess(null, { created: t - 3600 }), ckSess('ALTRO123', { created: t - 600 }), ckSess('VECCHIO1', { created: t - 4 * 86400 }), Object.assign(H.paidSession(code), { created: t - 3600 })];
+  global.__stripeListCalls = 0; kv.exec(['DEL', 'checkin:ric']);      // il controllo della sincronizzazione di base() è appena passato
+  const r = await H.sync(); eq(r.status, 200); eq(r.body.checkin, { controllate: 1, recuperati: 1, errore: false });
+  assert(ckKey(code), 'registrato dal controllo su Stripe'); eq([ckKey('ALTRO123'), ckKey('VECCHIO1')], [null, null], 'troppo recente (il webhook può ancora arrivare) o troppo vecchio: non si guarda');
+  assert(/Check-in online: 1 check-in registrato dal controllo su Stripe/.test(logTxt()) && !logTxt().includes(code), 'avviso nel registro, senza il codice');
+  eq((await ospite('mie', { code })).body.soggiorno.checkin.fatto, true);
+  await H.sync(); eq(global.__stripeListCalls, 1, 'entro 10 minuti non si richiede a Stripe');
+  clock.advance(11 * MIN); global.__stripeSessionsListFail = true;
+  const r2 = await H.sync(); eq(r2.status, 200); eq(r2.body.checkin.errore, true); assert(/controllo su Stripe non riuscito/.test(logTxt()));
+  global.__stripeSessionsListFail = false; clock.advance(11 * MIN); eq((await H.sync()).body.checkin, { controllate: 1, recuperati: 0, errore: false }, 'già registrato: nessun nuovo avviso');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

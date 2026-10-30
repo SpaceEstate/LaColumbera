@@ -52,13 +52,15 @@ const noticeBody=(nt,nowMs)=>{const first=AV.minCheckinDate(nowMs,nt);
 // ---- Area clienti: il soggiorno dell'ospite ----
 // Solo ciò che serve alla pagina dell'ospite: niente nome, email o telefono. Le informazioni per l'ospite e quelle riservate (Wi-Fi…) non stanno
 // nella configurazione pubblica (a=cfg): arrivano solo qui, a chi ha il codice; quelle riservate solo da `infoGiorni` giorni prima dell'arrivo
-// fino al giorno della partenza. I codici della cassetta delle chiavi NON passano di qui: li manda il check-in online, dopo la registrazione.
+// fino al giorno della partenza. Il codice della cassetta delle chiavi solo dopo il check-in online fatto con il codice di QUESTA prenotazione
+// (imposta pagata, api/_checkin.js) e negli stessi giorni delle informazioni riservate; prima, se il check-in è fatto, solo il giorno da cui compare.
 const RE_HHMM=/^([01]\d|2[0-3]):[0-5]\d$/,PORTALI={booking:'Booking.com',airbnb:'Airbnb'};
 const infoGiorni=c=>{const n=Number(c.infoGiorni);return Number.isInteger(n)&&n>=0&&n<=30?n:2};
 // numero WhatsApp del titolare (solo cifre, con prefisso): non impostato = il telefono pubblicato sul sito; vuoto = non mostrare
 const waNum=c=>c.whatsapp===undefined?'393517043594':String(c.whatsapp||'').replace(/\D/g,'').replace(/^00/,'');
-const soggiornoOut=(config,x,bk)=>{
+const soggiornoOut=(config,x,bk,ck)=>{
  const p=(config.apts||[]).find(q=>q.id===x.id)||{},oggi=todayRome(),dal=AV.isIso(x.da)?addDays(x.da,-infoGiorni(config)):'',vis=!!dal&&oggi>=dal&&oggi<=x.a,ris=String(p.infoRiservate||'').trim();
+ const fatto=!!(ck&&ck.fatto),cas=fatto?require('./_checkin.js').codiceCassetta(p,x.id):'';
  const pagato=bk&&Date.parse(bk.confermata_il)?todayRome(Date.parse(bk.confermata_il)):'',ct=bk&&bk.conto&&Array.isArray(bk.conto.righe)?bk.conto:null;
  return{code:x.code,id:x.id,apt:{nome:String(p.nome||x.id),sotto:String(p.sotto||''),foto:String((p.foto||[])[0]||'')},da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,stato:x.stato,
   origine:x.origine||'',portale:PORTALI[x.origine]||'',
@@ -66,6 +68,8 @@ const soggiornoOut=(config,x,bk)=>{
   pagamento:bk?{totale:+bk.totale||0,pagato:!!bk.pagamento,data:bk.pagamento?pagato:'',conto:ct?{righe:ct.righe.map(r=>({dal:String(r.dal||''),notti:+r.notti||0,prezzo:+r.prezzo||0})),supplemento:+ct.supplemento||0}:null}:null,
   annullo:bk?ANN.politica(bk,oggi):{possibile:false,entro:'',motivo:PORTALI[x.origine]?'portale':'stato'},      // fino a 7 giorni prima dell'arrivo (api/_annulla.js)
   info:{testo:String(p.infoOspiti||''),riservate:vis?ris:'',riservateDal:ris&&!vis&&dal&&oggi<dal?dal:''},
+  checkin:fatto?{fatto:true,il:ck.il||''}:{fatto:false},
+  cassetta:cas&&vis?{codice:cas}:cas&&dal&&oggi<dal?{dal}:null,
   contatti:{whatsapp:waNum(config)}}};
 
 // ---- Registro prenotazioni (Google Sheet via Apps Script): upsert idempotente + coda di ripresa ----
@@ -197,6 +201,8 @@ const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
 // ---- Annullamento con rimborso (api/_annulla.js) e ricevuta su richiesta (api/_ricevute.js) ----
 const ANN=require('./_annulla.js').makeAnnulla({kv,E,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),sheet:b=>sheetUpsertBooking(b),log:e=>E.log(e)});
 const RIC=require('./_ricevute.js').makeRicevute({kv,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),maskEmail,log:e=>E.log(e)});
+// ---- Check-in online fatto (api/_checkin.js): dal webhook di Stripe (stripe-webhook.js) e, come rete di sicurezza, dalla sincronizzazione ----
+const CK=require('./_checkin.js').makeCheckin({kv,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),log:e=>E.log(e)});
 const errOut=(res,e)=>{if(e&&e.status)return res.status(e.status).json(Object.assign({err:e.message},e.code?{code:e.code}:{}));throw e};
 // si scrive solo alle prenotazioni del sito confermate: gli ospiti di Booking e Airbnb usano la chat della loro piattaforma
 const chatOk=x=>!!x&&x.origine==='sito'&&x.stato==='confermata';
@@ -314,7 +320,7 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
 // Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali,
 // niente informazioni per gli ospiti (istruzioni, Wi-Fi: arrivano solo nell'area clienti, a chi ha il codice).
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
-if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,...p})=>p),home:homeOk(c0.home)||{}})}      // home: solo i testi e le foto della homepage, ricontrollati
+if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,cassetta,...p})=>p),home:homeOk(c0.home)||{}})}      // home: solo i testi e le foto della homepage, ricontrollati
 // Luoghi di interesse e Convenzioni modificati dalla Gestione (già puliti al salvataggio); null = valgono quelli di js/dintorni.js
 if(a==='dintorni'){const c0=(await jg('cfg'))||{};return res.json({luoghi:Array.isArray(c0.luoghi)?c0.luoghi:null,convenzioni:Array.isArray(c0.convenzioni)?c0.convenzioni:null})}
 if(a==='busy'){const id=String(req.query.id||'');
@@ -416,7 +422,7 @@ if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? 
 let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},async(code,o)=>findBooking(cfgG||(cfgG=await cfg(req)),code,o));
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
- const bk=x.fonte==='sito'?await E.bkGet(x.code):null,sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk);
+ const bk=x.fonte==='sito'?await E.bkGet(x.code):null,ck=await CK.stato(x.code).catch(()=>null),sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk,ck);      // ck: check-in online fatto (KV non risponde = non fatto)
  sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code),email:(await MSG.impostazioni()).avvisaOspite}:{attivi:false};      // email: le risposte arrivano anche via email
  sg.ricevuta=await RIC.pubblico(x.code,bk);      // solo lo stato e l'indirizzo mascherato, mai i dati inseriti
  return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:sg})}
@@ -505,6 +511,8 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
   await syncAlerts(config,req).catch(e=>console.error('syncAlerts:',e.message));
   // rete di sicurezza dei pagamenti: prenotazioni rimaste "in attesa" con una sessione Stripe già pagata (webhook perso) vengono confermate qui
   out.pagamenti=await require('./_pagato.js').riconciliaInAttesa(req).catch(e=>({controllate:0,recuperate:0,errori:[String(e&&e.message||e).slice(0,80)]}));
+  // check-in online pagati con il numero di prenotazione ma senza webhook arrivato (non lancia; al più ogni 10 minuti)
+  if(process.env.STRIPE_SECRET_KEY)out.checkin=await CK.riconcilia();
   // messaggi automatici e conservazione delle conversazioni: confinati (non lanciano, al massimo ~6 secondi), la sincronizzazione delle date non ne dipende
   let bks=null;try{bks=await E.bkAll()}catch(e){bks=null}      // senza l'elenco delle prenotazioni non si manda né si cancella nulla
   out.messaggi=bks?await MSG.esegui(config,bks,siteOf(req)).catch(()=>({errori:1})):{errori:1};
@@ -648,7 +656,7 @@ if(a==='save'){const old=await cfg(req),pre=AV.parseNoticeInput(b,old);if(pre.er
  if(rev!==''&&rev!==String(+(await kv('GET','cfg:rev'))||0))return res.status(409).json(CFG_CAMBIATA);
  // campi di contenuto nuovi: una pagina di gestione non aggiornata (non li invia) non deve cancellare quelli già salvati
  const oa=new Map((old.apts||[]).map(x=>[String(x.id),x])),saved=(p,k)=>p[k]!==undefined?p[k]:(oa.get(String(p.id))||{})[k],ostr=(v,n)=>v===undefined?undefined:String(v).trim().slice(0,n);
- const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),infoOspiti:ostr(saved(p,'infoOspiti'),8000),infoRiservate:ostr(saved(p,'infoRiservate'),2000),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
+ const n={chi:String(b.chi||'').slice(0,4000),preavvisoGiorni:pre.giorni,checkinOra:pre.ora,ical:{},closed:{},apts:(b.apts||[]).map(p=>({id:String(p.id),nome:String(p.nome).slice(0,80),sotto:String(p.sotto||'').slice(0,120),testo:String(p.testo).slice(0,4000),dettagli:ostr(saved(p,'dettagli'),6000),servizi:ostr(saved(p,'servizi'),4000),cin:ostr(saved(p,'cin'),40),cipat:ostr(saved(p,'cipat'),40),infoOspiti:ostr(saved(p,'infoOspiti'),8000),infoRiservate:ostr(saved(p,'infoRiservate'),2000),cassetta:ostr(saved(p,'cassetta'),40),base:+p.base||0,inclusi:+p.inclusi||1,extra:+p.extra||0,extraSteps:(Array.isArray(p.extraSteps)?p.extraSteps:[]).map(v=>Math.max(0,+v||0)).slice(0,12),max:+p.max||1,min:+p.min||1,minPeriodi:(p.minPeriodi||[]).filter(q=>q.da&&q.a&&q.a>=q.da).map(q=>({da:q.da,a:q.a,min:Math.max(1,+q.min||1)})),blocked:Object.fromEntries(Object.entries(p.blocked||{}).filter(([k,v])=>v&&/^\d{4}-\d\d-\d\d$/.test(k)).map(([k])=>[k,true])),foto:(p.foto||[]).map(String),periodi:(p.periodi||[]).filter(q=>q.da&&q.a).map(q=>({da:q.da,a:q.a,prezzo:+q.prezzo||0})),prices:Object.fromEntries(Object.entries(p.prices||{}).filter(([k,v])=>v!=null&&v!=='').map(([k,v])=>[k,+v]))}))};
  for(const k of Object.keys(b.ical||{}))n.ical[k]=String(b.ical[k]||'');
  for(const k of Object.keys(b.closed||{}))n.closed[k]=!!b.closed[k];
  // area clienti: orario di check-out (vuoto = non mostrarlo), da quanti giorni prima dell'arrivo si vedono le informazioni riservate, numero WhatsApp.
@@ -671,4 +679,4 @@ res.status(404).json({err:'?'})}catch(e){console.error('x:',a,String(e&&e.messag
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
 module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
-module.exports.OWNER_EMAIL=OWNER_EMAIL;module.exports.REPLY_TO=REPLY_TO;module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;
+module.exports.checkin=CK;module.exports.OWNER_EMAIL=OWNER_EMAIL;module.exports.REPLY_TO=REPLY_TO;module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;

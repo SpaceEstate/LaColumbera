@@ -53,7 +53,7 @@ const norm=()=>{S.ical=S.ical||{};S.closed=S.closed||{};S.chi=S.chi||'';S.rev=+S
     // N-1 supplementi a 0: i prezzi a notte per 1, 2, 3… ospiti restano identici a prima (il sito e il server non cambiano).
     if(p.inclusi>1){p.extraSteps=[...Array(p.inclusi-1).fill(0),...p.extraSteps];p.inclusi=1}
     p.extraSteps=p.extraSteps.slice(0,Math.max(1,(+p.max||1)-1));
-    ['cin','cipat','dettagli','servizi','infoOspiti','infoRiservate'].forEach(k=>{if(typeof p[k]!=='string')p[k]=''})})};
+    ['cin','cipat','dettagli','servizi','infoOspiti','infoRiservate','cassetta'].forEach(k=>{if(typeof p[k]!=='string')p[k]=''})})};
 const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
   (D.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>BUSY[e.id]&&BUSY[e.id].add(x)));
   (D.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>BUSY[x.id]&&BUSY[x.id].add(z)))};

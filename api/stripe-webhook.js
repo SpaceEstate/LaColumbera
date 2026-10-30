@@ -6,6 +6,8 @@
 //  - la scrittura sul foglio non blocca mai la conferma: se il foglio non risponde finisce in una coda che si svuota da sola.
 // Il percorso di conferma vive in _pagato.js ed è lo stesso per tre ingressi: questo webhook, il controllo al ritorno dell'ospite sul sito
 // (checkout_status) e la sincronizzazione periodica, che ricontrolla su Stripe le prenotazioni rimaste "in attesa" se il webhook non arriva.
+// Lo stesso account Stripe incassa l'imposta di soggiorno del check-in online: un check-in pagato con il numero di prenotazione si registra
+// (api/_checkin.js), così l'area clienti mostra «Check-in completato»; i pagamenti del sito non sono check-in e viceversa.
 // Va registrato su Stripe (Sviluppatori → Webhook) puntando a https://<tuo-dominio>/api/stripe-webhook per gli eventi
 // "checkout.session.completed", "checkout.session.async_payment_succeeded" e (consigliato) "checkout.session.expired".
 // Il "Signing secret" va in STRIPE_WEBHOOK_SECRET su Vercel.
@@ -22,8 +24,10 @@ const handler = async (req, res) => {
     event = stripe.webhooks.constructEvent(buf, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
   } catch (e) { return res.status(400).send('Webhook Error: firma non valida'); }      // il dettaglio non serve a chi chiama
   try {
-    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') await P.confermaPagamento(event.data.object, req);
-    else if (event.type === 'checkout.session.expired') await P.sessioneScaduta(event.data.object);
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
+      await P.confermaPagamento(event.data.object, req);      // prenotazioni del sito (metadato code)
+      await x.checkin.registra(event.data.object);           // check-in online (metadati dataCheckin e numeroPrenotazione)
+    } else if (event.type === 'checkout.session.expired') await P.sessioneScaduta(event.data.object);
     // ultimo evento ricevuto e valido: lo mostra Gestione → Sito → Sistema → Pagamenti ed email (se non cambia mai, il webhook non sta arrivando)
     await x.kv('SET', 'stripe:ultimo', JSON.stringify({ ts: new Date().toISOString(), tipo: event.type })).catch(() => {});
   } catch (e) {
