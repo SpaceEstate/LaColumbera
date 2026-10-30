@@ -702,6 +702,32 @@ test('U12 appartamento: a mezzanotte italiana (in UTC è ancora ieri) il giorno 
 const NIGHTS = { da: '2026-10-20', a: '2026-10-23' };      // 3 notti, tutte libere in setup()
 const pickDates = (doc, da, a) => { doc.querySelector('#cal .d[data-d="' + da + '"]').click(); doc.querySelector('#cal .d[data-d="' + a + '"]').click(); };
 const fill = (doc, v) => { for (const [k, x] of Object.entries(v)) doc.querySelector('[data-testid=booking-' + k + ']').value = x; };
+test('W1b calendario (Torre e Corte): di nuovo sull\'arrivo annulla la scelta; con un intervallo scelto un altro giorno diventa il nuovo arrivo', async () => {
+  await setup();
+  for (const pg of ['torre.html', 'corte.html']) {
+    const { doc } = await load(pg, { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s), day = d => $('#cal .d[data-d="' + d + '"]');
+    await waitFor(() => $('#cal .d'), 'calendario ' + pg);
+    const sel = () => [...doc.querySelectorAll('#cal .d.s')].map(x => x.dataset.d), range = () => doc.querySelectorAll('#cal .d.r').length;
+    // arrivo e di nuovo lo stesso giorno: tutto azzerato
+    day('2026-10-20').click(); assert.deepEqual(sel(), ['2026-10-20'], pg);
+    day('2026-10-20').click();
+    assert.deepEqual(sel(), [], pg + ': scelta annullata');
+    assert(text($('#v-in')) === '—' && text($('#v-out')) === '—' && /Scegli arrivo e partenza/.test(text($('#q'))) && $('#tot').hidden && $('#go').hidden, pg + ': arrivo e partenza azzerati');
+    // dopo l'annullamento si sceglie liberamente un nuovo intervallo
+    day('2026-10-21').click(); day('2026-10-24').click();
+    assert.deepEqual(sel(), ['2026-10-21', '2026-10-24'], pg); assert.equal(range(), 2, pg + ': giorni in mezzo');
+    assert(/3 notti/.test(text($('#q'))) && !$('#go').hidden, pg + ': intervallo valido: ' + text($('#q')));
+    // con un intervallo scelto, un altro giorno: il vecchio intervallo sparisce e quel giorno è il nuovo arrivo
+    day('2026-10-28').click();
+    assert.deepEqual(sel(), ['2026-10-28'], pg + ': nuovo arrivo'); assert.equal(range(), 0, pg);
+    assert(/Ora scegli il giorno di partenza/.test(text($('#q'))) && $('#tot').hidden && text($('#v-out')) === '—', pg + ': partenza azzerata');
+    day('2026-10-30').click();
+    assert.deepEqual(sel(), ['2026-10-28', '2026-10-30'], pg + ': nuova partenza');
+    // anche toccando l'arrivo dell'intervallo già scelto si riparte da quel giorno; un secondo tocco lo annulla
+    day('2026-10-28').click(); assert.deepEqual(sel(), ['2026-10-28'], pg);
+    day('2026-10-28').click(); assert.deepEqual(sel(), [], pg);
+  }
+});
 test('W1 prenotazione: prima date e importo (nessun prezzo per notte), poi i campi; "Modifica" riporta alle date senza perderle', async () => {
   await setup();
   const { doc, log, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
@@ -776,7 +802,7 @@ test('W3 orizzonte: si prenota al massimo 6 mesi avanti (pagina e server), senza
   assert($('#cal .d[data-d="2027-04-03"]').classList.contains('f') && $('#cal .d[data-d="2027-04-30"]').classList.contains('f'), 'dopo il limite i giorni sono spenti');
   assert(!$('#cal .d[data-d="2027-04-01"]').classList.contains('f'), 'il giorno prima del limite no');
   // partenza fino al 2 aprile compreso: 30 mar → 2 apr = 3 notti
-  $('#pv').click(); pickDates(doc, '2027-03-30', '2027-03-31'); assert(/Soggiorno minimo/.test(text($('#e'))), 'una notte sola non basta'); doc.querySelector('#cal .d[data-d="2027-03-30"]').click();
+  $('#pv').click(); pickDates(doc, '2027-03-30', '2027-03-31'); assert(/Soggiorno minimo/.test(text($('#e'))) && $('#cal .d.s[data-d="2027-03-30"]'), 'una notte sola non basta: l\'arrivo resta scelto');
   $('#nx').click(); doc.querySelector('#cal .d[data-d="2027-04-03"]').click();
   assert(/fino al 2 apr 2027/.test(text($('#e'))) && !$('#cal .d.s[data-d="2027-04-03"]'), 'oltre il limite: messaggio e nessuna selezione: ' + text($('#e')));
   doc.querySelector('#cal .d[data-d="2027-04-02"]').click();

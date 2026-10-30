@@ -305,6 +305,7 @@ async function apt(c){
   $('#g-dec').onclick=()=>setN(n-1);$('#g-inc').onclick=()=>setN(n+1);
   $('#cal').onclick=e=>{const el=e.target.closest('.d');if(!el)return;const d=el.dataset.d,second=da&&!a&&d>da;
     if(d>last){msg(`Si può prenotare fino al ${fmtD(last)}: al massimo ${lim.mesi} mesi in anticipo.`);return}
+    if(da&&!a&&d===da){da='';msg('');draw();return}      // di nuovo sull'arrivo appena scelto: la scelta si annulla e si riparte da capo
     if(el.classList.contains('x')&&!second){if(nt&&d>=today&&d<first)msg(ntMsg);return}
     if(!second){da=d;a='';msg('')}
     else{const g=days(da,d);
