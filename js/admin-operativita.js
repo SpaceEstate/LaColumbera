@@ -76,11 +76,12 @@ const todoVisibile=f=>!f||f>=today;      // spuntata oggi: c'è ancora (sbiadita
 function todoHtml(){const t=V.todo;if(!t)return '';
   const auto=todoAuto(t).filter(x=>todoVisibile(t.fatti[x.id])),man=t.manuali.filter(x=>todoVisibile(x.fatto)).sort((a,b)=>(!!a.fatto-!!b.fatto)||(a.creata<b.creata?-1:a.creata>b.creata?1:0));
   const spunta=(id,f,lab)=>`<input type="checkbox" class="todo-chk" data-todo="${esc(id)}"${f?' checked':''} aria-label="${esc((f?'Fatto: ':'Segna come fatto: ')+lab)}" data-testid="admin-todo-chk-${esc(id)}">`;
-  return `${auto.length?`<ul class="adm-list todo-list" data-testid="admin-todo-auto">${auto.map(x=>{const f=t.fatti[x.id];
-    return `<li class="${f?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}"><span class="adm-apt">${esc(x.apt)}</span><span class="adm-who">${x.html}</span><span class="todo-fare">${x.fare} ${spunta(x.id,f,x.apt+' '+x.id)}</span></li>`}).join('')}</ul>`:''}
+  // una voce: la spunta a sinistra, il contenuto impilato (resta leggibile anche nella colonna stretta del telefono)
+  return `${auto.length?`<ul class="todo-list" data-testid="admin-todo-auto">${auto.map(x=>{const f=t.fatti[x.id];
+    return `<li class="${f?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}">${spunta(x.id,f,x.apt+' '+x.id)}<div class="todo-body"><span class="adm-apt">${esc(x.apt)}</span><span class="todo-txt">${x.html}</span><span class="todo-fare">${x.fare}</span></div></li>`}).join('')}</ul>`:''}
    <h4 class="adm-h4">Le mie cose da fare</h4>
-   <div class="table-wrap"><table class="data todo-tab" data-testid="admin-todo-manuali"><tbody>${man.length?man.map(x=>`<tr class="${x.fatto?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}"><td class="todo-c">${spunta(x.id,x.fatto,x.testo)}</td><td>${esc(x.testo)}<br><small>scritta ${esc(fmtS(x.creata))}</small></td><td class="td-azioni"><button type="button" class="stato-select btn-del-book" data-act="todoDel" data-id="${esc(x.id)}" data-testid="admin-todo-del-${esc(x.id)}">Togli</button></td></tr>`).join('')
-     :'<tr><td colspan="3" class="td-empty">Nessuna cosa da fare scritta da te.</td></tr>'}</tbody></table></div>
+   <ul class="todo-list" data-testid="admin-todo-manuali">${man.length?man.map(x=>`<li class="${x.fatto?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}">${spunta(x.id,x.fatto,x.testo)}<div class="todo-body"><span class="todo-txt">${esc(x.testo)}</span><small class="todo-quando">scritta ${esc(fmtS(x.creata))}</small></div><button type="button" class="link-btn todo-del" data-act="todoDel" data-id="${esc(x.id)}" data-testid="admin-todo-del-${esc(x.id)}">Togli</button></li>`).join('')
+     :'<li class="todo-vuota"><span class="book-note">Nessuna cosa da fare scritta da te.</span></li>'}</ul>
    <form id="todo-f" class="todo-add" data-testid="admin-todo-form"><input name="testo" maxlength="200" required placeholder="Aggiungi una cosa da fare" aria-label="Nuova cosa da fare" data-testid="admin-todo-testo"><button class="btn btn-line" data-testid="admin-todo-add">Aggiungi</button></form>
    <p class="admin-msg" id="todo-msg" role="alert"></p>`}
 const todoPaint=()=>{const el=$('#oggi-todo');if(el)el.innerHTML=todoHtml()};
@@ -266,7 +267,7 @@ Object.assign(A.act,{
 });
 A.onInput.push(el=>{if(el.id!=='bk-q')return false;V.bkq=el.value;bkUpdate();return true});
 A.onChange.push(el=>{
-  if(el.dataset.todo){const id=el.dataset.todo,fatto=el.checked,r=el.closest('li,tr');if(r)r.classList.toggle('todo-fatto',fatto);
+  if(el.dataset.todo){const id=el.dataset.todo,fatto=el.checked,r=el.closest('li');if(r)r.classList.toggle('todo-fatto',fatto);
     todoCall('todo_check',{id,fatto}).catch(e=>{el.checked=!fatto;if(r)r.classList.toggle('todo-fatto',!fatto);todoErr(e)});return true}
   if(el.id==='bk-src'){V.bksrc=el.value;bkUpdate();return true}
   if(el.dataset.code&&el.tagName==='SELECT'){A.setStato(el.dataset.code,el.value);return true}
