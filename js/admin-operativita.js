@@ -82,7 +82,7 @@ function todoHtml(){const t=V.todo;if(!t)return '';
    <h4 class="adm-h4">Le mie cose da fare</h4>
    <ul class="todo-list" data-testid="admin-todo-manuali">${man.length?man.map(x=>`<li class="${x.fatto?'todo-fatto':''}" data-testid="admin-todo-${esc(x.id)}">${spunta(x.id,x.fatto,x.testo)}<div class="todo-body"><span class="todo-txt">${esc(x.testo)}</span><small class="todo-quando">scritta ${esc(fmtS(x.creata))}</small></div><button type="button" class="link-btn todo-del" data-act="todoDel" data-id="${esc(x.id)}" data-testid="admin-todo-del-${esc(x.id)}">Togli</button></li>`).join('')
      :'<li class="todo-vuota"><span class="book-note">Nessuna cosa da fare scritta da te.</span></li>'}</ul>
-   <form id="todo-f" class="todo-add" data-testid="admin-todo-form"><input name="testo" maxlength="200" required placeholder="Aggiungi una cosa da fare" aria-label="Nuova cosa da fare" data-testid="admin-todo-testo"><button class="btn btn-line" data-testid="admin-todo-add">Aggiungi</button></form>
+   <form id="todo-f" class="todo-add" data-testid="admin-todo-form"><input name="testo" maxlength="200" required placeholder="Nuova cosa da fare…" aria-label="Nuova cosa da fare" data-testid="admin-todo-testo"><button class="btn btn-line" data-testid="admin-todo-add">Aggiungi</button></form>
    <p class="admin-msg" id="todo-msg" role="alert"></p>`}
 const todoPaint=()=>{const el=$('#oggi-todo');if(el)el.innerHTML=todoHtml()};
 const todoErr=e=>{const m=$('#todo-msg');if(m){m.className='admin-msg warn';m.textContent=e.message}};

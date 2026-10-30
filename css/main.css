@@ -1264,7 +1264,13 @@ a.adm-stat:hover{border-color:var(--wine);box-shadow:var(--shadow-soft)}
 .todo-chk{width:20px;height:20px;margin:1px 0 0;accent-color:var(--wine);cursor:pointer;flex:none}
 .todo-del{grid-column:auto;justify-self:end;align-self:center;margin:0;font-size:.85rem;color:var(--muted)}
 .todo-fatto .todo-body,.todo-fatto .todo-del{opacity:.45}.todo-fatto .todo-txt{text-decoration:line-through}
-.todo-add{display:flex;gap:8px;margin-top:10px}.todo-add input{flex:1;min-width:0}
+.todo-add{display:flex;gap:8px;align-items:stretch;margin-top:10px}
+.todo-add input{flex:1;min-width:0;font:inherit;font-size:.95rem;padding:10px 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink);transition:border-color .2s ease,box-shadow .2s ease}
+.todo-add input::placeholder{color:var(--muted)}
+.todo-add input:focus{outline:none;border-color:var(--wine);box-shadow:0 0 0 3px rgba(122,46,57,.12)}
+.todo-add .btn{flex:none}
+@media (max-width:760px){.todo-add input{font-size:16px}}
+@media (max-width:420px){.todo-add{flex-direction:column}.todo-add .btn{width:100%}}
 .adm-prev1{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-h4 small{color:var(--muted);font-weight:600}
 .oggi-stats{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
