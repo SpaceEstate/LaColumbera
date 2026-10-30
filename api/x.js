@@ -213,15 +213,18 @@ const msgErr=(res,e)=>{if(e&&e.status)return res.status(e.status).json({err:e.me
 // Se la pagina cambia struttura o non risponde si usa l'elenco fisso qui sotto, con link verificati.
 const EV_HOME='https://www.visittrentino.info';
 const EV_PAGE=EV_HOME+'/it/guida/cosa-fare/eventi';
-const curated=()=>{const t=new Date(),Y=t.getUTCFullYear();const base=[
- ['Trentodoc Festival',9,25,'Centro storico, Trento','https://www.trentodocfestival.it/'],
- ['Il Festival dello Sport di Trento',10,1,'Centro storico, Trento','https://www.ilfestivaldellosport.it/'],
- ['Mercatini di Natale di Trento',11,21,'Piazza Fiera & Piazza Cesare Battisti, Trento',EV_HOME+'/it/esperienze/natale-in-trentino'],
- ['Trento Film Festival',4,24,'Vari luoghi, Trento','https://trentofestival.it/'],
- ["Festival dell'Economia di Trento",5,20,'Centro storico, Trento','https://www.festivaleconomia.it/it'],
- ['Feste Vigiliane',6,20,'Centro storico, Trento','https://www.visittrento.it/it/eventi-festival/festival-grandi-eventi']];
+const curated=()=>{const t=new Date(),Y=t.getUTCFullYear();const base=[      // [titolo, mese, giorno di inizio, giorni di durata, luogo, link]
+ ['Trentodoc Festival',9,25,3,'Centro storico, Trento','https://www.trentodocfestival.it/'],
+ ['Il Festival dello Sport di Trento',10,1,4,'Centro storico, Trento','https://www.ilfestivaldellosport.it/'],
+ ['Mercatini di Natale di Trento',11,21,47,'Piazza Fiera & Piazza Cesare Battisti, Trento',EV_HOME+'/it/esperienze/natale-in-trentino'],
+ ['Trento Film Festival',4,24,10,'Vari luoghi, Trento','https://trentofestival.it/'],
+ ["Festival dell'Economia di Trento",5,20,4,'Centro storico, Trento','https://www.festivaleconomia.it/it'],
+ ['Feste Vigiliane',6,20,7,'Centro storico, Trento','https://www.visittrento.it/it/eventi-festival/festival-grandi-eventi']];
  const iso2=d=>d.toISOString().slice(0,10),today=iso2(t);
- return base.map(([title,mo,day,location,url])=>{let d=new Date(Date.UTC(Y,mo-1,day));if(iso2(d)<today)d=new Date(Date.UTC(Y+1,mo-1,day));return{title,date:iso2(d),time:'',location,url,source:'VisitTrentino'}})};
+ // un evento ancora in corso (es. i Mercatini di Natale a dicembre) resta quello di quest'anno; passato del tutto, si passa all'anno dopo
+ return base.map(([title,mo,day,n,location,url])=>{const at=y=>{const d=new Date(Date.UTC(y,mo-1,day)),e=new Date(d);e.setUTCDate(e.getUTCDate()+n-1);return[iso2(d),iso2(e)]};
+  let[d,e]=at(Y);if(e<today)[d,e]=at(Y+1);
+  return{title,date:d,end:e,time:'',location,url,source:'VisitTrentino'}})};
 const absUrl=u=>{u=String(u||'').trim();if(!u)return'';if(/^https?:\/\//i.test(u))return u;if(u[0]==='/')return EV_HOME+u;return'https://'+u};
 const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
 const decode=s=>String(s).replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#0?39;|&apos;/g,"'").replace(/&nbsp;/g,' ').replace(/&#(\d+);/g,(m,n)=>String.fromCharCode(+n)).replace(/&lt;/g,'<').replace(/&gt;/g,'>');
@@ -241,20 +244,34 @@ function parseEventiHtml(html){
   const loc=lines[di-1].replace(/\s*-\s*Una città da scoprire$/i,'');
   if(!/trento|povo|ravina|mattarello|villazzano|cadine|sardagna|bondone|piné|baselga/i.test(lines[di-1]))continue;
   seen.add(h.path);
-  const start=conv(dm[0]),endD=dm[1]?conv(dm[1]):start,today=new Date().toISOString().slice(0,10);
-  // eventi lunghi (mostre di mesi): mostrati a partire da oggi, non dal giorno di inizio
-  out.push({title,date:start<today&&endD>=today?today:start,time:'',location:loc,url:absUrl(h.path),source:'VisitTrentino'})}
+  const start=conv(dm[0]),endD=dm[1]?conv(dm[1]):start;
+  out.push({title,date:start,end:endD<start?start:endD,time:'',location:loc,url:absUrl(h.path),source:'VisitTrentino'})}
  return out}
+// Al momento della risposta: gli eventi lunghi già iniziati (mostre di mesi, Mercatini di Natale) hanno come data oggi, non il giorno di inizio,
+// così la pagina Eventi li mostra ancora; il giorno di inizio resta in «start» e quello di fine in «end» (l'area clienti cerca gli eventi
+// in corso durante il soggiorno, non solo quelli che iniziano in quei giorni)
+const evNorm=list=>{const today=new Date().toISOString().slice(0,10);
+ return list.map(e=>{const end=e.end||e.date;return Object.assign({},e,{start:e.date,end,date:e.date<today&&end>=today?today:e.date})})};
+// Le pagine della guida si leggono insieme (non una dopo l'altra) e con un tempo massimo; il risultato resta nel KV per 6 ore,
+// così la pagina Eventi e l'area clienti non aspettano la lettura della guida a ogni visita. Se la guida non risponde vale
+// l'ultimo elenco letto (fino a 2 giorni), altrimenti l'elenco fisso.
+const EV_PAGES=[1,2,3,4,5,6],EV_KEY='events:feed',EV_TTL=6*36e5,EV_STALE=48*36e5;
+const scrape=async()=>{
+ const pages=await Promise.all(EV_PAGES.map(async pg=>{
+  try{const r=await fetch(EV_PAGE+'?mode=list&page='+pg,{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'},signal:AbortSignal.timeout(8000)});
+   return r.ok?parseEventiHtml(await r.text()):[]}
+  catch{return []}}));
+ const out=[],seenU=new Set();
+ for(const l of pages)for(const e of l)if(!seenU.has(e.url)){seenU.add(e.url);out.push(e)}
+ return out};
 const feed=async()=>{
- try{
-  const out=[],seenU=new Set();
-  for(const pg of [1,2,3]){
-   const r=await fetch(EV_PAGE+'?mode=list&page='+pg,{headers:{'User-Agent':'Mozilla/5.0 (compatible; LaColumberaBot/1.0)'}});
-   if(!r.ok)continue;
-   for(const e of parseEventiHtml(await r.text()))if(!seenU.has(e.url)){seenU.add(e.url);out.push(e)}}
-  if(out.length)return out
- }catch{}
- return curated();
+ let c=null;try{c=await jg(EV_KEY)}catch{}
+ const age=c&&Array.isArray(c.list)?Date.now()-(+c.ts||0):Infinity;
+ if(age<EV_TTL&&c.list.length)return evNorm(c.list);
+ let out=[];try{out=await scrape()}catch{}
+ if(out.length){try{await kv('SET',EV_KEY,JSON.stringify({ts:Date.now(),list:out}))}catch{}return evNorm(out)}
+ if(age<EV_STALE&&c.list.length)return evNorm(c.list);
+ return evNorm(curated());
 };
 
 // ---- Luoghi di interesse e Convenzioni (dintorni.html, convenzioni.html): si modificano da Gestione → Sito → Luoghi e convenzioni ----
@@ -354,7 +371,7 @@ if(a==='ical'){const id=String(req.query.id||'');
   return res.send(r.ics)}
  catch(e){console.error('ical:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
 if(a==='events')return res.json((await jg('events'))||[]);
-if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600');return res.json(await feed())};
+if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600, stale-while-revalidate=86400');return res.json(await feed())};
 if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(lim)return deny(res,lim);
  const config=await cfg(req),p=(config.apts||[]).find(x=>x.id===b.id);
  if(!p||!AV.isIso(b.da)||!AV.isIso(b.a)||b.a<=b.da||b.da<todayRome()||typeof b.nome!=='string'||!b.nome.trim()||typeof b.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email.trim())||(b.tel!=null&&typeof b.tel!=='string'&&typeof b.tel!=='number'))return res.status(400).json({err:'Dati non validi'});

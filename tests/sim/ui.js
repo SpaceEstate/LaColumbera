@@ -389,6 +389,37 @@ test('U4n area ospiti · check-in online: il link porta codice e lingua nel fram
   r2.doc.querySelector('[data-testid=ga-lang-de]').click();
   assert(/Check-in abgeschlossen/.test(text(r2.doc.querySelector('[data-testid=checkin-fatto-' + c.code + ']'))) && /Schlüsselkasten/.test(text(r2.doc.querySelector('[data-testid=ga-cassetta]'))), 'in tedesco');
 });
+test('U4j area ospiti · Dintorni: anche gli eventi di più giorni iniziati prima dell\'arrivo e ancora in corso; guida letta una volta sola (KV), eventi caricati già all\'accesso', async () => {
+  await setup();
+  // guida VisitTrentino finta: una mostra dal 20 novembre al 10 gennaio (iniziata prima dell'arrivo), un concerto il 24 e una sagra fuori dalle date
+  const VT = 'https://www.visittrentino.info/it/guida/cosa-fare/eventi?mode=list&page=';
+  const ev = (slug, n, titolo, luogo, date) => `<a href="/it/guida/cosa-fare/eventi/${slug}_e_${n}"><h3>${titolo}</h3><p>${luogo}</p><p>${date}</p></a>`;
+  H.feeds.set(VT + 1, { status: 200, body: '<html>' + ev('mostra-di-natale', 1, 'Mostra di Natale', 'Trento - Una città da scoprire', '20/11/2026 - 10/01/2027') + ev('sagra-di-paese', 2, 'Sagra di paese', 'Povo', '05/12/2026') + '</html>' });
+  H.feeds.set(VT + 2, { status: 200, body: '<html>' + ev('concerto-in-duomo', 3, 'Concerto in Duomo', 'Trento', '24/11/2026') + '</html>' });
+  try {
+    assert.equal((await H.adminApi('event_add', { title: 'Degustazione in cantina', date: '2026-11-25', location: 'Ravina' })).status, 200);
+    const c = (await checkout({ da: '2026-11-23', a: '2026-11-26' })).body;
+    await H.webhook('checkout.session.completed', H.paidSession(c.code));
+    const r = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA });
+    await waitFor(() => r.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
+    await waitFor(() => r.log.calls.some(x => x.a === 'events_feed'), 'eventi richiesti già all\'accesso, prima di aprire «Dintorni»');
+    const dint = tabOf(r, 'dintorni');
+    await waitFor(() => dint.querySelector('.ga-ev li'), 'eventi nelle date');
+    const li = [...dint.querySelectorAll('.ga-ev li')].map(text);
+    assert.equal(li.length, 3, li.join(' | '));
+    assert(/Mostra di Natale/.test(li[0]) && /→/.test(li[0]), 'la mostra iniziata il 20 novembre c\'è (con le date): ' + li[0]);
+    assert(/Concerto in Duomo/.test(li[1]) && /Degustazione in cantina/.test(li[2]), li.join(' | '));
+    assert(!dint.querySelector('[data-testid=ga-ev-none]') && !/Sagra di paese/.test(text(dint)), 'niente «nessun evento», niente eventi fuori dalle date');
+    // la guida è stata letta una volta: la seconda richiesta arriva dal KV
+    const letture = () => H.feeds.get(VT + 1).calls;
+    const n = letture(); assert.equal((await H.api('events_feed', {})).status, 200); assert.equal(letture(), n, 'seconda lettura dal KV');
+    // pagina Eventi: la mostra in corso resta visibile anche a dicembre (data di oggi), il concerto passato no
+    clock.set('2026-12-10T09:00:00Z');
+    const { doc } = await load('eventi.html', { scripts: ['js/site.js', 'js/pages.js'] });
+    await waitFor(() => doc.querySelector('#events .ev-card'), 'eventi');
+    assert(/Mostra di Natale/.test(text(doc.querySelector('#events'))) && !/Concerto in Duomo/.test(text(doc.querySelector('#events'))), text(doc.querySelector('#events')));
+  } finally { H.feeds.delete(VT + 1); H.feeds.delete(VT + 2); }
+});
 test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; Booking/Airbnb senza conto (pagamento sulla piattaforma); uscita', async () => {
   await setup(); await saveArea();
   clock.set('2026-10-04T09:00:00Z'); await H.sync(); regAirbnb();

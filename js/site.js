@@ -133,3 +133,26 @@ window.lcHome = function(c){
     });
   }).catch(function(){});
 })();
+// Eventi (pagina Eventi e scheda «Dintorni» dell'area clienti): si caricano appena l'ospite entra nel sito, così quando apre gli eventi sono già pronti.
+// Una sola richiesta per pagina (la promessa è condivisa) e una copia nella scheda (sessionStorage, 10 minuti) per le pagine successive.
+// window.lcEventi() → Promise con l'elenco: eventi automatici e quelli inseriti in Gestione (vuoto se il servizio non risponde).
+(function(){
+  if(!window.fetch || !window.Promise) return;
+  var KEY = 'lc_ev', TTL = 10 * 60 * 1000, p = null;
+  var get = function(q){ return fetch('api/x?' + q).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }); };
+  var arr = function(x){ return Array.isArray(x) ? x : []; };
+  window.lcEventi = function(){
+    if(p) return p;
+    try{ var c = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if(c && Array.isArray(c.list) && Date.now() - c.ts < TTL && Date.now() >= c.ts) return (p = Promise.resolve(c.list)); }catch(e){}
+    p = Promise.all([get('a=events_feed'), get('a=events')]).then(function(r){
+      var list = arr(r[0]).concat(arr(r[1]));
+      if(r[0] && r[1]){ try{ sessionStorage.setItem(KEY, JSON.stringify({ ts: Date.now(), list: list })); }catch(e){} }
+      else p = null;      // servizio non raggiungibile: la prossima richiesta riprova
+      return list;
+    });
+    return p;
+  };
+  if(/\/admin(\.html)?$/.test(location.pathname)) return;      // la Gestione non ne ha bisogno (e i suoi eventi li legge sempre freschi)
+  var go = function(){ window.lcEventi(); };
+  if(window.requestIdleCallback) requestIdleCallback(go, { timeout: 2000 }); else setTimeout(go, 300);
+})();

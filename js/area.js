@@ -7,7 +7,7 @@
 'use strict';
 const P=window.LCP;
 if(!P)return;
-const {esc,api,get,mdLite,accSet,accDel,accFromHash,accGet,accBody,fmtCode,codeIn}=P;
+const {esc,api,get,mdLite,accSet,accDel,accFromHash,accGet,accBody,fmtCode,codeIn,eventiList}=P;
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const TEL='+39 351 704 3594',TEL_H='+393517043594',MAIL='lacolumbera@gmail.com';
 const INDIRIZZO='Via Centrale 48, 38123 Ravina (Trento)';
@@ -186,7 +186,7 @@ async function load(body,btn,apri){
   try{r=await api('mie',body)}
   catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
   if(r.t)accSet(r.code||body.code,r.t);
-  R=r;tab=apri==='messaggi'&&chatOn()?'messaggi':'soggiorno';evCache=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
+  R=r;tab=apri==='messaggi'&&chatOn()?'messaggi':'soggiorno';evCache=eventiList();stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
  catch(x){if(x&&x.status===410)accDel();showErr(x)}      // link di un soggiorno chiuso: si dimentica la sessione
  finally{if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig||t('entra');delete btn.dataset.loading}}}
 function logout(){accDel();R=null;stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});$('#r').innerHTML='';const lg=$('#login');if(lg)lg.hidden=false;document.querySelector('.auth-wrap').classList.remove('ga-on');const cd=$('#cd');if(cd){cd.value='';cd.focus()}}
@@ -321,14 +321,18 @@ function pDintorni(s){
  const link=(href,ic,lab,desc)=>`<a class="ga-act" href="${href}">${icon(ic)}<span><b>${esc(lab)}</b><small>${esc(desc)}</small></span></a>`;
  return `<section class="ga-card" data-testid="ga-eventi"><h3>${esc(t('eventi'))}</h3><div id="ga-ev"><p class="book-note">${esc(t('caricoEventi'))}</p></div><p><a href="eventi.html">${esc(t('tuttiEventi'))} →</a></p></section>
   <div class="ga-actions">${link('dintorni.html','mount',t('luoghi'),t('luoghiD'))}${link('convenzioni.html','tag',t('conv'),t('convD'))}${link('eventi.html','cal',t('tutti'),t('tuttiD'))}${link('mappa.html','route',t('trovarci'),t('trovarciD'))}</div>`}
-// eventi nelle date del soggiorno (dal giorno di arrivo a quello di partenza): quelli automatici e quelli inseriti in Gestione
+// eventi nelle date del soggiorno (dal giorno di arrivo a quello di partenza): quelli automatici e quelli inseriti in Gestione.
+// Conta anche un evento di più giorni iniziato prima dell'arrivo e ancora in corso (es. i Mercatini di Natale): start…end incrocia il soggiorno.
+// L'elenco si carica appena l'ospite entra (js/site.js e load()), così aprendo «Dintorni» è già pronto.
 async function paintEvents(s){
  const box=$('#ga-ev');if(!box)return;
- if(!evCache){const [f,m]=await Promise.all([get('a=events_feed'),get('a=events')]);evCache=[...(Array.isArray(f)?f:[]),...(Array.isArray(m)?m:[])]}
+ const all=await (evCache||(evCache=eventiList()));
+ if(!all.length)evCache=null;      // servizio non raggiungibile: si riprova alla prossima apertura della scheda
  const safe=u=>{u=String(u||'').trim();return /^https?:\/\//i.test(u)?u:''};
- const list=evCache.filter(x=>x&&x.date>=s.da&&x.date<=s.a).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0).slice(0,12);
+ const dal=x=>x.start||x.date,al=x=>x.end&&x.end>dal(x)?x.end:dal(x);
+ const list=all.filter(x=>x&&x.date&&dal(x)<=s.a&&al(x)>=s.da).sort((a,b)=>{const p=dal(a)<s.da?s.da:dal(a),q=dal(b)<s.da?s.da:dal(b);return p<q?-1:p>q?1:0}).slice(0,12);
  const el=$('#ga-ev');if(!el)return;
- el.innerHTML=list.length?`<ul class="ga-ev">${list.map(x=>{const u=safe(x.url),inner=`<span class="ga-ev-d">${esc(dDay(x.date))}${x.time?' · '+esc(x.time):''}</span><b>${esc(x.title)}</b>${x.location?`<small>${esc(x.location)}</small>`:''}`;
+ el.innerHTML=list.length?`<ul class="ga-ev">${list.map(x=>{const u=safe(x.url),quando=al(x)>dal(x)?dDay(dal(x))+' → '+dDay(al(x)):dDay(dal(x)),inner=`<span class="ga-ev-d">${esc(quando)}${x.time?' · '+esc(x.time):''}</span><b>${esc(x.title)}</b>${x.location?`<small>${esc(x.location)}</small>`:''}`;
    return `<li data-testid="ga-ev-${esc(x.date)}">${u?`<a href="${esc(u)}"${ext}>${inner}</a>`:inner}</li>`}).join('')}</ul>`:`<p class="book-note" data-testid="ga-ev-none">${esc(t('nessunEvento'))}</p>`}
 
 /* ---------------- messaggi (solo prenotazioni fatte sul sito) ---------------- */

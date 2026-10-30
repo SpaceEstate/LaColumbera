@@ -396,14 +396,13 @@ async function guestcard(c){
   else if(qc)$('#gc-code').value=codeIn(qc);
 }
 
+// eventi automatici e inseriti in Gestione: quelli già caricati da js/site.js appena l'ospite è entrato nel sito (window.lcEventi), altrimenti si chiedono ora
+const eventiList=()=>window.lcEventi?window.lcEventi():Promise.all([get('a=events_feed'),get('a=events')]).then(([f,m])=>[...(Array.isArray(f)?f:[]),...(Array.isArray(m)?m:[])]);
 async function eventi(c){
   const box=$('#events');
   const safeUrl=u=>{u=String(u||'').trim();if(!u)return'';if(/^https?:\/\//i.test(u))return u;if(u[0]==='/')return'https://www.visittrentino.info'+u;return'https://'+u};
-  const [feed,manual]=await Promise.all([get('a=events_feed'),get('a=events')]);
-  const auto=Array.isArray(feed)?feed:[];
-  const man=Array.isArray(manual)?manual:[];
   const today=iso(new Date());
-  const all=[...auto,...man].filter(x=>x&&x.date>=today).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  const all=(await eventiList()).filter(x=>x&&x.date>=today).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
   if(!all.length){box.innerHTML='<p class="book-note">Nessun evento in programma al momento.</p>';return}
   // gli eventi sono raggruppati per mese: la pagina resta leggibile anche con molti appuntamenti
   let mese='';
@@ -425,6 +424,8 @@ async function eventi(c){
 
 // L'area clienti vive in js/area.js (caricato solo da area-clienti.html, parte da sé) e usa gli stessi strumenti di questa pagina
 // (accesso con codice e token, chiamate al server, date): stessa sessione e stesse regole della Guest Card.
-window.LCP={esc,api,get,iso,fmtD,fmtW,fmtL,mdLite,modal,accGet,accSet,accDel,accFromHash,accBody,fmtCode,codeIn};
+window.LCP={esc,api,get,iso,fmtD,fmtW,fmtL,mdLite,modal,accGet,accSet,accDel,accFromHash,accBody,fmtCode,codeIn,eventiList};
 const P={apt,guestcard,eventi};
-if(P[B.p])get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p](c));
+// la pagina Eventi non usa la configurazione del sito: parte subito, senza aspettarla
+if(B.p==='eventi')eventi();
+else if(P[B.p])get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p](c));
