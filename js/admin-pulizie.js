@@ -21,7 +21,8 @@ const breve=d=>new Date(d+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric'
 const maiusc=s=>s.charAt(0).toUpperCase()+s.slice(1);
 const chiave=(p,x)=>x.code||'cal:'+p.id+':'+x.da;      // prenotazione vista solo nei calendari iCal: appartamento + giorno di arrivo
 const info=k=>(V.pul||{})[k]||{};
-const persone=n=>n?n+(n===1?' ospite':' ospiti'):'ospiti da confermare';
+// i bambini sotto i 4 anni (prenotazioni del sito) si dicono a parte: per chi pulisce vuol dire culla, seggiolone…
+const persone=(n,b)=>n?n+(n===1?' ospite':' ospiti')+(b>0?' (di cui '+b+(b===1?' bambino':' bambini')+' sotto i 4 anni)':''):'ospiti da confermare';
 const notti=x=>Math.max(1,Math.round((Date.parse(x.a)-Date.parse(x.da))/864e5));
 const chi=x=>x.nome||(x.code?x.fonte+' · '+x.code:x.fonte+' (solo calendario'+(x.cal?': «'+x.cal+'»':'')+')');      // solo per te, mai nel testo
 const fuori=(p,x)=>!!info(chiave(p,x)).fuori;      // tolta dal testo dal titolare
@@ -40,8 +41,8 @@ function testo(p,tutti){const S=A.S,L=['PULIZIE '+short(p).toUpperCase(),''],mov
   if(!mov.length)L.push('Nessuna entrata e nessuna uscita in questo periodo.');
   for(const g of mov){
     L.push(maiusc(giorno(g.d))+(g.esce.length&&g.entra.length?' — cambio':''));
-    g.esce.forEach(x=>L.push('• esce: '+persone(x.ospiti)+(S.checkoutOra?', entro le '+S.checkoutOra:'')));
-    g.entra.forEach(x=>{const i=info(chiave(p,x)),n=notti(x);L.push('• entra: '+persone(x.ospiti)+', '+n+(n===1?' notte':' notti')+', '+lettiTxt(i)+(i.nota?' — '+i.nota:''))});
+    g.esce.forEach(x=>L.push('• esce: '+persone(x.ospiti,x.bambini)+(S.checkoutOra?', entro le '+S.checkoutOra:'')));
+    g.entra.forEach(x=>{const i=info(chiave(p,x)),n=notti(x);L.push('• entra: '+persone(x.ospiti,x.bambini)+', '+n+(n===1?' notte':' notti')+', '+lettiTxt(i)+(i.nota?' — '+i.nota:''))});
     L.push('')}
   return L.join('\n').trim()}
 function scheda(p,da,al){const mov=movimenti(p,da,al),S=A.S,tutte=suoi(p),dentro=nelTesto(p,mov);let ne=0,nu=0,nf=0;dentro.forEach(g=>{nu+=g.esce.length;ne+=g.entra.length});
@@ -49,13 +50,13 @@ function scheda(p,da,al){const mov=movimenti(p,da,al),S=A.S,tutte=suoi(p),dentro
   // la spunta «Nel testo» e l'avviso se le notti si accavallano con un'altra prenotazione
   const inc=(x,cosa)=>{const k=chiave(p,x);return `<label class="pul-inc"><input type="checkbox" class="pul-chk" data-pk="${esc(k)}" data-a="${esc(x.a)}"${fuori(p,x)?'':' checked'} data-testid="admin-pul-inc-${esc(k)}-${cosa}"> Nel testo</label>`};
   const avviso=x=>{const o=sovrapposte(p,x,tutte);return o.length?`<span class="pul-warn" data-testid="admin-pul-warn-${esc(chiave(p,x))}">⚠ Si sovrappone a ${o.map(y=>esc(chi(y))+' ('+esc(breve(y.da))+' → '+esc(breve(y.a))+')').join(', ')}: togli dal testo quella sbagliata</span>`:fuori(p,x)?'<span class="pul-off">Tolta dal testo</span>':''};
-  const esce=x=>`<div class="pul-mov${fuori(p,x)?' fuori':''}"><span class="pul-k esce">Esce</span><span class="pul-d">${esc(persone(x.ospiti))}${S.checkoutOra?' · entro le '+esc(S.checkoutOra):''}<small>${esc(chi(x))}</small>${avviso(x)}</span>${inc(x,'esce')}</div>`;
+  const esce=x=>`<div class="pul-mov${fuori(p,x)?' fuori':''}"><span class="pul-k esce">Esce</span><span class="pul-d">${esc(persone(x.ospiti,x.bambini))}${S.checkoutOra?' · entro le '+esc(S.checkoutOra):''}<small>${esc(chi(x))}</small>${avviso(x)}</span>${inc(x,'esce')}</div>`;
   // un contatore: − numero + (matrimoniali o singoli)
   const passo=(k,x,f,n)=>{const nome=f==='mat'?(n===1?'matrimoniale':'matrimoniali'):(n===1?'singolo':'singoli'),cosa=f==='mat'?'letto matrimoniale':'letto singolo';
     return `<span class="pul-step"><button type="button" data-act="pulLetti" data-k="${esc(k)}" data-f="${f}" data-d="-1" data-a="${esc(x.a)}" aria-label="Un ${cosa} in meno" data-testid="admin-pul-${f}-${esc(k)}-meno">−</button><b data-testid="admin-pul-${f}-${esc(k)}">${n}</b><button type="button" data-act="pulLetti" data-k="${esc(k)}" data-f="${f}" data-d="1" data-a="${esc(x.a)}" aria-label="Un ${cosa} in più" data-testid="admin-pul-${f}-${esc(k)}-piu">+</button><span>${nome}</span></span>`};
   const entra=x=>{const k=chiave(p,x),i=info(k),n=notti(x),l=letti(i),posti=l.mat*2+l.sing+(i.culla?1:0);
     const nota=l.mat||l.sing?(x.ospiti&&posti<x.ospiti?`<span class="pul-ask" data-testid="admin-pul-posti-${esc(k)}">⚠ ${posti} ${posti===1?'posto':'posti'} per ${x.ospiti} ospiti</span>`:''):i.letto==='s'?'<span class="pul-ask">scelta di prima: letti singoli</span>':'<span class="pul-ask">da scegliere</span>';
-    return `<div class="pul-mov${fuori(p,x)?' fuori':''}"><span class="pul-k entra">Entra</span><span class="pul-d">${esc(persone(x.ospiti))} · ${n} ${n===1?'notte':'notti'}<small>${esc(chi(x))}</small>${avviso(x)}</span>${inc(x,'entra')}
+    return `<div class="pul-mov${fuori(p,x)?' fuori':''}"><span class="pul-k entra">Entra</span><span class="pul-d">${esc(persone(x.ospiti,x.bambini))} · ${n} ${n===1?'notte':'notti'}<small>${esc(chi(x))}</small>${avviso(x)}</span>${inc(x,'entra')}
      <div class="pul-letto" role="group" aria-label="Letti da preparare">${passo(k,x,'mat',l.mat)}${passo(k,x,'sing',l.sing)}<label class="pul-culla"><input type="checkbox" class="pul-culla-chk" data-pk="${esc(k)}" data-a="${esc(x.a)}"${i.culla?' checked':''} data-testid="admin-pul-culla-${esc(k)}"> Culla</label>${nota}</div>
      <input class="pul-nota" data-pk="${esc(k)}" data-a="${esc(x.a)}" data-id="${p.id}" value="${esc(i.nota||'')}" maxlength="200" placeholder="Nota per le pulizie (facoltativa): seggiolone, asciugamani in più…" aria-label="Nota per le pulizie" data-testid="admin-pul-nota-${esc(k)}"></div>`};
   const cambio=g=>g.esce.some(x=>!fuori(p,x))&&g.entra.some(x=>!fuori(p,x));

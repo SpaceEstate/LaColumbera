@@ -648,21 +648,22 @@ test('U9 appartamento senza preavviso (0 giorni, default): nessun avviso e nessu
   const x = [...doc.querySelectorAll('#cal .d.x')].map(c => c.dataset.d);
   assert(x.includes('2026-10-14') && !x.includes('2026-10-15') && !x.includes('2026-10-16'), 'oggi e domani selezionabili: ' + x.join(','));
 });
-test('U10 appartamento: se il limite scade mentre si compila il modulo il server rifiuta e il messaggio è chiaro (nessun hold, nessun pagamento)', async () => {
+test('U10 prenotazione: se il limite del preavviso scade mentre si compilano i dati il server rifiuta e il messaggio è chiaro (nessun hold, nessun pagamento)', async () => {
   await setup(); await saveNotice(1, '15:00');
   clock.set('2026-10-15T12:55:00Z'); await H.sync();                               // 14:55 a Roma: il 16 è ancora prenotabile (limite 15:00)
   const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] });
   await waitFor(() => doc.querySelector('#cal .d'), 'calendario');
   doc.querySelector('#cal .d[data-d="2026-10-16"]').click(); doc.querySelector('#cal .d[data-d="2026-10-18"]').click();
   assert(/2 notti/.test(text(doc.querySelector('#q'))), text(doc.querySelector('#q')));
-  doc.querySelector('[data-testid=booking-continue]').click();                       // passo 2: compaiono i campi
-  doc.querySelector('[data-testid=booking-name]').value = 'Mario'; doc.querySelector('[data-testid=booking-surname]').value = 'Rossi'; doc.querySelector('[data-testid=booking-email]').value = 'mario@test.it';
+  const p = await load('prenota.html', { search: new URL(doc.querySelector('[data-testid=booking-continue]').href).search, scripts: PREN });      // «Prenota» → pagina di prenotazione
+  await waitFor(() => p.doc.querySelector('[data-testid=booking-form]'), 'modulo');
+  fill(p.doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it' });
   clock.advance(10 * MIN);                                                          // 15:05: il limite è passato mentre l'ospite compilava
   const stripeBefore = global.__stripeSessions.length;
-  doc.querySelector('#f').requestSubmit();
-  await waitFor(() => /Preavviso minimo non rispettato/.test(text(doc.querySelector('#e'))), 'messaggio del server');
-  const btn = doc.querySelector('[data-testid=booking-submit]');
-  assert(!btn.disabled && !btn.classList.contains('is-loading'), 'il pulsante torna utilizzabile');
+  p.doc.querySelector('#f').requestSubmit();
+  await waitFor(() => /Preavviso minimo non rispettato/.test(text(p.doc.querySelector('#e'))), 'messaggio del server');
+  const btn = p.doc.querySelector('[data-testid=booking-submit]');
+  assert(!btn.disabled && !btn.classList.contains('is-loading') && p.doc.querySelector('[data-testid=prenota-pagamento]').hidden, 'il pulsante torna utilizzabile, nessun pagamento');
   assert.equal(global.__stripeSessions.length, stripeBefore, 'nessuna sessione Stripe'); assert.equal(kv.exec(['HGETALL', 'holds:torre']).length, 0, 'nessun hold');
 });
 test('U11 admin · Preavviso minimo: si imposta, si salva e resta dopo il ricaricamento; un valore non valido non parte', async () => {
@@ -728,63 +729,200 @@ test('W1b calendario (Torre e Corte): di nuovo sull\'arrivo annulla la scelta; c
     day('2026-10-28').click(); assert.deepEqual(sel(), [], pg);
   }
 });
-test('W1 prenotazione: prima date e importo (nessun prezzo per notte), poi i campi; "Modifica" riporta alle date senza perderle', async () => {
+test('W1 prenotazione · scheda: prima date e importo (nessun prezzo per notte), adulti e bambini sotto i 4 anni (gratis, ma contano per il massimo); «Prenota» porta alla pagina di prenotazione con date e ospiti', async () => {
   await setup();
-  const { doc, log, w } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
+  const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
   await waitFor(() => $('#cal .d'), 'calendario');
   assert(!/€/.test($('#cal').textContent) && !$('#cal small'), 'nessun prezzo sotto i giorni del calendario');
   assert(!/€|inclus|dal \d/.test(text($('#note'))) && /minimo 2 notti/.test(text($('#note'))) && /fino a 5 ospiti/.test(text($('#note'))), 'niente costi per ospite sopra il calendario: ' + text($('#note')));
   assert(!/inclus/.test(text($('#chips'))), 'nemmeno nelle etichette: ' + text($('#chips')));
   assert($('#tot').hidden && $('#go').hidden, 'senza date: niente importo e niente pulsante Prenota');
-  assert($('#p2').hidden, 'senza date: i campi non ci sono');
+  assert(!$('[data-testid=booking-form]') && !$('#p2'), 'i campi dei dati non sono nella scheda: sono nella pagina di prenotazione');
   assert(/Scegli arrivo e partenza/.test(text($('#q'))), text($('#q')));
   doc.querySelector('#cal .d[data-d="2026-10-20"]').click();
   assert(/Ora scegli il giorno di partenza/.test(text($('#q'))) && $('#tot').hidden, 'dopo l\'arrivo si chiede la partenza');
   doc.querySelector('#cal .d[data-d="2026-10-23"]').click();
   assert(!$('#tot').hidden && !$('#go').hidden, 'con le date compaiono importo e Prenota');
-  assert.equal(text($('[data-testid=booking-total]')), '€540', '3 notti × €180, 2 ospiti');
-  assert(/3 notti · 2 ospiti/.test(text($('#q'))), text($('#q')));
+  assert.equal(text($('[data-testid=booking-total]')), '€540', '3 notti × €180, 2 adulti');
+  assert.equal(text($('#q')), '3 notti · 2 adulti');
   assert(/20 ott/i.test(text($('#v-in'))) && /23 ott/i.test(text($('#v-out'))), 'arrivo e partenza scritti nei riquadri: ' + text($('#v-in')) + ' / ' + text($('#v-out')));
-  // ospiti: il totale segue (Torre: +€20 a notte dal 3° ospite), minimo 1, massimo 5
+  // adulti: il totale segue (Torre: +€20 a notte dal 3° ospite), minimo 1, massimo 5
   const plus = $('[data-testid=booking-guests-plus]'), minus = $('[data-testid=booking-guests-minus]');
   plus.click(); assert.equal(text($('[data-testid=booking-total]')), '€600'); assert.equal(text($('[data-testid=booking-guests]')), '3');
-  plus.click(); plus.click(); assert.equal(text($('[data-testid=booking-total]')), '€720', '5 ospiti: 3 × (180 + 60)'); assert(plus.disabled, 'oltre il massimo non si sale');
-  for (let i = 0; i < 4; i++) minus.click(); assert(minus.disabled && text($('[data-testid=booking-guests]')) === '1', 'sotto 1 non si scende'); assert.equal(text($('[data-testid=booking-total]')), '€540', '1 ospite costa come 2 (€180 a notte)');
+  plus.click(); plus.click(); assert.equal(text($('[data-testid=booking-total]')), '€720', '5 adulti: 3 × (180 + 60)'); assert(plus.disabled, 'oltre il massimo non si sale');
+  for (let i = 0; i < 4; i++) minus.click(); assert(minus.disabled && text($('[data-testid=booking-guests]')) === '1', 'sotto 1 non si scende'); assert.equal(text($('[data-testid=booking-total]')), '€540', '1 adulto costa come 2 (€180 a notte)');
+  assert.equal(text($('#q')), '3 notti · 1 adulto');
   plus.click(); assert.equal(text($('[data-testid=booking-guests]')), '2');
-  // passo 2
-  $('[data-testid=booking-continue]').click();
-  assert($('#p1').hidden && !$('#p2').hidden, 'si passa ai dati');
+  // bambini sotto i 4 anni: gratis, ma con gli adulti al massimo 5 persone
+  const kp = $('[data-testid=booking-children-plus]'), km = $('[data-testid=booking-children-minus]');
+  assert(km.disabled && text($('[data-testid=booking-children]')) === '0', 'si parte senza bambini');
+  assert(/sotto i 4 anni/.test(text($('.bk-guests'))) && /gratis/.test(text($('.bk-guests'))), text($('.bk-guests')));
+  kp.click(); assert.equal(text($('[data-testid=booking-total]')), '€540', 'un bambino non cambia il prezzo'); assert.equal(text($('#q')), '3 notti · 2 adulti · 1 bambino');
+  kp.click(); kp.click(); assert.equal(text($('[data-testid=booking-children]')), '3'); assert.equal(text($('[data-testid=booking-total]')), '€540');
+  assert(kp.disabled && plus.disabled && !minus.disabled, '2 adulti + 3 bambini = 5: né adulti né bambini in più'); assert.equal(text($('#q')), '3 notti · 2 adulti · 3 bambini');
+  km.click(); km.click(); assert(!plus.disabled && !kp.disabled, 'con un bambino solo si può aggiungere ancora qualcuno');
+  // «Prenota»: la pagina di prenotazione con date e ospiti scelti (lì i dati e il pagamento)
+  const go = new URL($('#go').href);
+  assert.equal(go.pathname, '/prenota.html'); assert.deepEqual(Object.fromEntries(go.searchParams), { apt: 'torre', da: '2026-10-20', a: '2026-10-23', adulti: '2', bambini: '1' });
+  assert.equal(text($('#go')), 'Prenota');
+});
+// pagina di prenotazione (prenota.html) con lo Stripe.js finto: date, ospiti e appartamento dall'indirizzo, come dal «Prenota» della scheda
+const PREN = ['tests/sim/stubs/stripe-js.js', 'js/site.js', 'js/pages.js'];
+const loadPren = (o, extra) => load('prenota.html', Object.assign({ search: '?' + new URLSearchParams(Object.assign({ apt: 'torre', da: NIGHTS.da, a: NIGHTS.a, adulti: '2', bambini: '0' }, o)), scripts: PREN }, extra));
+const holdsTorre = () => kv.exec(['HGETALL', 'holds:torre']).length;
+test('W1p pagina di prenotazione: riepilogo con il conto, poi i dati, poi i campi della carta di Stripe nella pagina con lo stile del sito; pagando la prenotazione si conferma', async () => {
+  await setup();
+  const { doc, w } = await loadPren({ bambini: '1' }), $ = s => doc.querySelector(s);
+  await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
   const rc = text($('[data-testid=booking-recap]'));
-  assert(/Torre/.test(rc) && /3 notti/.test(rc) && /2 ospiti/.test(rc) && /€540/.test(rc), rc);
-  assert($('.bk-steps li[data-s="2"]').classList.contains('on') && $('.bk-steps li[data-s="1"]').classList.contains('done') && text($('.bk-steps li[data-s="1"] span')) === '✓', 'indicatore dei passi');
+  assert(/Torre/.test(rc) && /20 ott/i.test(rc) && /23 ott/i.test(rc) && /Notti ?3/.test(rc) && /2 adulti · 1 bambino/.test(rc) && /sotto i 4 anni: gratis/.test(rc), rc);
+  const conto = text($('[data-testid=prenota-conto]'));
+  assert(/3 notti × €180 ?€540/.test(conto) && /Bambino sotto i 4 anni ?gratis/.test(conto) && !/Ospiti in più/.test(conto), conto);
+  assert.equal(text($('[data-testid=booking-total]')), '€540');
+  assert.equal(text($('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.');
+  assert.equal($('[data-testid=booking-back]').getAttribute('href'), 'torre.html#prenota', 'si torna alla scheda per cambiare date e ospiti');
+  assert($('.pr-steps li[data-s="1"]').classList.contains('done') && $('.pr-steps li[data-s="2"]').classList.contains('on'), 'passi: date fatte, ora i dati');
+  assert($('[data-testid=prenota-pagamento]').hidden && !w.__stripeJs.init.length, 'i campi della carta compaiono dopo i dati');
   for (const t of ['name', 'surname', 'email', 'phone', 'submit']) assert($('[data-testid=booking-' + t + ']'), 'campo ' + t);
   assert(/privacy\.html/.test($('[data-testid=booking-form]').innerHTML), 'informativa accanto ai campi');
-  // Modifica: si torna alle date, scelte e ospiti restano
-  $('[data-testid=booking-back]').click(); await sleep(20);
-  assert(!$('#p1').hidden && $('#p2').hidden && $('#cal .d.s[data-d="2026-10-20"]') && $('#cal .d.s[data-d="2026-10-23"]'), 'date ancora scelte');
-  assert.equal(text($('[data-testid=booking-total]')), '€540');
-  // si completa il modulo: parte la richiesta di pagamento con nome e cognome uniti e gli ospiti scelti
-  $('[data-testid=booking-continue]').click(); fill(doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it', phone: '333 1234567' });
+  assert.equal(doc.title, 'Prenota Torre · La Columbera');
+  // i dati: parte la prenotazione con nome e cognome uniti, adulti e bambini; le notti si trattengono
+  fill(doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it', phone: '333 1234567' });
   const before = global.__stripeSessions.length; $('#f').requestSubmit();
-  await waitFor(() => log.calls.some(c => c.a === 'checkout' && c.status === 200), 'checkout');
-  const ss = global.__stripeSessions[before]; assert(ss, 'sessione Stripe creata');
+  await waitFor(() => !$('[data-testid=prenota-pagamento]').hidden && $('[data-testid=stripe-fake-card]'), 'campi della carta');
+  const ss = global.__stripeSessions[before]; assert(ss && ss.params.ui_mode === 'elements', 'sessione Stripe con i campi nella pagina');
   assert.equal(ss.params.line_items[0].price_data.unit_amount, 54000, 'importo = quello mostrato');
   const acc = JSON.parse(w.sessionStorage.getItem('lc_acc')), bk = JSON.parse(kv.exec(['HGET', 'bkh', acc.c]));
-  assert.deepEqual([bk.nome, bk.email, bk.tel, bk.ospiti, bk.totale, bk.da, bk.a, bk.stato], ['Mario Rossi', 'mario@test.it', '333 1234567', 2, 540, '2026-10-20', '2026-10-23', 'in_attesa']);
+  assert.deepEqual([bk.nome, bk.email, bk.tel, bk.ospiti, bk.adulti, bk.bambini, bk.totale, bk.da, bk.a, bk.stato], ['Mario Rossi', 'mario@test.it', '333 1234567', 3, 2, 1, 540, '2026-10-20', '2026-10-23', 'in_attesa']);
+  assert(holdsTorre() > 0, 'notti trattenute durante il pagamento');
+  // Stripe.js: chiave pubblicabile, chiave della sessione, italiano, colori e carattere del sito
+  const S = w.__stripeJs, init = S.init[0], ap = init.elementsOptions.appearance;
+  assert.deepEqual(JSON.parse(JSON.stringify(S.istanze)), [{ pk: 'pk_test_prova', opts: { locale: 'it' } }]);
+  assert.equal(init.clientSecret, ss.client_secret);
+  assert.deepEqual([ap.variables.colorPrimary, ap.variables.colorBackground, ap.variables.colorText, ap.variables.borderRadius, ap.labels], ['#7A2E39', '#FAF5EC', '#1E1917', '12px', 'above']);
+  assert(/^Manrope/.test(ap.variables.fontFamily) && init.elementsOptions.fonts.length && init.elementsOptions.fonts.every(f => f.family === 'Manrope' && f.src === 'url(https://www.lacolumbera.test/fonts/manrope-latin-wght-normal.woff2)'), 'il carattere del sito, servito dal sito');
+  assert.deepEqual(JSON.parse(JSON.stringify(S.mount)), [{ sel: '#pe', opz: { layout: 'tabs' } }]);
+  assert($('.pr-steps li[data-s="3"]').classList.contains('on') && text($('.pr-steps li[data-s="2"] span')) === '✓', 'passi: ora il pagamento');
+  const chi = text($('[data-testid=prenota-chi]')); assert(/Mario Rossi/.test(chi) && /mario@test\.it/.test(chi) && $('[data-testid=booking-form]').hidden, 'i dati restano in vista, in breve: ' + chi);
+  assert.equal(text($('[data-testid=prenota-paga]')), 'Paga €540');
+  // il pagamento riesce: Stripe completa la sessione e la pagina dice com'è andata
+  w.__stripeConfirm = async () => { global.__stripeState[ss.id] = { paid: true }; return { type: 'success', session: {} }; };
+  $('[data-testid=prenota-paga]').click();
+  await waitFor(() => $('[data-testid=booking-success][data-stato=confermata]'), 'conferma');
+  assert.deepEqual(JSON.parse(JSON.stringify(S.confirm)), [{ redirect: 'if_required' }], 'nessun cambio di pagina se la banca non lo chiede');
+  const t = text($('[data-testid=booking-success]')); assert(/Prenotazione confermata/.test(t) && t.replace(/ /g, '').includes(acc.c) && /ma\*\*\*@test\.it/.test(t), t);
+  assert.equal(stato(acc.c), 'confermata'); assert.equal(holdsTorre(), 0, 'hold rilasciati dopo la conferma'); assert.equal(w.location.search, '', 'indirizzo ripulito');
+  assert(global.__mails.some(m => m.to === 'mario@test.it' && /3 persone \(di cui 1 bambino sotto i 4 anni\)/.test(m.text)), 'email all\'ospite con i bambini');
 });
-test('W2 prenotazione: errore del server (date non più libere) → messaggio chiaro; "Modifica" ricarica il calendario e toglie le date prese', async () => {
+test('W1q pagina di prenotazione: carta rifiutata → il messaggio e si riprova; «Modifica» i dati o lasciare la pagina liberano subito le notti trattenute; i dati scritti restano nella scheda', async () => {
   await setup();
-  const { doc, log } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
-  await waitFor(() => $('#cal .d'), 'calendario');
-  pickDates(doc, NIGHTS.da, NIGHTS.a); $('[data-testid=booking-continue]').click(); fill(doc, { name: 'Anna', surname: 'Verdi', email: 'anna@test.it' });
+  const { doc, log, w } = await loadPren(), $ = s => doc.querySelector(s);
+  await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
+  fill(doc, { name: 'Anna', surname: 'Verdi', email: 'anna@test.it' }); $('#f').requestSubmit();
+  await waitFor(() => $('[data-testid=stripe-fake-card]'), 'carta');
+  const c1 = JSON.parse(w.sessionStorage.getItem('lc_acc')).c;
+  // carta rifiutata: il messaggio di Stripe, il pulsante torna utilizzabile, la prenotazione resta in attesa con le notti trattenute
+  w.__stripeConfirm = async () => ({ type: 'error', error: { message: 'La tua carta è stata rifiutata.', code: 'paymentFailed', paymentFailed: { declineCode: 'generic_decline' } } });
+  $('[data-testid=prenota-paga]').click();
+  await waitFor(() => /carta è stata rifiutata/.test(text($('#e'))), 'messaggio');
+  assert(!$('[data-testid=prenota-paga]').disabled && !$('[data-testid=prenota-paga]').classList.contains('is-loading'), 'si può riprovare');
+  assert.equal(stato(c1), 'in_attesa'); assert(holdsTorre() > 0, 'notti ancora trattenute');
+  // «Modifica»: di nuovo i dati (già scritti), i campi della carta tolti, le notti liberate subito
+  $('[data-testid=prenota-modifica]').click();
+  await waitFor(() => log.calls.some(x => x.a === 'checkout_cancel'), 'checkout_cancel');
+  await waitFor(() => holdsTorre() === 0, 'hold liberati');
+  assert(!$('[data-testid=booking-form]').hidden && $('[data-testid=prenota-pagamento]').hidden && $('[data-testid=booking-name]').value === 'Anna', 'di nuovo i dati, già compilati');
+  assert(w.__stripeJs.distrutti === 1 && !$('[data-testid=stripe-fake-card]'), 'campi della carta tolti');
+  assert($('.pr-steps li[data-s="2"]').classList.contains('on'), 'passi: di nuovo i dati');
+  // avanti con un'altra email: un'altra prenotazione; poi l'ospite lascia la pagina senza pagare → notti libere
+  fill(doc, { email: 'anna.v@test.it' }); $('#f').requestSubmit();
+  await waitFor(() => $('[data-testid=stripe-fake-card]') && JSON.parse(w.sessionStorage.getItem('lc_acc')).c !== c1, 'nuova sessione');
+  assert(holdsTorre() > 0);
+  w.dispatchEvent(new w.Event('pagehide'));
+  await waitFor(() => holdsTorre() === 0, 'lasciando la pagina le notti si liberano');
+  // un'altra pagina della stessa scheda ritrova i dati già scritti
+  const r2 = await loadPren({}, { session: { lc_prenota: w.sessionStorage.getItem('lc_prenota') } });
+  await waitFor(() => r2.doc.querySelector('[data-testid=booking-form]'), 'modulo');
+  assert.deepEqual(['name', 'surname', 'email', 'phone'].map(k => r2.doc.querySelector('[data-testid=booking-' + k + ']').value), ['Anna', 'Verdi', 'anna.v@test.it', '']);
+  // pagando, lasciare la pagina (la banca chiede una conferma altrove) non libera le notti
+  fill(r2.doc, { email: 'anna@test.it' }); r2.doc.querySelector('#f').requestSubmit();
+  await waitFor(() => r2.doc.querySelector('[data-testid=stripe-fake-card]'), 'carta');
+  r2.w.__stripeConfirm = () => new Promise(() => {});      // la banca porta l'ospite su un'altra pagina: la promessa non si chiude
+  r2.doc.querySelector('[data-testid=prenota-paga]').click(); await sleep(20);
+  const calls = r2.log.calls.filter(x => x.a === 'checkout_cancel').length;
+  r2.w.dispatchEvent(new r2.w.Event('pagehide')); await sleep(40);
+  assert(holdsTorre() > 0 && r2.log.calls.filter(x => x.a === 'checkout_cancel').length === calls, 'notti ancora trattenute mentre si paga');
+});
+test('W1r senza chiave pubblicabile si paga sulla pagina di Stripe, come prima; annullando si torna alla pagina di prenotazione con i dati e le notti libere; un pagamento non completato si può ripetere', async () => {
+  await setup({ STRIPE_PUBLISHABLE_KEY: '' });
+  const { doc, log, w } = await loadPren(), $ = s => doc.querySelector(s);
+  await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
+  fill(doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it' }); $('#f').requestSubmit();
+  await waitFor(() => log.calls.some(c => c.a === 'checkout' && c.status === 200), 'checkout');
+  const acc = JSON.parse(w.sessionStorage.getItem('lc_acc')), ss = global.__stripeSessions.find(s => s.id === JSON.parse(kv.exec(['HGET', 'bkh', acc.c])).sessione);
+  assert(ss.url && !ss.params.ui_mode && ss.params.cancel_url === 'https://www.lacolumbera.test/prenota.html?apt=torre&da=2026-10-20&a=2026-10-23&adulti=2&bambini=0&pagamento=annullato&code=' + acc.c, ss.params.cancel_url);
+  await sleep(20); assert($('[data-testid=prenota-pagamento]').hidden && !w.__stripeJs.init.length, 'niente campi della carta nella pagina: si va su Stripe');
+  w.dispatchEvent(new w.Event('pagehide')); await sleep(40); assert(holdsTorre() > 0, 'andando su Stripe le notti restano trattenute');
+  // l'ospite annulla su Stripe: torna qui, notti libere, dati già scritti
+  const r2 = await load('prenota.html', { search: new URL(ss.params.cancel_url).search, session: { lc_acc: JSON.stringify(acc), lc_prenota: w.sessionStorage.getItem('lc_prenota') }, scripts: PREN });
+  await waitFor(() => /Pagamento annullato/.test(text(r2.doc.querySelector('#e'))), 'messaggio');
+  await waitFor(() => holdsTorre() === 0, 'notti libere');
+  assert.equal(r2.w.location.search, '?apt=torre&da=2026-10-20&a=2026-10-23&adulti=2&bambini=0', 'indirizzo senza l\'esito');
+  assert.equal(r2.doc.querySelector('[data-testid=booking-name]').value, 'Mario');
+  // ritorno con il pagamento non completato (la sessione è ancora aperta su Stripe): dopo due controlli lo si dice, e si riprova
+  const co = (await checkout({ da: '2026-12-10', a: '2026-12-12' })).body;
+  const r3 = await load('prenota.html', { search: '?apt=torre&da=2026-12-10&a=2026-12-12&adulti=2&bambini=0&pagamento=successo&code=' + co.code, session: { lc_acc: JSON.stringify({ c: co.code, t: co.t }) }, scripts: PREN });
+  await waitFor(() => r3.doc.querySelector('[data-testid=booking-success][data-stato=aperta]'), 'pagamento non completato', 400);
+  assert(/non ti è stato addebitato nulla/.test(text(r3.doc.querySelector('[data-testid=booking-success]'))) && r3.log.calls.filter(x => x.a === 'checkout_status').length === 2, 'due controlli, poi si dice');
+  assert(holdsTorre() > 0); r3.doc.querySelector('[data-testid=booking-retry]').click();
+  await waitFor(() => holdsTorre() === 0, 'riprovando le notti trattenute si liberano (si riparte dai dati)');
+  assert.equal(stato(co.code), 'in_attesa');
+});
+test('W1s pagina di prenotazione riaperta senza aver pagato (ricaricata, o tornando indietro dalla pagina di Stripe): prima si liberano le notti trattenute, poi si guarda la disponibilità', async () => {
+  await setup();
+  const a = await loadPren(); await waitFor(() => a.doc.querySelector('[data-testid=booking-form]'), 'modulo');
+  fill(a.doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it' }); a.doc.querySelector('#f').requestSubmit();
+  await waitFor(() => a.doc.querySelector('[data-testid=stripe-fake-card]'), 'carta'); assert(holdsTorre() > 0);
+  // la stessa scheda riapre la pagina prima che l'uscita abbia liberato le notti (o il browser non l'ha segnalata)
+  const ss = k => a.w.sessionStorage.getItem(k), b = await loadPren({}, { session: { lc_attesa: ss('lc_attesa'), lc_acc: ss('lc_acc'), lc_prenota: ss('lc_prenota') } });
+  await waitFor(() => b.doc.querySelector('[data-testid=booking-form]'), 'il modulo, non «date non più disponibili»');
+  assert.equal(holdsTorre(), 0, 'notti liberate');
+  const i = b.log.calls.findIndex(x => x.a === 'checkout_cancel'), j = b.log.calls.findIndex(x => x.a === 'busy');
+  assert(i >= 0 && i < j && b.log.calls[j].q.v, 'prima si liberano, poi si chiede il calendario al server (senza la copia di pochi secondi prima)');
+  assert.equal(b.w.sessionStorage.getItem('lc_attesa'), null); assert.equal(b.doc.querySelector('[data-testid=booking-email]').value, 'mario@test.it');
+});
+test('W1t bambini sotto i 4 anni dopo la prenotazione: area clienti, dettaglio in Gestione e testo per le pulizie (serve la culla)', async () => {
+  await setup();
+  const co = (await checkout({ ui: 'elements', da: '2026-10-12', a: '2026-10-14', adulti: 2, bambini: 1 })).body; await H.webhook('checkout.session.completed', H.paidSession(co.code));
+  const g = await load('area-clienti.html', { hash: '#c=' + co.code + '&t=' + co.t, scripts: ['js/site.js', 'js/pages.js', 'js/area.js'] });
+  assert.equal(text(await waitFor(() => g.doc.querySelector('[data-testid=ga-bambini]'), 'area clienti')), 'di cui 1 bambino sotto i 4 anni');
+  const r = await loadAdmin('#prenotazioni/' + co.code);
+  assert.equal(text(await waitFor(() => r.doc.querySelector('[data-testid=admin-book-bambini]'), 'dettaglio')), 'di cui 1 bambino sotto i 4 anni');
+  await goto(r, '#pulizie', '[data-testid=admin-pul-torre]');
+  assert(/• entra: 3 ospiti \(di cui 1 bambino sotto i 4 anni\), 2 notti/.test(r.doc.querySelector('[data-testid=admin-pul-txt-torre]').textContent), r.doc.querySelector('[data-testid=admin-pul-txt-torre]').textContent);
+});
+test('W2 pagina di prenotazione: date prese nel frattempo → messaggio chiaro e il pulsante torna utilizzabile; con date già occupate o un indirizzo incompleto rimanda al calendario', async () => {
+  await setup();
+  const { doc } = await loadPren(), $ = s => doc.querySelector(s);
+  await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
+  fill(doc, { name: 'Anna', surname: 'Verdi', email: 'anna@test.it' });
   assert.equal((await checkout({ da: '2026-10-21', a: '2026-10-23', email: 'altro@test.it' })).status, 200);         // nel frattempo un altro ospite prende due notti
   $('#f').requestSubmit();
   await waitFor(() => /non più disponibili/.test(text($('#e'))), 'messaggio del server');
-  assert(!$('[data-testid=booking-submit]').disabled, 'il pulsante torna utilizzabile');
-  $('[data-testid=booking-back]').click();
-  await waitFor(() => /non sono più disponibili/.test(text($('#e'))), 'avviso dopo il ricaricamento');
-  assert(!$('#cal .d.s') && $('#cal .d[data-d="2026-10-21"].x'), 'date sbarrate e scelta azzerata');
-  assert(log.calls.filter(c => c.a === 'busy').length >= 2, 'calendario riscaricato');
+  assert(!$('[data-testid=booking-submit]').disabled && $('[data-testid=prenota-pagamento]').hidden, 'il pulsante torna utilizzabile, nessun pagamento');
+  // la stessa pagina aperta adesso: le date non sono più libere, si sceglie di nuovo nel calendario
+  const r = await loadPren(); await waitFor(() => r.doc.querySelector('[data-testid=prenota-vuota]'), 'avviso');
+  const t = text(r.doc.querySelector('[data-testid=prenota-vuota]'));
+  assert(/non sono più disponibili/.test(t) && r.doc.querySelector('[data-testid=prenota-vuota] a[href="torre.html#prenota"]') && !r.doc.querySelector('[data-testid=booking-form]'), t);
+  // indirizzo senza date, ospiti oltre il massimo, appartamento sconosciuto, arrivo passato: le date si scelgono nella pagina dell'appartamento
+  for (const q of ['', '?apt=torre&da=2026-10-20&a=2026-10-23&adulti=4&bambini=2', '?apt=xx&da=2026-10-20&a=2026-10-23&adulti=2', '?apt=torre&da=2026-09-20&a=2026-09-23&adulti=2', '?apt=torre&da=2026-10-23&a=2026-10-20&adulti=2']) {
+    const v = await load('prenota.html', { search: q, scripts: PREN }); await waitFor(() => v.doc.querySelector('[data-testid=prenota-vuota]'), 'scegli le date ' + q);
+    assert(/Scegli prima le date/.test(text(v.doc.querySelector('[data-testid=prenota-vuota]'))) && v.doc.querySelector('a[href="torre.html#prenota"]') && v.doc.querySelector('a[href="corte.html#prenota"]'), q);
+  }
+  // disponibilità non verificabile: come nella scheda, si invita a scrivere o chiamare
+  H.breakFeed('bookingTorre', { status: 500 }); tick(200); await H.sync();
+  const o = await loadPren({ da: '2026-11-10', a: '2026-11-12' }); await waitFor(() => o.doc.querySelector('[data-testid=booking-offline]'), 'non verificabile');
+  assert(!o.doc.querySelector('[data-testid=booking-form]'));
 });
 test('W3 orizzonte: si prenota al massimo 6 mesi avanti (pagina e server), senza la nota «Prenotabile fino al…» sotto il calendario', async () => {
   await setup();                                                                      // oggi = 2 ott 2026 → ultimo giorno 2 apr 2027
@@ -896,11 +1034,12 @@ test('W29 prenotazione: prima di pagare si legge fino a quando si annulla gratis
   assert($('[data-testid=booking-cancel-policy]').hidden, 'senza date la regola non c\'è ancora');
   pickDates(doc, '2026-10-20', '2026-10-23');
   assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.');
-  $('[data-testid=booking-continue]').click();
-  assert.equal(text($('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.', 'anche nel riepilogo, accanto al pulsante del pagamento');
-  $('[data-testid=booking-back]').click();
+  const p = await loadPren({ da: '2026-10-20', a: '2026-10-23' }); await waitFor(() => p.doc.querySelector('[data-testid=booking-recap-policy]'), 'riepilogo');
+  assert.equal(text(p.doc.querySelector('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.', 'anche nel riepilogo della pagina di prenotazione, accanto al pagamento');
   doc.querySelector('#cal .d[data-d="2026-10-05"]').click(); doc.querySelector('#cal .d[data-d="2026-10-08"]').click();
   assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Non rimborsabile: l’arrivo è tra meno di 7 giorni.');
+  const q = await loadPren({ da: '2026-10-05', a: '2026-10-08' }); await waitFor(() => q.doc.querySelector('[data-testid=booking-recap-policy]'), 'riepilogo');
+  assert.equal(text(q.doc.querySelector('[data-testid=booking-recap-policy]')), 'Non rimborsabile: l’arrivo è tra meno di 7 giorni.');
 });
 test('W34 prezzo «da … a notte»: il più basso tra le notti prenotabili della settimana in corso (ora di Roma), con le regole del totale; nessun importo fisso; senza notti prenotabili la riga non c\'è', async () => {
   await setup();      // venerdì 2 ottobre 2026, 11:00 a Roma: la settimana va fino a domenica 4; Torre è occupata il 2 e il 3 (Booking), Corte è libera

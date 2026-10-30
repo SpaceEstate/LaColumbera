@@ -2,9 +2,20 @@
 
 Come funziona e come controllare che una prenotazione pagata arrivi davvero (a te, all'ospite, sul foglio e sul calendario).
 
+## Dove paga l'ospite
+
+1. Nella pagina dell'appartamento sceglie le date e gli ospiti: **adulti** e **bambini sotto i 4 anni** (gratis: non pagano il supplemento degli ospiti in più, ma contano per il massimo dell'appartamento). «Prenota» apre la **pagina di prenotazione** del sito (`prenota.html`), con il riepilogo a lato: foto, date, ospiti, il conto riga per riga e la regola di annullamento.
+2. Scrive **nome, cognome, email e telefono** (facoltativo) e preme «Continua al pagamento»: la prenotazione si registra e le notti vengono trattenute.
+3. Sotto compaiono i **campi della carta**, con i colori e il carattere del sito (anche Apple Pay e Google Pay, se attivi su Stripe). I numeri della carta li riceve solo Stripe: il sito non li vede mai. Se la banca chiede una conferma (codice via SMS o app) compare una finestra della banca, oppure si passa per un attimo dalla pagina della banca e si torna su quella del sito.
+4. Pagamento riuscito: la stessa pagina dice «Prenotazione confermata» con il codice.
+
+L'ospite può tornare ai dati («Modifica») o alle date («← Modifica date e ospiti»): le notti trattenute si liberano subito, così come se lascia la pagina senza pagare. Una carta rifiutata mostra il messaggio della banca e si riprova. Dopo 30 minuti senza pagare la pagina torna ai dati (già scritti) e le notti non sono più trattenute.
+
+**Senza la chiave pubblicabile** (`STRIPE_PUBLISHABLE_KEY`, vedi sotto) tutto funziona come prima: dopo i dati l'ospite paga sulla pagina di Stripe e poi torna sulla pagina di prenotazione. Gestione → Sito → Sistema → «Pagamenti ed email» lo segnala («Pagamento nella pagina del sito»).
+
 ## Cosa succede quando un ospite paga
 
-1. L'ospite sceglie le date: le notti vengono **trattenute** per 35 minuti mentre paga su Stripe.
+1. L'ospite sceglie le date: le notti vengono **trattenute** per 35 minuti mentre paga.
 2. Pagamento riuscito → la prenotazione diventa **confermata**, le notti si **chiudono** (sito e calendario iCal per Booking/Airbnb), la riga va sul **foglio**, ti arriva l'**email di nuova prenotazione**, all'ospite arriva la **conferma** con il link all'area clienti.
 3. Se l'ospite non paga, le notti tornano libere da sole.
 
@@ -13,7 +24,7 @@ La conferma parte da **tre strade**, tutte con lo stesso percorso (nessun doppio
 | Strada | Quando |
 |---|---|
 | Webhook di Stripe | Normalmente, pochi secondi dopo il pagamento |
-| Pagina di ritorno dopo il pagamento | L'ospite torna sul sito: la pagina chiede lo stato e, se serve, il sito controlla direttamente su Stripe |
+| Pagina di prenotazione, appena pagato (o al ritorno dalla pagina della banca o di Stripe) | La pagina chiede lo stato e, se serve, il sito controlla direttamente su Stripe. Se la banca non ha confermato il pagamento lo dice e si può riprovare |
 | Sincronizzazione automatica (ogni pochi minuti) | Ricontrolla su Stripe le prenotazioni rimaste «in attesa» da più di 3 minuti |
 
 Se il pagamento arriva quando le date non sono più libere (o non si possono verificare), la prenotazione resta **«da verificare»**: ti arriva un'email, all'ospite non scrive nessuno e decidi tu da Gestione → Prenotazioni (conferma o annulla/rimborsa). Un pagamento ripetuto non la conferma mai da solo.
@@ -27,6 +38,7 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 | Variabile | A cosa serve |
 |---|---|
 | `STRIPE_SECRET_KEY` | Incassi (chiave segreta del tuo account Stripe) |
+| `STRIPE_PUBLISHABLE_KEY` | **Nuova.** Campi della carta nella pagina del sito: Stripe → Sviluppatori → Chiavi API → «Chiave pubblicabile» (`pk_live_…`; per le prove `pk_test_…`, insieme alla chiave segreta di prova). Deve essere dello stesso tipo della chiave segreta. Senza, si paga sulla pagina di Stripe come prima |
 | `STRIPE_WEBHOOK_SECRET` | «Signing secret» del webhook di **questo sito** |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Invio delle email (password per le app di Gmail) |
 | `OWNER_EMAIL` | Dove ricevi gli avvisi (se manca: l'indirizzo predefinito) |
@@ -49,10 +61,14 @@ Se il pagamento arriva quando le date non sono più libere (o non si possono ver
 - **Il codice della cassetta** lo scrivi in Gestione → Sito → Appartamenti → Area ospiti («Codice della cassetta delle chiavi»). È lo stesso che il check-in manda via email, che invece lo legge dalle variabili `CODICE_CASSETTA_TORRE` e `CODICE_CASSETTA_CORTE` del progetto Check-in su Vercel: **se cambi il codice, cambialo in tutti e due i posti**. Se il campo in Gestione è vuoto, l'area usa quelle stesse variabili, se le imposti anche in questo progetto; senza nessuna delle due, l'area dice solo che il codice è nell'email del check-in.
 - **Chi vede il codice:** chi entra nell'area con il codice della prenotazione (come per il Wi-Fi), solo dopo il check-in pagato e solo nei giorni del soggiorno. Prima arrivava soltanto con l'email del check-in.
 
+## Apple Pay e Google Pay (facoltativi)
+
+Compaiono tra i campi della carta se sono attivi in Stripe → Impostazioni → Metodi di pagamento. **Apple Pay** nella pagina del sito richiede anche il dominio registrato: Stripe → Impostazioni → Domini dei metodi di pagamento → aggiungi il dominio del sito (es. `la-columbera.vercel.app` e, se c'è, il dominio tuo). Google Pay non richiede altro.
+
 ## Prova completa (una volta, e dopo ogni modifica alle chiavi)
 
 1. Gestione → Sito → Sistema → «Pagamenti ed email»: tutto verde; «Invia email di prova» e controlla la posta (anche lo spam).
-2. Fai una prenotazione di prova per una data lontana pagando con una carta vera (poi rimborsala da Stripe) oppure, con le chiavi di prova, con la carta `4242 4242 4242 4242`.
+2. Fai una prenotazione di prova per una data lontana pagando con una carta vera (poi rimborsala da Stripe) oppure, con le chiavi di prova (segreta e pubblicabile), con la carta `4242 4242 4242 4242`; con la carta `4000 0025 0000 3155` vedi anche la conferma della banca. Prova un'altra volta con 1 bambino: il prezzo non cambia e l'email dice «di cui 1 bambino sotto i 4 anni».
 3. Controlla: email a te, email all'ospite, riga sul foglio, notti chiuse sul sito, «Ultimo avviso da Stripe» compilato nella scheda.
 4. Annulla la prenotazione di prova da Gestione → Prenotazioni.
 

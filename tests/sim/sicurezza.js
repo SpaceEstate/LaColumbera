@@ -251,7 +251,7 @@ test('S13 token conservati solo come hash, con scadenza; calendario personale co
   eq((await H.api('ical', {}, { method: 'GET', query: { for: 'all', k: 'chiave-ical-di-prova' } })).status, 200);
 });
 
-test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da server esterni; header di sicurezza', async () => {
+test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da server esterni (solo Stripe.js, quando si passa al pagamento); header di sicurezza', async () => {
   const html = fs.readdirSync(ROOT).filter(f => f.endsWith('.html')), js = fs.readdirSync(path.join(ROOT, 'js')).filter(f => f.endsWith('.js'));
   for (const f of html) {
     const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -260,6 +260,13 @@ test('S14 sito: nessun tracciamento, nessun cookie, nessun font o script da serv
     assert(!/document\.cookie|localStorage/.test(s), f + ': cookie o localStorage');
   }
   for (const f of js) assert(!/document\.cookie|localStorage/.test(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8').replace(/\/\/.*$/gm, '')), 'js/' + f + ': cookie o localStorage');
+  // unica eccezione voluta: Stripe.js, per i campi della carta nella pagina di prenotazione (non si può ospitare sul sito). Lo carica js/pages.js
+  // solo con «Continua al pagamento» (stripeJs), mai all'apertura di una pagina; i suoi cookie tecnici sono dichiarati nell'informativa (§ 7).
+  const ext = js.flatMap(f => [...fs.readFileSync(path.join(ROOT, 'js', f), 'utf8').matchAll(/['"`](https:\/\/[a-z0-9.-]+\/[^'"`]*\.js)['"`]/gi)].map(m => f + ' ' + m[1]));
+  eq(ext, ['pages.js https://js.stripe.com/dahlia/stripe.js'], 'script esterni nel frontend');
+  const pj = fs.readFileSync(path.join(ROOT, 'js', 'pages.js'), 'utf8'), uso = [...pj.matchAll(/stripeJs\(\)/g)].map(m => m.index), invio = pj.indexOf("$('#f').onsubmit=async", pj.indexOf('async function prenota('));
+  assert(uso.length === 1 && invio > 0 && uso[0] > invio, 'Stripe.js si carica solo dentro l\'invio dei dati (Continua al pagamento)');
+  assert(/i campi della carta[^<]*sono di Stripe e si caricano solo quando scegli di pagare/.test(fs.readFileSync(path.join(ROOT, 'privacy.html'), 'utf8')), 'informativa: Stripe.js e i suoi cookie al momento del pagamento');
   const fontsCss = fs.readFileSync(path.join(ROOT, 'css', 'fonts.css'), 'utf8');
   for (const m of fontsCss.matchAll(/url\(\.\.\/fonts\/([^)]+)\)/g)) assert(fs.existsSync(path.join(ROOT, 'fonts', m[1])), 'font presente: ' + m[1]);
   for (const l of ['OFL-Fraunces.txt', 'OFL-Manrope.txt', 'OFL-PinyonScript.txt']) assert(fs.existsSync(path.join(ROOT, 'fonts', l)), 'licenza ' + l);

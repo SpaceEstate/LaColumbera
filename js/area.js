@@ -26,7 +26,7 @@ const L={
   err404:'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.',err429:'Troppi tentativi. Riprova tra qualche minuto (se hai prenotato sul sito puoi anche aprire il link della mail di conferma).',errRete:'Servizio non raggiungibile: controlla la connessione e riprova.',errChiusa:'Il soggiorno è finito: l\'area clienti resta aperta fino a 7 giorni dopo la partenza. Per qualsiasi necessità scrivici a lacolumbera@gmail.com.',
   esci:'Esci',tabSoggiorno:'Il soggiorno',tabInfo:'Info utili',tabDintorni:'Dintorni',tabMessaggi:'Messaggi',tabs:'Sezioni dell\'area clienti',
   prima:n=>n===1?'Arrivi domani':'Arrivi tra '+n+' giorni',oggiArrivo:'Benvenuto! Arrivi oggi',durante:'Buon soggiorno!',oggiPartenza:'Oggi è il giorno della partenza: buon viaggio!',dopo:'Grazie per aver soggiornato a La Columbera',
-  checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',nNotti:n=>n2(n,'notte','notti'),nOspiti:n=>n2(n,'ospite','ospiti'),dalle:h=>'dalle '+h,entro:h=>'entro le '+h,copia:'Copia codice',copiato:'Copiato ✓',confermata:'Confermata',
+  checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',nNotti:n=>n2(n,'notte','notti'),nOspiti:n=>n2(n,'ospite','ospiti'),diCui:n=>'di cui '+n2(n,'bambino','bambini')+' sotto i 4 anni',dalle:h=>'dalle '+h,entro:h=>'entro le '+h,copia:'Copia codice',copiato:'Copiato ✓',confermata:'Confermata',
   aCheckin:'Check-in online',aCheckinD:'Registra gli ospiti prima di arrivare',aGc:'Trentino Guest Card',aGcD:'Musei, trasporti e attrazioni',aStrada:'Indicazioni stradali',aChiama:'Chiama',aWa:'WhatsApp',aMail:'Email',aRec:'Lascia una recensione',aRecD:'Ci aiuti molto',
   aCheckinOk:'Check-in completato',aCheckinOkD:d=>d?'Fatto il '+d:'Ospiti registrati',cassTit:'Codice della cassetta delle chiavi',
   cassD:'Ti serve per prendere le chiavi all\'arrivo. È lo stesso che ti abbiamo mandato via email con il check-in, con le foto per trovare la cassetta.',
@@ -57,7 +57,7 @@ const L={
   err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',errChiusa:'Your stay has ended: the guest area stays open until 7 days after check-out. For anything you need, write to us at lacolumbera@gmail.com.',
   esci:'Log out',tabSoggiorno:'Your stay',tabInfo:'Useful info',tabDintorni:'Nearby',tabMessaggi:'Messages',tabs:'Guest area sections',
   prima:n=>n===1?'You arrive tomorrow':'You arrive in '+n+' days',oggiArrivo:'Welcome! You arrive today',durante:'Enjoy your stay!',oggiPartenza:'Today is your departure day: have a safe trip!',dopo:'Thank you for staying at La Columbera',
-  checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',nNotti:n=>n2(n,'night','nights'),nOspiti:n=>n2(n,'guest','guests'),dalle:h=>'from '+h,entro:h=>'by '+h,copia:'Copy code',copiato:'Copied ✓',confermata:'Confirmed',
+  checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',nNotti:n=>n2(n,'night','nights'),nOspiti:n=>n2(n,'guest','guests'),diCui:n=>'incl. '+n2(n,'child','children')+' under 4',dalle:h=>'from '+h,entro:h=>'by '+h,copia:'Copy code',copiato:'Copied ✓',confermata:'Confirmed',
   aCheckin:'Online check-in',aCheckinD:'Register your guests before you arrive',aGc:'Trentino Guest Card',aGcD:'Museums, transport and attractions',aStrada:'Directions',aChiama:'Call',aWa:'WhatsApp',aMail:'Email',aRec:'Leave a review',aRecD:'It helps us a lot',
   aCheckinOk:'Check-in completed',aCheckinOkD:d=>d?'Done on '+d:'Guests registered',cassTit:'Key box code',
   cassD:'You need it to collect the keys when you arrive. It is the same code we emailed you after check-in, together with the photos showing where the key box is.',
@@ -88,7 +88,7 @@ const L={
   err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',errChiusa:'Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet. Für alle Anliegen schreiben Sie uns an lacolumbera@gmail.com.',
   esci:'Abmelden',tabSoggiorno:'Ihr Aufenthalt',tabInfo:'Nützliche Infos',tabDintorni:'Umgebung',tabMessaggi:'Nachrichten',tabs:'Bereiche des Gästebereichs',
   prima:n=>n===1?'Sie reisen morgen an':'Sie reisen in '+n+' Tagen an',oggiArrivo:'Willkommen! Sie reisen heute an',durante:'Schönen Aufenthalt!',oggiPartenza:'Heute ist Ihr Abreisetag: Gute Reise!',dopo:'Danke für Ihren Aufenthalt in La Columbera',
-  checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',nNotti:n=>n2(n,'Nacht','Nächte'),nOspiti:n=>n2(n,'Gast','Gäste'),dalle:h=>'ab '+h+' Uhr',entro:h=>'bis '+h+' Uhr',copia:'Code kopieren',copiato:'Kopiert ✓',confermata:'Bestätigt',
+  checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',nNotti:n=>n2(n,'Nacht','Nächte'),nOspiti:n=>n2(n,'Gast','Gäste'),diCui:n=>'davon '+n2(n,'Kind','Kinder')+' unter 4 Jahren',dalle:h=>'ab '+h+' Uhr',entro:h=>'bis '+h+' Uhr',copia:'Code kopieren',copiato:'Kopiert ✓',confermata:'Bestätigt',
   aCheckin:'Online-Check-in',aCheckinD:'Gäste vor der Anreise registrieren',aGc:'Trentino Guest Card',aGcD:'Museen, Verkehrsmittel und Attraktionen',aStrada:'Wegbeschreibung',aChiama:'Anrufen',aWa:'WhatsApp',aMail:'E-Mail',aRec:'Bewertung schreiben',aRecD:'Das hilft uns sehr',
   aCheckinOk:'Check-in abgeschlossen',aCheckinOkD:d=>d?'Erledigt am '+d:'Gäste registriert',cassTit:'Code des Schlüsselkastens',
   cassD:'Sie brauchen ihn, um bei der Ankunft die Schlüssel zu nehmen. Es ist derselbe Code, den wir Ihnen nach dem Check-in per E-Mail geschickt haben, mit den Fotos, die zeigen, wo der Schlüsselkasten ist.',
@@ -203,7 +203,7 @@ function pSoggiorno(s){
     <div class="bc-cell"><span>${esc(t('checkin'))}</span><b>${esc(dLong(s.da))}</b>${h.checkin?`<small>${esc(t('dalle',h.checkin))}</small>`:''}</div>
     <div class="bc-cell"><span>${esc(t('checkout'))}</span><b>${esc(dLong(s.a))}</b>${h.checkout?`<small>${esc(t('entro',h.checkout))}</small>`:''}</div>
     <div class="bc-cell"><span>${esc(t('notti'))}</span><b>${esc(s.notti)}</b></div>
-    <div class="bc-cell"><span>${esc(t('ospiti'))}</span><b>${esc(s.ospiti||'—')}</b></div>
+    <div class="bc-cell"><span>${esc(t('ospiti'))}</span><b>${esc(s.ospiti||'—')}</b>${s.bambini>0?`<small data-testid="ga-bambini">${esc(t('diCui',s.bambini))}</small>`:''}</div>
    </div>
    <button type="button" class="ga-copy" data-copy="${esc(code)}" data-testid="ga-copy-code">${esc(t('copia'))}</button>
   </article>`;

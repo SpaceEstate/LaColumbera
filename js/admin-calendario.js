@@ -36,7 +36,7 @@ function vApt(p,i){const chiuso=!!S().closed[p.id];
    <div class="fields-grid"><div class="field"><label>Prezzo a notte con 1 ospite (€)</label><input type="number" min="0" data-b="a:${i}:base" value="${p.base}" data-testid="admin-base-${p.id}"></div></div>
    <p class="book-note">È il prezzo a notte per il primo ospite: gli ospiti in più si aggiungono qui sotto. I prezzi di stagione e quelli per singola notte sostituiscono questo importo.</p>
    <h3>Ospiti in più (a notte)</h3>
-   <p class="book-note">Ogni ospite dopo il primo aggiunge un importo a notte, diverso per ciascuno: metti 0 se quell'ospite non costa di più. Esempio: 1° ospite €100 e supplementi +10 · +25 · +50 → 2 ospiti €110, 3 ospiti €135, 4 ospiti €185 a notte. L'ultimo importo vale anche per gli ospiti successivi.</p>
+   <p class="book-note">Ogni ospite dopo il primo aggiunge un importo a notte, diverso per ciascuno: metti 0 se quell'ospite non costa di più. Esempio: 1° ospite €100 e supplementi +10 · +25 · +50 → 2 ospiti €110, 3 ospiti €135, 4 ospiti €185 a notte. L'ultimo importo vale anche per gli ospiti successivi. I bambini sotto i 4 anni non pagano: non contano tra gli ospiti in più, ma sì per il numero massimo di ospiti.</p>
    <div id="steps-${i}"></div>
    <button type="button" class="btn btn-line" data-act="stepAdd" data-i="${i}">+ Aggiungi scaglione</button>
    <div id="prev-${i}" class="adm-prev"></div></div>

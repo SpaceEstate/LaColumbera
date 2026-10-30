@@ -43,6 +43,17 @@ const sup=(p,n)=>{const k=Math.max(0,n-(p.inclusi||1)),st=(p.extraSteps&&p.extra
 const minFor=(p,da)=>{const r=(p.minPeriodi||[]).find(q=>q.da&&q.a&&da>=q.da&&da<=q.a);return+(r?r.min:p.min)||1};
 const F2=s=>{const m=/(\d{4})-(\d\d)-(\d\d)/.exec(s);return m?m[3]+'/'+m[2]+'/'+m[1]:s};
 const APT_LABEL={torre:'La Columbera - Torre, Appartamento con 2 camere da letto',corte:'La Columbera - Corte, Appartamento con 1 camere da letto'};
+// Ospiti di una prenotazione: adulti (pagano) e bambini sotto i 4 anni (gratis: non contano per il supplemento degli ospiti in più, ma sono persone
+// in casa e contano per il massimo dell'appartamento). Le pagine di prima mandano solo «ospiti»: valgono tutti come adulti.
+const intero=(v,d)=>{const n=Math.floor(Number(v));return Number.isFinite(n)?n:d};
+const ospitiDi=(p,b)=>{const ad=Math.min(Math.max(intero(b.adulti!=null?b.adulti:b.ospiti,1),1),p.max),bam=Math.min(Math.max(intero(b.bambini,0),0),p.max-ad);return{adulti:ad,bambini:bam,ospiti:ad+bam}};
+const ospitiTxt=o=>o.bambini?o.adulti+(o.adulti===1?' adulto':' adulti')+' + '+o.bambini+(o.bambini===1?' bambino':' bambini')+' sotto i 4 anni':o.ospiti+(o.ospiti===1?' ospite':' ospiti');
+// Chiave pubblicabile di Stripe (pk_live_… / pk_test_…, variabile STRIPE_PUBLISHABLE_KEY): con questa i campi della carta compaiono nella pagina
+// prenota.html, con lo stile del sito. Senza, con un formato sbagliato o di tipo diverso dalla chiave segreta (prova con reale: il pagamento non
+// partirebbe) si paga sulla pagina di Stripe, come prima. stato: ok | manca | formato | tipo (lo mostra Gestione → Sito → Sistema).
+const stripePk=()=>{const pk=String(process.env.STRIPE_PUBLISHABLE_KEY||'').trim(),tipo=k=>(/^[spr]k_(live|test)/.exec(k)||[])[1]||'';
+ if(!pk)return{pk:'',stato:'manca'};if(!/^pk_(live|test)_\w+$/.test(pk))return{pk:'',stato:'formato'};
+ const ts=tipo(String(process.env.STRIPE_SECRET_KEY||'').trim());return ts&&ts!==tipo(pk)?{pk:'',stato:'tipo'}:{pk,stato:'ok'}};
 
 // Messaggio al cliente (409) quando il preavviso minimo non è rispettato: la regola, il primo arrivo prenotabile e come ottenere un arrivo più vicino
 const fmtLong=s=>{try{const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(s),t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});return t}catch{return F2(s)}};
@@ -62,7 +73,7 @@ const soggiornoOut=(config,x,bk,ck)=>{
  const p=(config.apts||[]).find(q=>q.id===x.id)||{},oggi=todayRome(),dal=AV.isIso(x.da)?addDays(x.da,-infoGiorni(config)):'',vis=!!dal&&oggi>=dal&&oggi<=x.a,ris=String(p.infoRiservate||'').trim();
  const fatto=!!(ck&&ck.fatto),cas=fatto?require('./_checkin.js').codiceCassetta(p,x.id):'';
  const pagato=bk&&Date.parse(bk.confermata_il)?todayRome(Date.parse(bk.confermata_il)):'',ct=bk&&bk.conto&&Array.isArray(bk.conto.righe)?bk.conto:null;
- return{code:x.code,id:x.id,apt:{nome:String(p.nome||x.id),sotto:String(p.sotto||''),foto:String((p.foto||[])[0]||'')},da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,stato:x.stato,
+ return{code:x.code,id:x.id,apt:{nome:String(p.nome||x.id),sotto:String(p.sotto||''),foto:String((p.foto||[])[0]||'')},da:x.da,a:x.a,notti:x.notti,ospiti:x.ospiti,bambini:+x.bambini||0,stato:x.stato,
   origine:x.origine||'',portale:PORTALI[x.origine]||'',
   orari:{checkin:AV.noticeSettings(config).ora,checkout:RE_HHMM.test(config.checkoutOra)?config.checkoutOra:''},
   pagamento:bk?{totale:+bk.totale||0,pagato:!!bk.pagamento,data:bk.pagamento?pagato:'',conto:ct?{righe:ct.righe.map(r=>({dal:String(r.dal||''),notti:+r.notti||0,prezzo:+r.prezzo||0})),supplemento:+ct.supplemento||0}:null}:null,
@@ -384,19 +395,19 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  const nt=AV.noticeSettings(config),noticeErr=()=>{const t=Date.now();return AV.noticeOk(b.da,t,nt)?null:noticeBody(nt,t)};
  const ne=noticeErr();if(ne)return res.status(409).json(ne);
  if(!process.env.STRIPE_SECRET_KEY)return res.status(500).json({err:'Pagamento non configurato (manca STRIPE_SECRET_KEY su Vercel)'});
- const n=Math.min(Math.max(+b.ospiti||1,1),p.max),NV={err:'Disponibilità temporaneamente non verificabile: riprova tra qualche minuto o scrivici a lacolumbera@gmail.com'},ND={err:'Date non più disponibili'};
+ const os=ospitiDi(p,b),n=os.ospiti,NV={err:'Disponibilità temporaneamente non verificabile: riprova tra qualche minuto o scrivici a lacolumbera@gmail.com'},ND={err:'Date non più disponibili'};
  // 1) controllo (fail-closed)  2) HOLD ATOMICO sulle notti  3) ricontrollo dopo l'hold  4) sessione Stripe
  try{const pre=await E.checkRange(config,p.id,b.da,b.a);
   if(pre.status==='unverifiable')return res.status(503).json(NV);
   if(pre.conflicts.length)return res.status(409).json(ND)}
  catch(e){console.error('checkout/pre:',e.message);return res.status(503).json(NV)}
- const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,n),0);
+ const totale=g.reduce((s,d)=>s+np(p,d)+sup(p,os.adulti),0);      // i bambini sotto i 4 anni non pagano
  // codice lungo e casuale (13 caratteri): è anche la chiave dell'area clienti. Una collisione è praticamente impossibile, ma non si sovrascrive mai una prenotazione
  let code=newBookingCode();for(let i=0;i<3&&await E.bkGet(code);i++)code=newBookingCode();
  // conto: come si arriva al totale, per il riepilogo dell'area clienti (le notti consecutive con lo stesso prezzo stanno in una riga). Si salva adesso:
  // se poi il titolare cambia i prezzi, l'ospite vede comunque quelli che ha pagato.
  const righe=[];for(const d of g){const pz=np(p,d),l=righe[righe.length-1];if(l&&l.prezzo===pz)l.notti++;else righe.push({dal:d,notti:1,prezzo:pz})}
- const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,n)},stato:'in_attesa',creato:new Date().toISOString()};
+ const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,adulti:os.adulti,bambini:os.bambini,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,os.adulti)},stato:'in_attesa',creato:new Date().toISOString()};
  let h;try{h=await E.holdAcquire(p.id,g,r.code,E.T.holdTtlSec)}catch(e){console.error('checkout/hold:',e.message);return res.status(503).json(NV)}
  if(!h.ok)return res.status(409).json(ND);
  try{const post=await E.checkRange(config,p.id,b.da,b.a,{ignoreHold:r.code,fresh:false});
@@ -407,18 +418,26 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
   await E.bkPut(r)}
  catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});console.error('checkout/post:',e.message);return res.status(503).json(NV)}
  const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY),site='https://'+req.headers.host;
+ // Dove si paga: dalla pagina prenota.html (b.ui) nella pagina stessa, con i campi della carta di Stripe (ui_mode «elements») e lo stile del sito,
+ // se c'è la chiave pubblicabile; altrimenti sulla pagina di Stripe, come prima. Si torna sempre alla pagina da cui si è partiti
+ // (prenota.html con le stesse date e gli stessi ospiti; per le pagine di prima quella dell'appartamento).
+ const pk=b.ui?stripePk().pk:'',nelSito=b.ui==='elements'&&!!pk,
+  torna=b.ui?site+'/prenota.html?'+new URLSearchParams({apt:p.id,da:r.da,a:r.a,adulti:String(os.adulti),bambini:String(os.bambini)})+'&':site+'/'+p.id+'.html?';
  let session;
- try{session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],customer_email:r.email,client_reference_id:r.code,locale:'it',
-  line_items:[{quantity:1,price_data:{currency:'eur',unit_amount:Math.round(totale*100),product_data:{name:APT_LABEL[p.id]||p.nome,description:F2(r.da)+' → '+F2(r.a)+' · '+n+' ospiti · '+g.length+' notti'}}}],
+ try{session=await stripe.checkout.sessions.create(Object.assign({mode:'payment',payment_method_types:['card'],customer_email:r.email,client_reference_id:r.code,
+  line_items:[{quantity:1,price_data:{currency:'eur',unit_amount:Math.round(totale*100),product_data:{name:APT_LABEL[p.id]||p.nome,description:F2(r.da)+' → '+F2(r.a)+' · '+ospitiTxt(os)+' · '+g.length+' notti'}}}],
   metadata:{code:r.code,apt:p.id,da:r.da,a:r.a},
-  success_url:site+'/'+p.id+'.html?pagamento=successo&code='+r.code,
-  cancel_url:site+'/'+p.id+'.html?pagamento=annullato&code='+r.code,
-  expires_at:Math.floor(Date.now()/1000)+1810})}
+  expires_at:Math.floor(Date.now()/1000)+1810},
+  // nella pagina del sito: la lingua la dà la pagina (Stripe.js), success_url e cancel_url non sono ammessi; return_url serve solo se la banca
+  // porta l'ospite su un'altra pagina per confermare il pagamento
+  nelSito?{ui_mode:'elements',return_url:torna+'pagamento=successo&code='+r.code}
+   :{locale:'it',success_url:torna+'pagamento=successo&code='+r.code,cancel_url:torna+'pagamento=annullato&code='+r.code}))}
  catch(e){await E.holdRelease(p.id,g,r.code).catch(()=>{});await E.bkDel(r.code).catch(()=>{});console.error('checkout/stripe:',(e&&(e.type||e.code))||'errore');return res.status(500).json({err:'Non è stato possibile avviare il pagamento: riprova tra qualche minuto.'})}
  r.sessione=session.id;await E.bkPut(r).catch(()=>{});
  // token segreto per questa prenotazione: il browser lo tiene in sessionStorage (ritorno da Stripe, annullo, area clienti)
  let t=null;try{t=await ACC.issueForBooking(r,'checkout')}catch(e){console.error('checkout/token:',e.message)}
- return res.json({code:r.code,url:session.url,t})}
+ // cs = chiave della sessione per i campi della carta nella pagina (vale solo per questo pagamento); pk = chiave pubblicabile (pubblica per natura)
+ return res.json(nelSito?{code:r.code,cs:session.client_secret,pk,t}:{code:r.code,url:session.url,t})}
 if(a==='checkout_cancel'){ // l'ospite torna indietro dalla pagina Stripe: libera subito le notti (il record resta: se paga lo stesso, il webhook lo conferma)
  // Serve il token del checkout: senza, nessuno può liberare le notti trattenute da un altro (la risposta è sempre la stessa;
  // in mancanza di token le notti si liberano comunque alla scadenza dell'hold o con l'evento "expired" di Stripe).
@@ -430,10 +449,12 @@ if(a==='checkout_status'){ // l'ospite è tornato dal pagamento: com'è andata? 
  const code=String(b.code||'').trim().toUpperCase();
  if(!(code&&await ACC.verify(code,b.t)))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
  let bk=await E.bkGet(code);if(!bk)return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
+ let aperta=false;
  if(bk.stato==='in_attesa'){
-  try{await require('./_pagato.js').riconcilia(bk,req)}catch(e){console.error('checkout_status:',String(e&&(e.code||e.message)||'errore').slice(0,80))}      // un errore (Stripe, passo già in corso) non cambia la risposta: si dice lo stato attuale
+  try{aperta=(await require('./_pagato.js').riconcilia(bk,req)).sessione==='open'}catch(e){console.error('checkout_status:',String(e&&(e.code||e.message)||'errore').slice(0,80))}      // un errore (Stripe, passo già in corso) non cambia la risposta: si dice lo stato attuale
   bk=await E.bkGet(code)||bk}
- return res.json({stato:bk.stato,email:maskEmail(bk.email)})}
+ // aperta: su Stripe il pagamento non è (ancora) completato, per esempio la banca non l'ha confermato. La pagina lo dice e si può riprovare.
+ return res.json(Object.assign({stato:bk.stato,email:maskEmail(bk.email)},aperta&&bk.stato==='in_attesa'?{aperta:true}:{}))}
 // Area clienti e Guest Card: basta il codice della prenotazione (o il token del link della mail / della sessione già aperta).
 // Il codice "ufficiale" della risposta (code) è quello registrato: la pagina lo usa con il token per le richieste successive.
 let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},async(code,o)=>findBooking(cfgG||(cfgG=await cfg(req)),code,o));
@@ -719,4 +740,4 @@ res.status(404).json({err:'?'})}catch(e){console.error('x:',a,String(e&&e.messag
 module.exports=handler;
 module.exports.kv=kv;module.exports.kvp=kvp;module.exports.engine=E;module.exports.cfg=cfg;
 module.exports.sheetAppend=sheetAppend;module.exports.sheetUpsertBooking=sheetUpsertBooking;module.exports.getBk=E.bkAll;
-module.exports.checkin=CK;module.exports.OWNER_EMAIL=OWNER_EMAIL;module.exports.REPLY_TO=REPLY_TO;module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;
+module.exports.checkin=CK;module.exports.OWNER_EMAIL=OWNER_EMAIL;module.exports.REPLY_TO=REPLY_TO;module.exports.access=ACC;module.exports.APT_LABEL=APT_LABEL;module.exports.F2=F2;module.exports.sendMail=sendMail;module.exports.auth=auth;module.exports.stripePk=stripePk;

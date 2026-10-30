@@ -94,6 +94,7 @@ const stripeClient = () => require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Chiede a Stripe com'è andata la sessione di una prenotazione "in attesa" e, se è stata pagata, la conferma (stesso percorso del webhook).
 // Ritorna { recuperata: true } solo se QUESTA chiamata l'ha confermata; il webhook arrivato nel frattempo non conta come recupero.
+// sessione = stato della sessione su Stripe (open = pagamento non ancora completato: lo dice all'ospite la pagina di ritorno).
 async function riconcilia(b, req) {
   if (!process.env.STRIPE_SECRET_KEY || !b || !b.sessione || b.stato !== 'in_attesa') return { recuperata: false };
   const s = await stripeClient().checkout.sessions.retrieve(b.sessione);
@@ -107,7 +108,7 @@ async function riconcilia(b, req) {
     const cur = await E.bkGet(b.code);
     if (cur && cur.stato === 'in_attesa') await E.bkPut(Object.assign(cur, { scaduta: true }));
   }
-  return { recuperata: false };
+  return { recuperata: false, sessione: s.status };
 }
 
 // Controllo periodico (sincronizzazione): le prenotazioni "in attesa" con una sessione Stripe, più vecchie di 3 minuti (al webhook si lascia il tempo
@@ -141,7 +142,7 @@ const EVENTI_ATTESI = ['checkout.session.completed', 'checkout.session.expired']
 async function salute(req, config) {
   const env = process.env, t = Date.now();
   const out = {
-    ambiente: { stripe: !!env.STRIPE_SECRET_KEY, webhook: !!env.STRIPE_WEBHOOK_SECRET, email: !!(env.GMAIL_USER && env.GMAIL_APP_PASSWORD), foglio: !!(env.SHEET_WEBAPP_URL && env.SHEET_SECRET), sync: !!env.SYNC_SECRET, destinatario: mask(OWNER_EMAIL), destinatarioImpostato: !!env.OWNER_EMAIL },
+    ambiente: { stripe: !!env.STRIPE_SECRET_KEY, webhook: !!env.STRIPE_WEBHOOK_SECRET, email: !!(env.GMAIL_USER && env.GMAIL_APP_PASSWORD), foglio: !!(env.SHEET_WEBAPP_URL && env.SHEET_SECRET), sync: !!env.SYNC_SECRET, destinatario: mask(OWNER_EMAIL), destinatarioImpostato: !!env.OWNER_EMAIL, nelSito: x.stripePk().stato },      // nelSito: chiave pubblicabile per pagare nella pagina del sito (ok | manca | formato | tipo)
     stripe: { collegato: null, errore: '', webhook: null, consegneFallite: null },
     ultimoWebhook: null, recuperate: { n: 0, ultima: null }, coda: null, incompleti: [], inAttesaVecchie: 0, daVerificare: 0
   };

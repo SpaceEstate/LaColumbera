@@ -35,7 +35,7 @@ Ogni fallimento produce **la stessa risposta**: 404 con il messaggio "Prenotazio
 
 ### Flusso per l'ospite
 
-1. **Prenotazione dal sito.** Il checkout restituisce `{code, url, t}`. La pagina salva `{c, t}` in `sessionStorage` (chiave `lc_acc`) e apre Stripe. Al ritorno la pagina mostra il codice a gruppi.
+1. **Prenotazione dal sito** (pagina `prenota.html`). Il checkout restituisce `{code, cs, pk, t}` (campi della carta nella pagina: `cs` è la chiave della sola sessione di pagamento, `pk` la chiave pubblicabile) oppure, senza `STRIPE_PUBLISHABLE_KEY`, `{code, url, t}` (pagina di Stripe). La pagina salva `{c, t}` in `sessionStorage` (chiavi `lc_acc` e, finché non si paga, `lc_attesa`). Dopo il pagamento, o al ritorno da Stripe, la pagina mostra il codice a gruppi.
 2. **Mail di conferma** (webhook Stripe, oppure conferma admin di una prenotazione "da verificare"). Contiene il codice a gruppi e il link `…/area-clienti.html#c=CODICE&t=TOKEN`. Il frammento `#…` **non viene inviato** al server, ai log di Vercel o ai siti esterni (Referer). La pagina lo legge, lo sposta in `sessionStorage` e lo cancella dall'indirizzo con `history.replaceState`.
 3. **Codice digitato.** Un solo campo. Se il codice è giusto il server restituisce la prenotazione, il codice registrato e un token di sessione di 4 ore, che la pagina conserva in `sessionStorage` per le richieste successive (Guest Card). A sessione scaduta la pagina rientra da sola con il codice.
 4. **Messaggio di benvenuto** (Booking/Airbnb, WhatsApp): link `…/area-clienti.html#k=CODICE`. Come per il link della mail, il codice è nel frammento e sparisce dall'indirizzo.
@@ -122,10 +122,12 @@ Per modificare le soglie si interviene sull'oggetto `RL` in `api/_accesso.js`; l
 | Tipo | Nome | Dove | Scopo |
 |---|---|---|---|
 | sessionStorage | `lc_acc` | area clienti, Guest Card, checkout | codice e token di accesso dell'ospite, fino alla chiusura della scheda |
+| sessionStorage | `lc_prenota`, `lc_attesa` | pagina di prenotazione | dati scritti nel modulo (nome, cognome, email, telefono) per non riscriverli tornando indietro; codice e token della prenotazione in attesa di pagamento, per liberarne le notti se la pagina si riapre senza aver pagato |
 | sessionStorage | `lc_lang`, `lc_pwa_no` | area clienti | lingua scelta; invito «Aggiungi alla schermata Home» chiuso |
 | Cache Storage | `lc-area-v1` | area clienti (service worker `sw.js`, ambito `/area-clienti`) | solo i file della pagina (HTML, CSS, JS, logo) per aprirla senza rete. Le risposte di `api/` non vengono mai salvate |
 | sessionStorage | `lc_t` | admin | token della sessione admin (invariato) |
-| Cookie | nessuno | – | – |
+| Cookie | nessuno del sito | – | – |
+| Cookie di Stripe | `__stripe_mid`, `__stripe_sid` (di Stripe.js) | pagina di prenotazione, solo dopo «Continua al pagamento» | sicurezza del pagamento e prevenzione delle frodi (Stripe è titolare autonomo) |
 | localStorage | nessuno | – | – |
 | Tracking/analytics | nessuno | – | – |
 | Font | Fraunces, Manrope, Pinyon Script | `/fonts/`, `css/fonts.css` | self-hosting da @fontsource 5.3.0. Licenza SIL OFL 1.1, testi in `fonts/OFL-*.txt` |

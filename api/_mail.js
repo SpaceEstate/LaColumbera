@@ -15,6 +15,8 @@ const dLong=s=>{const m=/^(\d{4})-(\d\d)-(\d\d)/.exec(s||'');if(!m)return x.F2(s
   try{const t=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});return t.charAt(0).toUpperCase()+t.slice(1)}catch{return x.F2(s)}};
 const eur=n=>{const v=Number(n);if(!isFinite(v))return '€ '+esc(n);return '€ '+v.toLocaleString('it-IT',{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2})};
 const plural=(n,one,many)=>n+' '+(+n===1?one:many);
+// ospiti della prenotazione: i bambini sotto i 4 anni (gratis) sono compresi nel numero e si dicono a parte
+const ospitiTxt=b=>plural(b.ospiti,'persona','persone')+(+b.bambini>0?' (di cui '+plural(+b.bambini,'bambino','bambini')+' sotto i 4 anni)':'');
 // Codice del sito (13 caratteri) a gruppi per leggerlo e dettarlo: "558R TE56 487A9". Gli spazi non contano: l'area clienti accetta il codice
 // con o senza spazi e trattini. Gli altri codici (es. quelli di prima, di 6 caratteri) restano come sono.
 const fmtCode=code=>{const s=String(code||'');return /^[0-9A-Z]{13}$/.test(s)?s.slice(0,4)+' '+s.slice(4,8)+' '+s.slice(8):s};
@@ -27,7 +29,7 @@ const row=(k,v,last)=>`<tr><td style="padding:13px 0;${last?'':`border-bottom:1p
 
 const recap=b=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td colspan="2" style="padding:0 0 14px"><div style="font-family:${SERIF};font-size:22px;line-height:28px;color:${C.ink}">${esc(aptName(b.id))}</div>${aptSub(b.id)?`<div style="font-family:${SANS};font-size:13px;color:${C.muted};padding-top:2px">${esc(aptSub(b.id))}</div>`:''}</td></tr>
-${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Notti',esc(plural(b.notti,'notte','notti')))}${row('Ospiti',esc(plural(b.ospiti,'persona','persone')))}
+${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Notti',esc(plural(b.notti,'notte','notti')))}${row('Ospiti',esc(ospitiTxt(b)))}
 <tr><td style="padding:16px 0 0;font-family:${SANS};font-size:14px;color:${C.muted};vertical-align:middle">Importo pagato</td><td align="right" style="padding:16px 0 0;font-family:${SERIF};font-size:28px;line-height:32px;color:${C.wine}">${esc(eur(b.totale))}</td></tr></table>`;
 
 const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine}" style="border-radius:999px"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></td></tr></table>`;
@@ -84,7 +86,7 @@ ${aptName(b.id)}${aptSub(b.id)?' ('+aptSub(b.id)+')':''}
 Check-in:  ${dLong(b.da)}
 Check-out: ${dLong(b.a)}
 Notti:     ${b.notti}
-Ospiti:    ${b.ospiti}
+Ospiti:    ${ospitiTxt(b)}
 Importo pagato: ${eur(b.totale)}
 ${annulloRiga(b)}
 
@@ -119,7 +121,7 @@ ${aptName(b.id)}
 Check-in:  ${dLong(b.da)}
 Check-out: ${dLong(b.a)}
 Notti:     ${b.notti}
-Ospiti:    ${b.ospiti}
+Ospiti:    ${ospitiTxt(b)}
 Importo pagato: ${eur(b.totale)}
 
 Ospite

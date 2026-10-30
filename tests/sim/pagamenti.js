@@ -200,7 +200,12 @@ test('P11 controllo di Gestione: solo con login; dice cosa è configurato e se i
   await base();
   eq((await H.api('health', {})).status, 401, 'senza login niente'); eq((await H.api('test_mail', {})).status, 401);
   let h = (await H.adminApi('health', {})).body;
-  eq(h.ambiente, { stripe: true, webhook: true, email: true, foglio: true, sync: true, destinatario: 'ow***@test', destinatarioImpostato: true });
+  eq(h.ambiente, { stripe: true, webhook: true, email: true, foglio: true, sync: true, destinatario: 'ow***@test', destinatarioImpostato: true, nelSito: 'ok' });
+  // chiave pubblicabile per pagare nella pagina del sito: mancante, malformata o di tipo diverso dalla segreta (prova con reale) si vede, mai il valore
+  for (const [pk, st] of [[undefined, 'manca'], ['chiave', 'formato'], ['pk_live_abc', 'tipo'], ['pk_test_prova', 'ok']]) {
+    if (pk === undefined) delete process.env.STRIPE_PUBLISHABLE_KEY; else process.env.STRIPE_PUBLISHABLE_KEY = pk;
+    eq((await H.adminApi('health', {})).body.ambiente.nelSito, st, String(pk));
+  }
   eq([h.stripe.collegato, h.stripe.webhook], [true, []], 'nessun webhook registrato: lo si vede'); eq(h.ultimoWebhook, null, 'e nessun evento ancora ricevuto');
   global.__stripeWebhooks = [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', status: 'enabled', enabled_events: ['checkout.session.completed', 'checkout.session.expired'] }, { url: 'https://checkin.test/api/stripeWebhook', status: 'enabled', enabled_events: ['checkout.session.completed'] }];
   h = (await H.adminApi('health', {})).body; eq(h.stripe.webhook, [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', stato: 'enabled', mancanti: [] }], 'solo il webhook di questo sito, quello del check-in non c\'entra');
@@ -259,6 +264,53 @@ const regAirbnb = () => {      // una prenotazione Airbnb nel registro del fogli
   snap.rows = [{ id: 'AIRBNB|HMSEDESZCW', fonte: 'AIRBNB', codice: 'HMSEDESZCW', apt: 'corte', checkin: '2026-11-05', checkout: '2026-11-08', notti: 3, ospiti: 2, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] }];
   kv.exec(['SET', 'reg:snap', JSON.stringify(Object.assign({ invalid: [], count: 1, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' }, snap))]);
 };
+
+test('P16 pagamento nella pagina del sito (prenota.html): sessione «elements» con la chiave della sessione e quella pubblicabile, ritorno su prenota.html; senza chiave pubblicabile si paga sulla pagina di Stripe; le pagine di prima come prima', async () => {
+  await base();
+  const PR = 'https://www.lacolumbera.test/prenota.html?apt=torre&da=2026-10-20&a=2026-10-23&adulti=2&bambini=0&';
+  const c = await checkout({ ui: 'elements', adulti: 2, bambini: 0 }); eq(c.status, 200, JSON.stringify(c.body));
+  const code = c.body.code, s = sessionOf(code);
+  eq([c.body.cs, c.body.pk, c.body.url, typeof c.body.t], [s.client_secret, 'pk_test_prova', undefined, 'string'], 'la pagina riceve la chiave della sessione, non un indirizzo');
+  eq([s.params.ui_mode, s.params.return_url, s.params.success_url, s.params.cancel_url, s.params.locale], ['elements', PR + 'pagamento=successo&code=' + code, undefined, undefined, undefined]);
+  eq([s.params.customer_email, s.params.client_reference_id, s.params.metadata.code, s.params.line_items[0].price_data.unit_amount, s.params.expires_at - Math.floor(clock.now() / 1000)], ['mario@test.it', code, code, 54000, 1810]);
+  eq([bk(code).stato, holds('torre') > 0], ['in_attesa', true], 'notti trattenute come prima');
+  // al ritorno (la banca ha portato l'ospite su un'altra pagina): non pagato = «aperta», si può riprovare; pagato = confermata
+  eq((await H.api('checkout_status', { code, t: c.body.t })).body, { stato: 'in_attesa', email: 'ma***@test.it', aperta: true });
+  paid(code); eq((await H.api('checkout_status', { code, t: c.body.t })).body, { stato: 'confermata', email: 'ma***@test.it' });
+  // senza chiave pubblicabile (o con chiavi di tipo diverso): pagina di Stripe, con ritorno su prenota.html (anche se l'ospite annulla)
+  for (const [pk, da, al] of [[undefined, '2026-11-04', '2026-11-06'], ['pk_live_altra', '2026-11-08', '2026-11-10']]) {
+    if (pk === undefined) delete process.env.STRIPE_PUBLISHABLE_KEY; else process.env.STRIPE_PUBLISHABLE_KEY = pk;
+    const h = await checkout({ ui: 'elements', da, a: al, email: 'h@t.it' }); eq(h.status, 200, JSON.stringify(h.body));
+    const hs = sessionOf(h.body.code), q = 'https://www.lacolumbera.test/prenota.html?apt=torre&da=' + da + '&a=' + al + '&adulti=2&bambini=0&';
+    eq([h.body.url, h.body.cs, h.body.pk], [hs.url, undefined, undefined], String(pk));
+    eq([hs.params.ui_mode, hs.params.locale, hs.params.success_url, hs.params.cancel_url], [undefined, 'it', q + 'pagamento=successo&code=' + h.body.code, q + 'pagamento=annullato&code=' + h.body.code], String(pk));
+  }
+  process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_prova';
+  // le pagine di prima (senza ui) tornano alla pagina dell'appartamento, come sempre
+  const o = await checkout({ da: '2026-11-12', a: '2026-11-14', email: 'o@t.it' }), os = sessionOf(o.body.code);
+  eq([typeof o.body.url, os.params.ui_mode, os.params.success_url], ['string', undefined, 'https://www.lacolumbera.test/torre.html?pagamento=successo&code=' + o.body.code]);
+});
+
+test('P17 adulti e bambini sotto i 4 anni: i bambini non pagano (nessun supplemento) ma contano per il massimo; le pagine di prima mandano solo «ospiti» (tutti adulti); email e area clienti li dicono', async () => {
+  await base();      // Torre: €180 a notte, 2 ospiti senza supplemento, +€20 dal 3°, al massimo 5
+  const prova = async (o, da, al) => { const c = await checkout(Object.assign({ ui: 'elements', da, a: al, email: da + '@t.it' }, o)); eq(c.status, 200, JSON.stringify(c.body)); const b = bk(c.body.code); return { c, b, s: sessionOf(c.body.code) }; };
+  let r = await prova({ adulti: 2, bambini: 1 }, '2026-11-01', '2026-11-03');
+  eq([r.b.ospiti, r.b.adulti, r.b.bambini, r.b.totale, r.b.conto.supplemento, r.s.params.line_items[0].price_data.unit_amount], [3, 2, 1, 360, 0, 36000], '2 adulti + 1 bambino = prezzo di 2 ospiti');
+  assert(/2 adulti \+ 1 bambino sotto i 4 anni · 2 notti/.test(r.s.params.line_items[0].price_data.product_data.description), r.s.params.line_items[0].price_data.product_data.description);
+  r = await prova({ adulti: 3, bambini: 2 }, '2026-11-04', '2026-11-06');
+  eq([r.b.ospiti, r.b.adulti, r.b.bambini, r.b.totale, r.b.conto.supplemento], [5, 3, 2, 400, 20], '3 adulti pagano il 3° ospite, i bambini no');
+  r = await prova({ adulti: 4, bambini: 3 }, '2026-11-07', '2026-11-09');
+  eq([r.b.ospiti, r.b.adulti, r.b.bambini, r.b.totale], [5, 4, 1, 440], 'oltre il massimo i bambini in più non si contano (la pagina non lo permette)');
+  r = await prova({ adulti: 0, bambini: -1 }, '2026-11-10', '2026-11-12');
+  eq([r.b.ospiti, r.b.adulti, r.b.bambini], [1, 1, 0], 'almeno un adulto, mai bambini negativi');
+  r = await prova({ adulti: undefined, ospiti: 3, ui: undefined }, '2026-11-13', '2026-11-15');
+  eq([r.b.ospiti, r.b.adulti, r.b.bambini, r.b.totale], [3, 3, 0, 400], 'pagine di prima: «ospiti» = adulti');
+  // conferma: email al titolare e all'ospite e area clienti dicono quanti bambini
+  r = await prova({ adulti: 2, bambini: 1 }, '2026-12-10', '2026-12-13'); const code = r.c.body.code;
+  eq((await wh(code)).status, 200);
+  for (const m of [mailsTo('owner@test').pop(), mailsTo('2026-12-10@t.it').pop()]) assert(/3 persone \(di cui 1 bambino sotto i 4 anni\)/.test(m.html) && /Ospiti: +3 persone \(di cui 1 bambino sotto i 4 anni\)/.test(m.text), m.subject);
+  const area = (await H.api('mie', { code, t: r.c.body.t })).body.soggiorno; eq([area.ospiti, area.bambini], [3, 1]);
+});
 
 test('R1 l\'ospite annulla dall\'area clienti fino a 7 giorni prima dell\'arrivo: rimborso totale su Stripe, prenotazione annullata, notti di nuovo libere (sito e calendario per Booking/Airbnb), foglio, email all\'ospite e al titolare; ripetere non rimborsa due volte', async () => {
   await base();

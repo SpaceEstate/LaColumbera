@@ -57,6 +57,8 @@ Lo stesso vale per Corte. Il preavviso minimo e le impostazioni dell'area ospiti
    - **Notti minime per chi arriva in questi giorni** → «Applica» o «Togli». Se quei giorni erano dentro un periodo con un altro minimo, il periodo viene spezzato attorno a loro.
 4. **Salva modifiche.**
 
+**Bambini sotto i 4 anni:** l'ospite li indica a parte nella scheda di prenotazione («Bambini · sotto i 4 anni · gratis»). Non pagano e non contano tra gli ospiti in più, ma contano per il numero massimo di ospiti dell'appartamento; li vedi nel dettaglio della prenotazione, nelle email e nel testo per le pulizie («3 ospiti (di cui 1 bambino sotto i 4 anni)»).
+
 Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», il nome di chi occupa la notte (o Booking / Airbnb) e «min N» quando il minimo è diverso dal solito. Una notte occupata da una prenotazione si apre con un tocco. Sotto il calendario restano prezzo base e ospiti in più, prezzi di stagione, notti minime, notti bloccate (anche per mese intero) e la chiusura dell'appartamento. I dati salvati sono gli stessi di prima (`prices`, `periodi`, `blocked`, `minPeriodi`, `closed`): sito e server calcolano esattamente come prima.
 
 ## 5. Prenotazioni e Oggi

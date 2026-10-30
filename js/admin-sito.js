@@ -232,6 +232,9 @@ function payRows(h){
   const a=h.ambiente||{},st=h.stripe||{},wh=st.webhook,rows=[],R=(lv,t,d)=>rows.push([lv,t,d]);
   R(!a.stripe||st.collegato===false?'err':st.errore&&st.collegato===null?'warn':'ok','Stripe (incassi)',
     !a.stripe?'Manca STRIPE_SECRET_KEY su Vercel: nessun pagamento può partire.':st.collegato===false?'La chiave Stripe non è valida o è stata revocata.':st.errore&&st.collegato===null?'Chiave presente, ma non riesco a leggere lo stato da Stripe ('+st.errore+'). Se la chiave è «limitata», servono i permessi di lettura su Webhook ed Eventi.':'Collegato.');
+  // pagamento nella pagina del sito (prenota.html): serve la chiave pubblicabile; senza, si paga sulla pagina di Stripe come prima
+  if(a.stripe&&a.nelSito)R(a.nelSito==='ok'?'ok':'warn','Pagamento nella pagina del sito',a.nelSito==='ok'?'Gli ospiti inseriscono i dati della carta nella pagina di prenotazione del sito, con lo stile del sito.'
+    :(a.nelSito==='tipo'?'La chiave pubblicabile (STRIPE_PUBLISHABLE_KEY) e la chiave segreta non sono dello stesso tipo: una è di prova e l\'altra reale.':a.nelSito==='formato'?'STRIPE_PUBLISHABLE_KEY su Vercel non sembra una chiave pubblicabile: deve iniziare con pk_live_ (o pk_test_ per le prove).':'Manca STRIPE_PUBLISHABLE_KEY su Vercel: la trovi in Stripe → Sviluppatori → Chiavi API, «Chiave pubblicabile».')+' Finché non è a posto gli ospiti pagano sulla pagina di Stripe, come prima: le prenotazioni funzionano comunque.');
   const url=location.origin+'/api/stripe-webhook';
   if(!a.webhook)R('err','Webhook di Stripe','Manca STRIPE_WEBHOOK_SECRET su Vercel: Stripe non può confermare i pagamenti al sito. Resta solo il controllo automatico (ogni pochi minuti), da non considerare sufficiente.');
   else if(wh==null)R('warn','Webhook di Stripe','Segreto presente, ma non riesco a controllare su Stripe se il webhook è registrato.');
