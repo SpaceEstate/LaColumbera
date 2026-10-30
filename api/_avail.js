@@ -630,8 +630,10 @@ function makeEngine(deps) {
     }
     for (const [d, v] of Object.entries(st.holds)) {
       const [code, exp] = String(v).split('|');
-      // gli hold sono temporanei (un pagamento in corso): mai nei calendari esportati, dove Booking/Airbnb li terrebbero chiusi per ore
-      if (+exp > t && code !== opts.ignoreHold && mode !== 'export') add(d, 'HOLD', code);
+      // Gli hold sono un controllo INTERNO contro le doppie prenotazioni mentre un ospite conferma il pagamento: valgono per i controlli del server
+      // (checkout, «Paga», conferma), ma non «segnano» nulla. Mai nei calendari esportati (Booking/Airbnb li terrebbero chiusi per ore), né nel
+      // calendario pubblico, né in Gestione (holds:false): una notte risulta prenotata solo quando Stripe conferma il pagamento.
+      if (+exp > t && code !== opts.ignoreHold && mode !== 'export' && opts.holds !== false) add(d, 'HOLD', code);
     }
     const p = (config.apts || []).find(x => x.id === aptId);
     if (p && p.blocked) for (const d of Object.keys(p.blocked)) if (p.blocked[d]) add(d, 'MANUALE', '');
@@ -651,7 +653,7 @@ function makeEngine(deps) {
 
   // calendario pubblico / checkout
   async function guestBusy(config, aptId) {
-    const occ = computeOccupancy(config, aptId, await loadFresh(config, aptId), { mode: 'guest' });
+    const occ = computeOccupancy(config, aptId, await loadFresh(config, aptId), { mode: 'guest', holds: false });
     return { status: occ.status, asOf: occ.asOf, dates: Object.keys(occ.days).sort(), problems: occ.problems, notice: occ.notice, limit: { mesi: GUEST_MONTHS, ultimoGiorno: maxBookingDate(now()) } };
   }
   // verifica puntuale di un intervallo (checkout / conferma tardiva). ignoreHold = i miei stessi hold.
@@ -673,9 +675,9 @@ function makeEngine(deps) {
     return { status: occ.status, problems: occ.problems, conflicts };
   }
   // admin / debug: occupazione completa con motivi
-  async function adminOccupancy(config, { fresh = false } = {}) {
+  async function adminOccupancy(config, { fresh = false, holds = true } = {}) {
     const out = {};
-    for (const apt of (config.apts || [])) out[apt.id] = computeOccupancy(config, apt.id, fresh ? await loadFresh(config, apt.id) : await loadAptState(config, apt.id), { mode: 'admin' });
+    for (const apt of (config.apts || [])) out[apt.id] = computeOccupancy(config, apt.id, fresh ? await loadFresh(config, apt.id) : await loadAptState(config, apt.id), { mode: 'admin', holds });
     return out;
   }
   async function occupancyOf(config, aptId, { mode = 'admin', fresh = false, ignoreHold } = {}) {

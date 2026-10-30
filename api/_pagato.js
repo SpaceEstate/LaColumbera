@@ -87,7 +87,7 @@ async function sessioneScaduta(s) {
   const code = s && s.metadata && s.metadata.code;
   if (!code) return;
   const b = await E.bkGet(code);
-  if (b && b.stato === 'in_attesa') await E.holdRelease(b.id, rangeDays(b.da, b.a), code);
+  if (b && b.stato === 'in_attesa') { await E.holdRelease(b.id, rangeDays(b.da, b.a), code); if (!b.scaduta) await E.bkPut(Object.assign(b, { scaduta: true })); }      // mai pagata: non si ricontrolla più
 }
 
 const stripeClient = () => require('stripe')(process.env.STRIPE_SECRET_KEY);

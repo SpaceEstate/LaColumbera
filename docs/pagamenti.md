@@ -18,7 +18,7 @@ Come funziona e come controllare che una prenotazione pagata arrivi davvero (a t
 
 ## Cosa succede quando un ospite paga
 
-1. L'ospite preme «Paga» nella pagina del sito: le notti vengono **trattenute** solo per il tempo della conferma (15 minuti al massimo). Le notti trattenute non sono prenotabili da altri sul sito, ma **non vanno mai nei calendari iCal** letti da Booking e Airbnb (nemmeno nel calendario «completo»): lì compaiono solo le prenotazioni pagate.
+1. L'ospite preme «Paga» nella pagina del sito: le notti vengono **trattenute** solo per il tempo della conferma (15 minuti al massimo). È un controllo **interno** contro le doppie prenotazioni: un altro ospite che prova a prenotare le stesse notti viene fermato dal server, ma **non risulta nessuna prenotazione** finché Stripe non conferma il pagamento. Le notti non compaiono come occupate nel calendario del sito, né in Gestione (elenco delle prenotazioni e calendario), né nei calendari iCal per Booking e Airbnb. Un pagamento non completato non compare mai in Gestione.
 2. Pagamento riuscito → la prenotazione diventa **confermata**, le notti si **chiudono** (sito e calendario iCal per Booking/Airbnb), la riga va sul **foglio**, ti arriva l'**email di nuova prenotazione**, all'ospite arriva la **conferma** con il link all'area clienti.
 3. Se l'ospite non paga (carta rifiutata, pagamento abbandonato o scaduto), le notti tornano libere subito o al più tardi alla scadenza.
 

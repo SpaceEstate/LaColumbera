@@ -204,9 +204,10 @@ test('X1  KV risponde con un errore (es. limite Upstash): prima = date libere, o
 });
 test('X2  hold: scade, checkout annullato lo libera; pagamento tardivo riconferma se libero, altrimenti conflitto segnalato', async () => {
   const { gas } = await base();
-  let c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); assert((await H.busyDates('torre')).includes('2026-12-20'));
-  await H.api('checkout_cancel', { code: c.body.code, t: c.body.t }); assert(!(await H.busyDates('torre')).includes('2026-12-20'), 'annullo dal pagamento (con il token del checkout): notti libere');
-  c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); tick(40); assert(!(await H.busyDates('torre')).includes('2026-12-20'), 'hold scaduto');
+  const holdT = () => kv.exec(['HGETALL', 'holds:torre']).length;
+  let c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); assert(holdT() > 0 && !(await H.busyDates('torre')).includes('2026-12-20'), 'trattenute per il controllo, ma il calendario non le segna');
+  await H.api('checkout_cancel', { code: c.body.code, t: c.body.t }); eq(holdT(), 0, 'annullo dal pagamento (con il token del checkout): notti libere');
+  c = await checkout({ da: '2026-12-20', a: '2026-12-22' }); tick(40); const y = await checkout({ da: '2026-12-20', a: '2026-12-22', email: 'x@t.it' }); eq(y.status, 200, 'hold scaduto: di nuovo prenotabili'); await H.api('checkout_cancel', { code: y.body.code, t: y.body.t });
   await H.webhook('checkout.session.completed', H.paidSession(c.body.code)); eq(JSON.parse(kv.exec(['HGET', 'bkh', c.body.code])).stato, 'confermata', 'pagamento tardivo con date libere: confermata');
   const c2 = await checkout({ da: '2026-12-27', a: '2026-12-29' }); tick(40);
   const c3 = await checkout({ da: '2026-12-27', a: '2026-12-29', email: 'altro@t.it' }); await H.webhook('checkout.session.completed', H.paidSession(c3.body.code));
@@ -218,7 +219,8 @@ test('X3  export iCal: unione di tutte le fonti, ?for=booking esclude l\'eco, 50
   H.setFeed('airbnbTorre', [H.airbnbEv('z', '2026-12-10', '2026-12-12', 'HMZZZZZZZZ')]);
   const pg = await checkout({ da: '2026-12-15', a: '2026-12-17' }); await H.webhook('checkout.session.completed', H.paidSession(pg.body.code)); await H.sync();
   await checkout({ da: '2026-12-24', a: '2026-12-26', email: 'in-corso@t.it' });      // pagamento in corso: hold temporaneo
-  assert((await H.busyDates('torre')).includes('2026-12-24'), 'sul sito, mentre paga, le notti non sono prenotabili da altri');
+  assert(!(await H.busyDates('torre')).includes('2026-12-24'), 'un pagamento in corso non segna nulla nel calendario del sito');
+  eq((await checkout({ da: '2026-12-24', a: '2026-12-26', email: 'altro@t.it' })).status, 409, 'ma un altro ospite non può prenderle mentre si paga');
   let ic = await H.api('ical', {}, { method: 'GET', query: { id: 'torre' } }); eq(ic.status, 200); eq(ic.headers['cache-control'], 'public, s-maxage=60, stale-while-revalidate=120');
   for (const d of ['20261002', '20261205', '20261210', '20261215']) assert(ic.text.includes('DTSTART;VALUE=DATE:' + d), 'manca ' + d);
   assert(!ic.text.includes('DTSTART;VALUE=DATE:20261224'), 'un pagamento in corso (hold) non va mai nel calendario esportato: Booking e Airbnb lo terrebbero chiuso per ore');

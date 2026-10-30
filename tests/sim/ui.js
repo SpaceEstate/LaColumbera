@@ -947,11 +947,14 @@ test('W2 pagina di prenotazione: date prese nel frattempo → messaggio chiaro e
   const { doc } = await loadPren(), $ = s => doc.querySelector(s);
   await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
   fill(doc, { name: 'Anna', surname: 'Verdi', email: 'anna@test.it' });
-  assert.equal((await checkout({ da: '2026-10-21', a: '2026-10-23', email: 'altro@test.it' })).status, 200);         // nel frattempo un altro ospite prende due notti
+  const altro = await checkout({ da: '2026-10-21', a: '2026-10-23', email: 'altro@test.it' }); assert.equal(altro.status, 200);         // nel frattempo un altro ospite sta pagando due notti
   $('#f').requestSubmit();
   await waitFor(() => /non più disponibili/.test(text($('#e'))), 'messaggio del server');
   assert(!$('[data-testid=booking-submit]').disabled && $('[data-testid=prenota-pagamento]').hidden, 'il pulsante torna utilizzabile, nessun pagamento');
-  // la stessa pagina aperta adesso: le date non sono più libere, si sceglie di nuovo nel calendario
+  // finché l'altro non ha pagato le notti non risultano prenotate: la pagina riaperta mostra il modulo (il server rifiuta comunque, come sopra)
+  const r0 = await loadPren(); await waitFor(() => r0.doc.querySelector('[data-testid=booking-form]'), 'modulo: le notti non sono segnate prima del pagamento');
+  // l'altro ospite paga: ora le date non sono più libere, si sceglie di nuovo nel calendario
+  await H.webhook('checkout.session.completed', H.paidSession(altro.body.code));
   const r = await loadPren(); await waitFor(() => r.doc.querySelector('[data-testid=prenota-vuota]'), 'avviso');
   const t = text(r.doc.querySelector('[data-testid=prenota-vuota]'));
   assert(/non sono più disponibili/.test(t) && r.doc.querySelector('[data-testid=prenota-vuota] a[href="torre.html#prenota"]') && !r.doc.querySelector('[data-testid=booking-form]'), t);
@@ -1448,15 +1451,16 @@ test('W16 Gestione · Calendario e prezzi: prezzo, blocco e minimo di notti sull
 test('W17 Gestione · Prenotazioni: sito e portali in un solo elenco, ricerca e filtri; dettaglio con pagamento, codice e messaggio pronto da copiare; per Airbnb niente nome né conto', async () => {
   await setup(); regAirbnb();
   const c = (await checkout({ da: '2026-10-20', a: '2026-10-23', ospiti: 3, tel: '+39 333 1234567' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c));
-  const c2 = (await checkout({ da: '2026-11-10', a: '2026-11-12', nome: 'Anna Verdi', email: 'anna@test.it' })).body.code;      // in attesa di pagamento
+  const b2 = (await checkout({ ui: 'elements', da: '2026-11-10', a: '2026-11-12', nome: 'Anna Verdi', email: 'anna@test.it' })).body, c2 = b2.code;      // pagamento non completato
+  assert.equal((await H.api('checkout_hold', { code: c2, t: b2.t })).status, 200);      // ha anche premuto «Paga», ma la banca non ha confermato
   const r = await loadAdmin('#prenotazioni'), $ = s => r.doc.querySelector(s), codes = () => [...r.doc.querySelectorAll('#bk-body tr')].filter(x => !x.querySelector('.td-empty')).map(x => text(x.querySelector('td')));
-  assert.deepEqual(codes(), ['HMSEDESZCW', c, c2], 'Airbnb dal foglio e le due del sito, dalla più vicina');
+  assert.deepEqual(codes(), ['HMSEDESZCW', c], 'Airbnb dal foglio e la prenotazione PAGATA del sito; quella non pagata non è una prenotazione e non compare');
   assert(/Ospite di Airbnb/.test(text(r.doc.querySelector('#bk-body tr[data-portale]'))) && !r.doc.querySelector('#bk-body tr[data-portale] select'), 'Airbnb: niente nome, niente stato da cambiare');
   const q = $('[data-testid=admin-book-search]'), cerca = v => { inp(r, q, v); return codes(); };
-  assert.deepEqual(cerca('anna'), [c2]); assert.deepEqual(cerca(c.slice(0, 4) + ' ' + c.slice(4, 8).toLowerCase()), [c], 'il codice anche a gruppi e minuscolo'); assert.deepEqual(cerca('3331234567'), [c], 'il telefono');
+  assert.deepEqual(cerca('anna'), [], 'nemmeno cercandola'); assert.deepEqual(cerca(c.slice(0, 4) + ' ' + c.slice(4, 8).toLowerCase()), [c], 'il codice anche a gruppi e minuscolo'); assert.deepEqual(cerca('3331234567'), [c], 'il telefono');
   assert.deepEqual(cerca('hmse'), ['HMSEDESZCW']); assert.deepEqual(cerca('nessuno'), []); cerca('');
   const filtro = f => { r.doc.querySelector('[data-act=bkf][data-f=' + f + ']').click(); return codes(); };
-  assert.deepEqual(await (async () => { const x = filtro('gestire'); return x; })(), [c2]);
+  assert.deepEqual(await (async () => { const x = filtro('gestire'); return x; })(), [], 'niente da gestire: un pagamento non completato non è una prenotazione');
   await waitFor(() => r.doc.querySelector('[data-act=bkf][data-f=prossime]'), 'filtri'); assert.deepEqual(filtro('prossime'), ['HMSEDESZCW', c]); assert.deepEqual(filtro('passate'), []); filtro('tutte');
   chg(r, $('[data-testid=admin-book-src]'), 'Airbnb'); assert.deepEqual(codes(), ['HMSEDESZCW']); chg(r, $('[data-testid=admin-book-src]'), '');
   // dettaglio di una prenotazione del sito

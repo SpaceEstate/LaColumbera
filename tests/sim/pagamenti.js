@@ -30,7 +30,8 @@ test('P1 pagamento completato: prenotazione confermata, date chiuse (sito e iCal
   await base();
   const c = await checkout(); eq(c.status, 200); const code = c.body.code;
   eq(bk(code).stato, 'in_attesa'); assert(holds('torre') > 0, 'durante il pagamento le notti sono trattenute');
-  assert((await H.busyDates('torre')).includes('2026-10-21'), 'e già non prenotabili da altri');
+  assert(!(await H.busyDates('torre')).includes('2026-10-21'), 'ma NON segnate nel calendario: risultano prenotate solo dopo il pagamento');
+  eq((await checkout({ email: 'altro@test.it', nome: 'Altro Ospite' })).status, 409, 'un altro ospite però non può prenotarle mentre si paga (niente doppie prenotazioni)');
   const u0 = upserts();
   eq((await wh(code)).status, 200);
   const b = bk(code); eq([b.stato, b.pagamento, b.totale, b.ospiti, b.notti], ['confermata', 'pi_' + code, 540, 2, 3]);
@@ -302,7 +303,7 @@ test('P18 pagamento nella pagina del sito: le notti si trattengono solo con «Pa
   eq((await H.api('checkout_hold', { code: A.code, t: 'token-sbagliato-0123456789' })).status, 404); eq(holds('torre'), 0);
   // A preme «Paga»: le notti si trattengono adesso, per il tempo della conferma (15 minuti)
   const ha = await H.api('checkout_hold', { code: A.code, t: A.t }); eq(ha.status, 200, JSON.stringify(ha.body));
-  eq([holds('torre'), await libere()], [3, false]); assert(Math.abs(Date.parse(ha.body.fino) - clock.now() - 900e3) < 2000, ha.body.fino);
+  eq([holds('torre'), await libere()], [3, true], 'trattenute per il controllo, ma non segnate: il calendario resta libero finché Stripe non conferma'); assert(Math.abs(Date.parse(ha.body.fino) - clock.now() - 900e3) < 2000, ha.body.fino);
   // B preme «Paga» nello stesso momento: le notti sono di A → B lo sa PRIMA di pagare, nulla è addebitato
   const hb = await H.api('checkout_hold', { code: B.code, t: B.t }); eq([hb.status, hb.body.code], [409, 'NON_DISPONIBILE']); assert(/non ti è stato addebitato nulla/.test(hb.body.err), hb.body.err);
   // la carta di A è rifiutata: le notti tornano libere subito, la prenotazione di A resta aperta (può riprovare)
@@ -343,9 +344,9 @@ test('P19 pagamento abbandonato o non riuscito: annullando la sessione Stripe si
   paid(r.code); eq((await wh(r.code)).status, 200); eq(bk(r.code).stato, 'confermata');
   // pagamento asincrono fallito: notti libere subito
   const s = (await checkout({ ui: 'elements', da: '2026-12-14', a: '2026-12-16', email: 's@t.it' })).body;
-  await H.api('checkout_hold', { code: s.code, t: s.t }); assert((await H.busyDates('torre')).includes('2026-12-14'));
+  await H.api('checkout_hold', { code: s.code, t: s.t }); assert(holds('torre') > 0);
   eq((await H.webhook('checkout.session.async_payment_failed', { id: bk(s.code).sessione, metadata: { code: s.code } })).status, 200);
-  assert(!(await H.busyDates('torre')).includes('2026-12-14')); eq(bk(s.code).stato, 'in_attesa', 'mai confermata senza pagamento');
+  eq(holds('torre'), 0); eq([bk(s.code).stato, bk(s.code).scaduta], ['in_attesa', true], 'mai confermata senza pagamento');
 });
 
 test('P17 adulti e bambini sotto i 4 anni: i bambini non pagano (nessun supplemento) ma contano per il massimo; le pagine di prima mandano solo «ospiti» (tutti adulti); email e area clienti li dicono', async () => {

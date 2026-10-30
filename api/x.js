@@ -625,9 +625,11 @@ if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede i
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
  try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
-if(a==='adm'){const config=await cfg(req),t40=Date.now()-24e5,
-  bk=(await E.bkAll()).filter(x=>!(x.stato==='in_attesa'&&Date.parse(x.creato)<t40)).sort((x,y)=>String(x.creato).localeCompare(String(y.creato))),
-  occupancy=await E.adminOccupancy(config,{fresh:false}),sync=await E.syncState(config,{events:true}),ext=[];
+if(a==='adm'){const config=await cfg(req),
+  // Gestione mostra solo prenotazioni vere: una prenotazione «in attesa» (pagamento non completato) non è una prenotazione e non compare,
+  // né nell'elenco né nel calendario (holds:false). Compare quando Stripe conferma il pagamento (o, se pagata su date in conflitto, «da verificare»).
+  bk=(await E.bkAll()).filter(x=>x.stato!=='in_attesa').sort((x,y)=>String(x.creato).localeCompare(String(y.creato))),
+  occupancy=await E.adminOccupancy(config,{fresh:false,holds:false}),sync=await E.syncState(config,{events:true}),ext=[];
  for(const f of sync.feeds){for(const e of (f.events||[]))ext.push({id:f.apt,da:e.start,a:e.end,src:{BOOKING:'Booking',AIRBNB:'Airbnb'}[f.source]||'Altro',t:String(e.summary||'').slice(0,60)});delete f.events}      // t: il titolo dell'evento (es. «Reserved», «Airbnb (Not available)»)
  const rows=(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA');
  for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
