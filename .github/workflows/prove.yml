@@ -1,0 +1,52 @@
+# Prove automatiche: a ogni push e a ogni pull request esegue tutte le prove di tests/sim (vedi CLAUDE.md, «Come verificare»).
+# Nessuna rete verso servizi reali e nessuna variabile segreta: Redis, Stripe, email, foglio e DeepL sono finti.
+# Non tocca il sito né Vercel: serve solo a vedere subito, con la spunta verde o rossa, se una modifica ha rotto qualcosa.
+name: Prove
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # fuori dal repository, come in CLAUDE.md: node_modules del sito non serve (nodemailer, stripe e @vercel/blob sono finti)
+      - name: Strumenti di prova
+        run: npm install --prefix /tmp/testdeps --no-audit --no-fund wasmoon@1.16.0 jsdom@30.1.3
+
+      - name: Prove tests/sim
+        run: |
+          set -o pipefail
+          esito=0
+          for f in scenarios pagamenti preavviso sicurezza messaggi sito istat adempimenti informativa ui; do
+            echo "::group::$f"
+            NODE_PATH=/tmp/testdeps/node_modules JSDOM_PATH=/tmp/testdeps/node_modules/jsdom node "tests/sim/$f.js" | tee "/tmp/prova-$f.txt" || esito=1
+            echo "::endgroup::"
+          done
+          echo "Riepilogo:"
+          for f in scenarios pagamenti preavviso sicurezza messaggi sito istat adempimenti informativa ui; do printf '  %-12s %s\n' "$f" "$(tail -1 "/tmp/prova-$f.txt")"; done
+          # senza jsdom ui.js esce con successo saltando tutto: qui deve girare davvero
+          if grep -q "prove UI saltate" /tmp/prova-ui.txt; then echo "::error::prove dell'interfaccia saltate (jsdom mancante)"; esito=1; fi
+          exit $esito
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Script Lua sulla versione di Redis (Lua 5.1)
+        run: |
+          pip install lupa==2.8
+          node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lua_scripts.json',JSON.stringify({acquire:A.LUA_ACQUIRE,release:A.LUA_RELEASE}))"
+          python tests/sim/lua51_check.py | tee /tmp/lua.txt
+          grep -q "COMPATIBILE CON LUA 5.1" /tmp/lua.txt

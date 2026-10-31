@@ -57,6 +57,8 @@ Una modifica a uno di questi punti va verificata anche nel repository Checkin.
 
 ## Come verificare (nessuna rete, nessun servizio reale)
 
+Le stesse prove partono da sole su GitHub a ogni push e a ogni pull request (`.github/workflows/prove.yml`, scheda «Actions»): una spunta rossa vuol dire che qualcosa si è rotto e va sistemato prima di unire o pubblicare.
+
 Le dipendenze di prova si installano **fuori** dal repository: `node_modules` del repository non serve (nodemailer, stripe e `@vercel/blob` sono sostituiti da finti in `tests/sim/stubs`).
 
 ```bash
