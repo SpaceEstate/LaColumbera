@@ -213,7 +213,10 @@ const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
 const ANN=require('./_annulla.js').makeAnnulla({kv,E,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),sheet:b=>sheetUpsertBooking(b),log:e=>E.log(e)});
 const RIC=require('./_ricevute.js').makeRicevute({kv,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),maskEmail,log:e=>E.log(e)});
 // ---- Check-in online fatto (api/_checkin.js): dal webhook di Stripe (stripe-webhook.js) e, come rete di sicurezza, dalla sincronizzazione ----
-const CK=require('./_checkin.js').makeCheckin({kv,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),log:e=>E.log(e)});
+// prenotazioni per abbinare i check-in pagati senza numero (data di arrivo + appartamento): sito confermate e registro del foglio (Booking, Airbnb, manuali) non annullate
+const CK=require('./_checkin.js').makeCheckin({kv,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),log:e=>E.log(e),
+ prenotazioni:async()=>[...(await E.bkAll()).filter(b=>b.stato==='confermata').map(b=>({code:b.code,apt:b.id,da:b.da,notti:b.notti})),
+  ...(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA'&&r.apt).map(r=>({code:r.codice,apt:r.apt,da:r.checkin,notti:r.notti}))]});
 const errOut=(res,e)=>{if(e&&e.status)return res.status(e.status).json(Object.assign({err:e.message},e.code?{code:e.code}:{}));throw e};
 // si scrive solo alle prenotazioni del sito confermate: gli ospiti di Booking e Airbnb usano la chat della loro piattaforma
 const chatOk=x=>!!x&&x.origine==='sito'&&x.stato==='confermata';

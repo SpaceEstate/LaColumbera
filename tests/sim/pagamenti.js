@@ -549,9 +549,9 @@ test('C1 check-in online pagato con il numero di prenotazione: l\'area clienti l
   eq([s.checkin.fatto, s.cassetta], [true, null], 'dopo la partenza il check-in resta fatto, il codice sparisce');
 });
 
-test('C2 check-in non collegato: verifica saltata (senza numero), non pagato, numero non valido o di un pagamento del sito = nessuna registrazione. Airbnb: vale il numero del portale; senza codice in Gestione vale la variabile CODICE_CASSETTA_*', async () => {
+test('C2 check-in non collegato: non pagato, numero non valido o di un pagamento del sito = nessuna registrazione. Airbnb: vale il numero del portale; senza codice in Gestione vale la variabile CODICE_CASSETTA_*', async () => {
   await base(); const code = await pagata();
-  for (const x of [ckSess(null), ckSess(code, { payment_status: 'unpaid' }), ckSess('<b>' + code + '</b>'), ckSess('ab')]) eq((await H.webhook('checkout.session.completed', x)).status, 200);
+  for (const x of [ckSess(code, { payment_status: 'unpaid' }), ckSess(null, { payment_status: 'unpaid' }), ckSess('<b>' + code + '</b>'), ckSess('ab'), ckSess(null, { metadata: { dataCheckin: '2026-10-21', appartamento: 'Torre' } })]) eq((await H.webhook('checkout.session.completed', x)).status, 200);
   eq([...kv.d.keys()].filter(k => /^ck:/.test(k)), [], 'niente registrato');
   eq((await H.webhook('checkout.session.completed', Object.assign(H.paidSession(code), { metadata: { code, numeroPrenotazione: code } }))).status, 200);
   eq(ckKey(code), null, 'un pagamento del sito non è un check-in');
@@ -567,9 +567,9 @@ test('C2 check-in non collegato: verifica saltata (senza numero), non pagato, nu
 
 test('C3 webhook perso: la sincronizzazione rilegge su Stripe le sessioni degli ultimi 3 giorni (chiuse da almeno 35 minuti) e registra il check-in, con l\'avviso nel registro eventi; al più ogni 10 minuti; Stripe giù non ferma la sincronizzazione', async () => {
   await base(); const code = await pagata(), t = Math.floor(clock.now() / 1000);
-  global.__stripeList = [ckSess(code, { created: t - 3600 }), ckSess(null, { created: t - 3600 }), ckSess('ALTRO123', { created: t - 600 }), ckSess('VECCHIO1', { created: t - 4 * 86400 }), Object.assign(H.paidSession(code), { created: t - 3600 })];
-  global.__stripeListCalls = 0; kv.exec(['DEL', 'checkin:ric']);      // il controllo della sincronizzazione di base() è appena passato
-  const r = await H.sync(); eq(r.status, 200); eq(r.body.checkin, { controllate: 1, recuperati: 1, errore: false });
+  global.__stripeList = [ckSess(code, { created: t - 3600 }), ckSess(null, { created: t - 3600, metadata: { dataCheckin: '2026-12-01', appartamento: 'Torre' } }), ckSess('ALTRO123', { created: t - 600 }), ckSess('VECCHIO1', { created: t - 4 * 86400 }), Object.assign(H.paidSession(code), { created: t - 3600 })];
+  global.__stripeListCalls = 0; kv.exec(['DEL', 'checkin:ric']);      // il controllo della sincronizzazione di base() è appena passato (e anche quello dei 60 giorni)
+  const r = await H.sync(); eq(r.status, 200); eq(r.body.checkin, { controllate: 1, recuperati: 1, abbinati: 0, errore: false });
   assert(ckKey(code), 'registrato dal controllo su Stripe'); eq([ckKey('ALTRO123'), ckKey('VECCHIO1')], [null, null], 'troppo recente (il webhook può ancora arrivare) o troppo vecchio: non si guarda');
   assert(/Check-in online: 1 check-in registrato dal controllo su Stripe/.test(logTxt()) && !logTxt().includes(code), 'avviso nel registro, senza il codice');
   eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: true, il: '2026-10-02' });
@@ -577,7 +577,40 @@ test('C3 webhook perso: la sincronizzazione rilegge su Stripe le sessioni degli 
   await H.sync(); eq(global.__stripeListCalls, 1, 'entro 10 minuti non si richiede a Stripe');
   clock.advance(11 * MIN); global.__stripeSessionsListFail = true;
   const r2 = await H.sync(); eq(r2.status, 200); eq(r2.body.checkin.errore, true); assert(/controllo su Stripe non riuscito/.test(logTxt()));
-  global.__stripeSessionsListFail = false; clock.advance(11 * MIN); eq((await H.sync()).body.checkin, { controllate: 1, recuperati: 0, errore: false }, 'già registrato: nessun nuovo avviso');
+  global.__stripeSessionsListFail = false; clock.advance(11 * MIN); eq((await H.sync()).body.checkin, { controllate: 1, recuperati: 0, abbinati: 0, errore: false }, 'già registrato: nessun nuovo avviso');
+});
+
+test('C4 check-in pagato SENZA numero (fatto prima del 30/10 o con «Non ho il numero»): si collega alla prenotazione con la stessa data di arrivo e lo stesso appartamento, solo se è una sola; anche quelli già fatti (ultimi 60 giorni) dalla sincronizzazione', async () => {
+  await base(); const code = await pagata();      // sito: Torre dal 20/10, 3 notti
+  regAirbnb();                                   // Airbnb HMSEDESZCW: Corte dal 5/11, 3 notti
+  // webhook di un check-in senza numero, Torre dal 20/10: una sola prenotazione possibile → collegato
+  eq((await H.webhook('checkout.session.completed', ckSess(null))).status, 200);
+  assert(ckKey(code), 'collegato alla prenotazione del sito'); eq((await ospite('mie', { code })).body.soggiorno.checkin.fatto, true);
+  // prenotazione Airbnb/Booking del foglio, numero non scritto nel modulo: data e appartamento bastano
+  eq((await H.webhook('checkout.session.completed', ckSess(null, { metadata: { dataCheckin: '2026-11-05', appartamento: 'La Columbera - Corte, Appartamento con 1 camera da letto', numeroNotti: '3' } }))).status, 200);
+  assert(ckKey('HMSEDESZCW'), 'Airbnb collegato'); eq((await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno.checkin.fatto, true);
+  // tutti e due gli appartamenti, data senza prenotazioni, appartamento sbagliato: niente
+  const n0 = [...kv.d.keys()].filter(k => /^ck:/.test(k)).length;
+  for (const md of [{ dataCheckin: '2026-10-20', appartamento: 'Torre + Corte' }, { dataCheckin: '2026-10-25', appartamento: 'Torre' }, { dataCheckin: '2026-11-05', appartamento: 'Torre' }])
+    eq((await H.webhook('checkout.session.completed', ckSess(null, { metadata: md }))).status, 200);
+  eq([...kv.d.keys()].filter(k => /^ck:/.test(k)).length, n0, 'nessun abbinamento a caso');
+  // due prenotazioni possibili (stesso arrivo, stesso appartamento): decidono le notti, altrimenti niente
+  const snap = JSON.parse(kv.exec(['GET', 'reg:snap'])), riga = (codice, apt, checkin, notti) => ({ id: 'BOOKING|' + codice, fonte: 'BOOKING', codice, apt, checkin, checkout: '', notti, ospiti: 2, stato: 'CONFERMATA', flags: [] });
+  snap.rows.push(riga('111222333', 'torre', '2026-12-10', 2), riga('444555666', 'torre', '2026-12-10', 5)); kv.exec(['SET', 'reg:snap', JSON.stringify(snap)]);
+  eq((await H.webhook('checkout.session.completed', ckSess(null, { metadata: { dataCheckin: '2026-12-10', appartamento: 'Torre', numeroNotti: '4' } }))).status, 200);
+  eq([ckKey('111222333'), ckKey('444555666')], [null, null], 'due possibili e notti diverse da entrambe: nessuna');
+  eq((await H.webhook('checkout.session.completed', ckSess(null, { metadata: { dataCheckin: '2026-12-10', appartamento: 'Torre', numeroNotti: '5' } }))).status, 200);
+  eq([ckKey('111222333'), !!ckKey('444555666')], [null, true], 'le notti scelgono quella giusta');
+  // check-in fatto settimane fa senza numero: la sincronizzazione guarda gli ultimi 60 giorni (una volta al giorno)
+  const cc = await pagata({ id: 'corte', da: '2026-12-20', a: '2026-12-23', email: 'cc@t.it' }), ct = await pagata({ da: '2026-12-27', a: '2026-12-29', email: 'ct@t.it' });
+  const t = Math.floor(clock.now() / 1000);
+  global.__stripeList = [ckSess(null, { created: t - 20 * 86400, metadata: { dataCheckin: '2026-12-20', appartamento: 'Corte', numeroNotti: '3' } })];
+  kv.exec(['DEL', 'checkin:ric']); kv.exec(['DEL', 'checkin:ric:storico']);
+  eq((await H.sync()).body.checkin, { controllate: 1, recuperati: 0, abbinati: 1, errore: false });
+  assert(ckKey(cc) && /collegato alla prenotazione con la stessa data/.test(logTxt()), 'collegato, con la nota nel registro eventi');
+  global.__stripeList.push(ckSess(null, { created: t - 21 * 86400, metadata: { dataCheckin: '2026-12-27', appartamento: 'Torre', numeroNotti: '2' } }));
+  clock.advance(11 * MIN); await H.sync(); eq(ckKey(ct), null, 'i 60 giorni si riguardano una volta al giorno, non ogni 10 minuti');
+  clock.advance(864e5); await H.sync(); assert(ckKey(ct), 'il giorno dopo sì');
 });
 
 /* ===================== esecuzione ===================== */
