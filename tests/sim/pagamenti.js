@@ -370,6 +370,23 @@ test('P17 adulti e bambini sotto i 4 anni: i bambini non pagano (nessun suppleme
   const area = (await H.api('mie', { code, t: r.c.body.t })).body.soggiorno; eq([area.ospiti, area.bambini], [3, 1]);
 });
 
+test('P20 email all\'ospite del sito (conferma, annullamento, ricevuta; it, en, de): nessun invito a rispondere (la casella che invia non si legge), recapiti del titolare e avviso di email automatica', async () => {
+  const M = require(path.join(__dirname, '..', '..', 'api', '_mail.js'));
+  const b = { code: '558RTE56487A9', id: 'torre', da: '2026-11-05', a: '2026-11-08', notti: 3, ospiti: 2, bambini: 0, totale: 360, nome: 'Giulia Prova', email: 'giulia@esempio.it', annullata_da: 'ospite', rimborso: { importo: 360, stato: 'rimborsato' } };
+  const site = 'https://www.lacolumbera.test', email = [['conferma', 'it', M.guestMail(b, site, 'token-di-prova')]];
+  for (const lg of ['it', 'en', 'de']) email.push(['annullamento', lg, M.annullataOspite(b, site, lg)], ['ricevuta', lg, M.ricevutaOspite(b, site, lg, { messaggio: 'Ecco la ricevuta' })]);
+  const INVITO = /rispondi (pure )?a quest|reply to this email|just reply|antworten Sie (einfach )?auf diese E-Mail/i;
+  const AUTO = { it: 'non rispondere a questo messaggio', en: 'please do not reply to this message', de: 'Bitte antworten Sie nicht auf diese Nachricht' };
+  for (const [tipo, lg, m] of email) {
+    for (const [parte, testo] of [['html', m.html], ['testo', m.text]]) {
+      assert.ok(!INVITO.test(testo), tipo + ' ' + lg + ' (' + parte + '): invito a rispondere');
+      assert.ok(testo.includes(AUTO[lg]), tipo + ' ' + lg + ' (' + parte + '): avviso di email automatica');
+      assert.ok(testo.includes('lacolumbera@gmail.com'), tipo + ' ' + lg + ' (' + parte + '): email del titolare');
+    }
+    assert.ok(m.html.includes('tel:+393517043594') && m.html.includes('mailto:lacolumbera@gmail.com'), tipo + ' ' + lg + ': telefono ed email cliccabili');
+  }
+});
+
 test('R1 l\'ospite annulla dall\'area clienti fino a 7 giorni prima dell\'arrivo: rimborso totale su Stripe, prenotazione annullata, notti di nuovo libere (sito e calendario per Booking/Airbnb), foglio, email all\'ospite e al titolare; ripetere non rimborsa due volte', async () => {
   await base();
   const code = await pagata(); global.__mails = [];

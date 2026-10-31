@@ -77,7 +77,7 @@ const guestMail=(b,site,token)=>{
 <p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il codice di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px;white-space:nowrap">${esc(fmtCode(b.code))}</b> entri nell'<b>area personale</b> del nostro sito e, prima di arrivare, sbrighi tutto online:</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${step('1','Check-in online','Compili i dati degli ospiti in pochi minuti, così all\'arrivo è tutto pronto.')}${step('2','Trentino Guest Card','La richiedi direttamente dall\'area personale: musei, trasporti e attrazioni del territorio inclusi.')}</table>
 </td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.</div></td></tr></table>`,'30px 32px 0')+
-    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda rispondi pure a questo messaggio o scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
+    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594" style="color:${C.wine};white-space:nowrap">+39 351 704 3594</a>.<br>Questa è un'email automatica: non rispondere a questo messaggio.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
   const text=`Grazie${nome?', '+nome:''}! La tua prenotazione a La Columbera è confermata.
 
 CODICE DI PRENOTAZIONE: ${fmtCode(b.code)}
@@ -95,6 +95,7 @@ ${link}
 In alternativa: ${site}/area-clienti.html con il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.
 
 Per qualsiasi domanda: lacolumbera@gmail.com · +39 351 704 3594
+Questa è un'email automatica: non rispondere a questo messaggio.
 Informativa privacy: ${site}/privacy.html
 La Columbera · Ravina, Trento`;
   return{subject:`Prenotazione confermata · La Columbera ${aptName(b.id)} · ${b.code}`,html,text}};
@@ -189,15 +190,15 @@ const ANN={
   it:{sub:c=>'Prenotazione annullata · La Columbera · '+c,eye:'Prenotazione annullata',tit:n=>'Ciao'+(n?' '+n:'')+',<br>la prenotazione è annullata',
     ospite:'Abbiamo annullato la prenotazione come ci hai chiesto.',titolare:'La Columbera ha annullato la tua prenotazione.',rimb:'Rimborso',
     carta:'Torna sulla carta con cui hai pagato: di solito arriva in 5–10 giorni lavorativi, dipende dalla tua banca.',gia:'Il pagamento ti è già stato rimborsato.',
-    checkin:'Check-in',checkout:'Check-out',codice:'Codice di prenotazione',domande:'Per qualsiasi domanda rispondi a questa email o scrivici a',priv:'Informativa privacy'},
+    checkin:'Check-in',checkout:'Check-out',codice:'Codice di prenotazione',domande:'Per qualsiasi domanda scrivici a',auto:'Questa è un\'email automatica: non rispondere a questo messaggio.',priv:'Informativa privacy'},
   en:{sub:c=>'Booking cancelled · La Columbera · '+c,eye:'Booking cancelled',tit:n=>'Hi'+(n?' '+n:'')+',<br>your booking is cancelled',
     ospite:'We have cancelled your booking as you asked.',titolare:'La Columbera has cancelled your booking.',rimb:'Refund',
     carta:'It goes back to the card you paid with: it usually arrives within 5–10 business days, depending on your bank.',gia:'Your payment has already been refunded.',
-    checkin:'Check-in',checkout:'Check-out',codice:'Booking code',domande:'For any questions, reply to this email or write to',priv:'Privacy notice'},
+    checkin:'Check-in',checkout:'Check-out',codice:'Booking code',domande:'For any questions, write to',auto:'This is an automated email: please do not reply to this message.',priv:'Privacy notice'},
   de:{sub:c=>'Buchung storniert · La Columbera · '+c,eye:'Buchung storniert',tit:n=>'Hallo'+(n?' '+n:'')+',<br>Ihre Buchung ist storniert',
     ospite:'Wir haben Ihre Buchung wie gewünscht storniert.',titolare:'La Columbera hat Ihre Buchung storniert.',rimb:'Erstattung',
     carta:'Sie geht auf die Karte zurück, mit der Sie bezahlt haben: in der Regel innerhalb von 5–10 Werktagen, je nach Bank.',gia:'Ihre Zahlung wurde bereits erstattet.',
-    checkin:'Check-in',checkout:'Check-out',codice:'Buchungscode',domande:'Bei Fragen antworten Sie auf diese E-Mail oder schreiben Sie an',priv:'Datenschutzhinweis'}};
+    checkin:'Check-in',checkout:'Check-out',codice:'Buchungscode',domande:'Bei Fragen schreiben Sie an',auto:'Dies ist eine automatische E-Mail: Bitte antworten Sie nicht auf diese Nachricht.',priv:'Datenschutzhinweis'}};
 const annullataOspite=(b,site,lingua)=>{
   const lg=ANN[lingua]?lingua:'it',L=ANN[lg],r=b.rimborso||{},nome=String(b.nome||'').trim().split(/\s+/)[0],gia=r.stato==='gia_rimborsato';
   const intro=b.annullata_da==='titolare'?L.titolare:L.ospite;
@@ -207,8 +208,8 @@ const annullataOspite=(b,site,lingua)=>{
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">${esc(L.rimb)}</div>
 ${gia?`<div style="font-family:${SANS};font-size:15px;line-height:22px;color:${C.ink};padding-top:8px">${esc(L.gia)}</div>`:`<div style="font-family:${SERIF};font-size:30px;line-height:36px;color:${C.wine};padding-top:6px">${esc(eur(r.importo))}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:6px">${esc(L.carta)}</div>`}</td></tr></table>`,'22px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row(esc(L.checkin),esc(dLg(b.da,lg)))}${row(esc(L.checkout),esc(dLg(b.a,lg)))}${row(esc(L.codice),`<span style="font-family:${MONO};letter-spacing:1px">${esc(fmtCode(b.code))}</span>`,true)}</table>`,'26px 32px 0')+
-      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
-  const text=`${L.tit(nome).replace('<br>',' ')}\n\n${intro}\n\n${gia?L.gia:L.rimb+': '+eur(r.importo)+'\n'+L.carta}\n\n${aptName(b.id)}\n${L.checkin}: ${dLg(b.da,lg)}\n${L.checkout}: ${dLg(b.a,lg)}\n${L.codice}: ${fmtCode(b.code)}\n\n${L.domande} lacolumbera@gmail.com · +39 351 704 3594\n${L.priv}: ${site}/privacy.html`;
+      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
+  const text=`${L.tit(nome).replace('<br>',' ')}\n\n${intro}\n\n${gia?L.gia:L.rimb+': '+eur(r.importo)+'\n'+L.carta}\n\n${aptName(b.id)}\n${L.checkin}: ${dLg(b.da,lg)}\n${L.checkout}: ${dLg(b.a,lg)}\n${L.codice}: ${fmtCode(b.code)}\n\n${L.domande} lacolumbera@gmail.com · +39 351 704 3594\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
   return{subject:L.sub(b.code),html,text}};
 // Al titolare, quando annulla l'ospite: chi, quale soggiorno, quanto è stato rimborsato e che le notti sono di nuovo libere.
 const annullataTitolare=(b,site)=>{
@@ -242,15 +243,15 @@ const ricevutaRichiesta=(b,site,q)=>{
   return{subject:`🧾 Richiesta di ricevuta · ${chi} · ${b.code}`,html,text}};
 // All'ospite: la ricevuta in allegato (il file lo aggiunge chi chiama), con una riga del titolare se c'è.
 const RIC={
-  it:{sub:'La tua ricevuta · La Columbera',eye:'Ricevuta',tit:n=>'Ciao'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'In allegato trovi la ricevuta del tuo soggiorno: '+a+', dal '+d1+' al '+d2+'.',domande:'Per qualsiasi domanda rispondi a questa email.',priv:'Informativa privacy'},
-  en:{sub:'Your receipt · La Columbera',eye:'Receipt',tit:n=>'Hi'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'Attached is the receipt for your stay: '+a+', from '+d1+' to '+d2+'.',domande:'For any questions, just reply to this email.',priv:'Privacy notice'},
-  de:{sub:'Ihre Quittung · La Columbera',eye:'Quittung',tit:n=>'Hallo'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'Im Anhang finden Sie die Quittung für Ihren Aufenthalt: '+a+', vom '+d1+' bis '+d2+'.',domande:'Bei Fragen antworten Sie einfach auf diese E-Mail.',priv:'Datenschutzhinweis'}};
+  it:{sub:'La tua ricevuta · La Columbera',eye:'Ricevuta',tit:n=>'Ciao'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'In allegato trovi la ricevuta del tuo soggiorno: '+a+', dal '+d1+' al '+d2+'.',domande:'Per qualsiasi domanda scrivici a',auto:'Questa è un\'email automatica: non rispondere a questo messaggio.',priv:'Informativa privacy'},
+  en:{sub:'Your receipt · La Columbera',eye:'Receipt',tit:n=>'Hi'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'Attached is the receipt for your stay: '+a+', from '+d1+' to '+d2+'.',domande:'For any questions, write to',auto:'This is an automated email: please do not reply to this message.',priv:'Privacy notice'},
+  de:{sub:'Ihre Quittung · La Columbera',eye:'Quittung',tit:n=>'Hallo'+(n?' '+n:'')+'!',intro:(a,d1,d2)=>'Im Anhang finden Sie die Quittung für Ihren Aufenthalt: '+a+', vom '+d1+' bis '+d2+'.',domande:'Bei Fragen schreiben Sie an',auto:'Dies ist eine automatische E-Mail: Bitte antworten Sie nicht auf diese Nachricht.',priv:'Datenschutzhinweis'}};
 const ricevutaOspite=(b,site,lingua,m)=>{m=m||{};
   const lg=RIC[lingua]?lingua:'it',L=RIC[lg],nome=String(m.nome||b.nome||'').trim().split(/\s+/)[0],dd=s=>lg==='it'?dLg(s,lg).replace(/^./,c=>c.toLowerCase()):dLg(s,lg),intro=L.intro(aptName(b.id),dd(b.da),dd(b.a));
   const html=shell({site,lang:lg,eyebrow:L.eye,preheader:intro,title:esc(L.tit(nome)),
     body:sec(pc(esc(intro)),'14px 32px 0')+(m.messaggio?sec(msgBox(m.messaggio),'16px 32px 0'):'')+
-      sec(piede(`${esc(L.domande)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
-  const text=`${L.tit(nome)} ${intro}${m.messaggio?'\n\n'+m.messaggio:''}\n\n${L.domande}\n${L.priv}: ${site}/privacy.html`;
+      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
+  const text=`${L.tit(nome)} ${intro}${m.messaggio?'\n\n'+m.messaggio:''}\n\n${L.domande} lacolumbera@gmail.com.\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
   return{subject:L.sub,html,text}};
 
 module.exports={guestMail,ownerMail,avvisoTitolare,avvisoOspite,annullataOspite,annullataTitolare,ricevutaRichiesta,ricevutaOspite};
