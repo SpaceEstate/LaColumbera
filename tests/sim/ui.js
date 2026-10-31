@@ -1203,6 +1203,8 @@ test('W10 pagina Eventi: eventi automatici e inseriti a mano, raggruppati per me
   assert.deepEqual(mesi, [...mesi].sort(), 'mesi in ordine'); assert.equal(new Set(mesi).size, mesi.length, 'un titolo per mese');
   assert(/Serata in cantina/.test(text($('[data-testid="ev-2026-11-05"]'))) && /21:00/.test(text($('[data-testid="ev-2026-11-05"]'))), 'evento a mano');
   assert(!$('#events b') && /Cena di Natale <b>x<\/b>/.test(text($('[data-testid="ev-2026-12-20"]'))), 'il titolo resta testo');
+  // senza orario (eventi automatici, o inseriti a mano senza «Ora») non compare «da definire»: resta solo il luogo
+  assert(!/da definire/.test(text($('#events'))) && $('[data-testid="ev-2026-12-20"] .meta').children.length === 1, 'senza orario niente «da definire»');
   const all = [...doc.querySelectorAll('#events .ev-card')].map(c => c.dataset.testid.replace('ev-', '')); assert.deepEqual(all, [...all].sort(), 'schede in ordine di data');
   // la pagina Luoghi di interesse non ha più la sezione e non carica il codice degli eventi
   const html = fs.readFileSync(path.join(ROOT, 'dintorni.html'), 'utf8'); assert(!/id="eventi"|id="events"|data-p="eventi"|js\/pages\.js/.test(html), 'dintorni.html senza eventi');

@@ -560,7 +560,7 @@ async function eventi(c){
       <div class="body">
         <span class="section-kicker">${esc(new Date(x.date+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'long'}))}${x.source?' · '+esc(x.source):''}</span>
         <h3>${esc(x.title)}</h3>
-        <div class="meta"><span>${esc(x.time||'da definire')}</span><span>${esc(x.location||'Trento')}</span></div>
+        <div class="meta">${x.time?`<span>${esc(x.time)}</span>`:''}<span>${esc(x.location||'Trento')}</span></div>
         ${u?`<div class="cta"><span class="cta-link">Scopri di più <span aria-hidden="true">→</span></span></div>`:''}
       </div>`;
     return head+(u
