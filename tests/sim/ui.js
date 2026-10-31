@@ -1480,6 +1480,29 @@ test('W17 Gestione · Prenotazioni: sito e portali in un solo elenco, ricerca e 
   $('[data-testid=admin-book-gc]').click(); await waitFor(() => r.w.location.hash === '#guestcard' && r.doc.querySelector('#gcf'), 'Guest Card');
   const E = r.doc.querySelector('#gcf').elements; assert.deepEqual([E.apt.value, E.da.value, E.a.value, E.ospiti.value], ['corte', '2026-10-05', '2026-10-11', '2']);
 });
+test('W17b Gestione · prenotazione Booking «da verificare» (sparita dal calendario di Booking): stato e motivo veri nell\'elenco e in «Da gestire»; «Conferma: l\'ospite c\'è» e l\'ospite entra nell\'area clienti; si può rimettere da verificare', async () => {
+  await setup(); regAirbnb();
+  const snap = JSON.parse(kv.exec(['GET', 'reg:snap']));
+  snap.rows.push({ id: 'BOOKING|6397656355', fonte: 'BOOKING', codice: '6397656355', apt: 'torre', checkin: '2026-10-30', checkout: '2026-11-01', notti: 2, ospiti: 2, stato: 'DA_VERIFICARE', uid: '', motivo: 'ICAL_SPARITO', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] });
+  kv.exec(['SET', 'reg:snap', JSON.stringify(snap)]);
+  const r = await loadAdmin('#prenotazioni'), $ = s => r.doc.querySelector(s), riga = () => [...r.doc.querySelectorAll('#bk-body tr')].find(x => /6397656355/.test(text(x)));
+  await waitFor(() => riga(), 'riga Booking');
+  assert(/da verificare/.test(text(riga())) && /Non è più nel calendario di Booking\.com e non è arrivata nessuna email di cancellazione/.test(text(riga())), text(riga()));
+  r.doc.querySelector('[data-act=bkf][data-f=gestire]').click(); assert(riga(), 'tra le prenotazioni da gestire');
+  await goto(r, '#prenotazioni/6397656355', '[data-testid=admin-book-regok]');
+  assert(/non entra nell'area clienti/.test(text($('[data-testid=admin-book-regok]'))));
+  { const g = await H.api('mie', { code: '6397656355' }, { headers: { 'x-real-ip': '198.51.100.7' } }); assert.equal(g.status, 404, 'prima della conferma l\'area non la apre'); }
+  $('[data-testid=admin-book-regok-si]').click();
+  await waitFor(() => $('[data-testid=admin-book-regok-fatto]'), 'confermata da te');
+  assert(!$('[data-testid=admin-book-regok]') && /confermata/.test(text($('[data-testid=admin-book-6397656355] .stato'))), 'chip confermata');
+  const g = await H.api('mie', { code: '6397656355' }, { headers: { 'x-real-ip': '198.51.100.8' } }); assert.equal(g.status, 200, 'ora l\'ospite entra con il numero di Booking');
+  await goto(r, '#prenotazioni', '#bk-body'); assert(!riga(), 'confermata: non più da gestire'); r.doc.querySelector('[data-act=bkf][data-f=tutte]').click();
+  await waitFor(() => riga(), 'riga'); assert(/confermata da te/.test(text(riga())), text(riga()));
+  await goto(r, '#prenotazioni/6397656355', '[data-testid=admin-book-regok-no]');
+  $('[data-testid=admin-book-regok-no]').click();
+  await waitFor(() => $('[data-testid=admin-book-regok]'), 'di nuovo da verificare');
+  assert.equal((await H.api('mie', { code: '6397656355' }, { headers: { 'x-real-ip': '198.51.100.9' } })).status, 404);
+});
 test('W18 Gestione · salvataggio: le modifiche non salvate restano segnalate in ogni sezione; se un altro dispositivo ha salvato nel frattempo non si sovrascrive nulla e si sceglie; Annulla; uscita con conferma', async () => {
   await setup();
   const A1 = await loadAdmin('#home'), B1 = await loadAdmin('#home');      // lo stesso titolare su due dispositivi

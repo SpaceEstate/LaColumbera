@@ -613,6 +613,37 @@ test('C4 check-in pagato SENZA numero (fatto prima del 30/10 o con «Non ho il n
   clock.advance(864e5); await H.sync(); assert(ckKey(ct), 'il giorno dopo sì');
 });
 
+test('C5 prenotazione del foglio «da verificare» (sparita dal calendario di Booking, nessuna email di cancellazione): l\'area clienti non la apre; il titolare la conferma dalla Gestione e da subito vale come confermata (area, check-in, «Da fare»); il foglio annullato vince', async () => {
+  await base();
+  const snapDi = stato => { const snap = { rows: [{ id: 'BOOKING|6397656355', fonte: 'BOOKING', codice: '6397656355', apt: 'torre', checkin: '2026-10-30', checkout: '2026-11-01', notti: 2, ospiti: 2, stato, uid: '', motivo: stato === 'DA_VERIFICARE' ? 'ICAL_SPARITO' : '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '#ok', flags: [] }], invalid: [], count: 1, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' };
+    kv.exec(['SET', 'reg:snap', JSON.stringify(snap)]); };
+  snapDi('DA_VERIFICARE');
+  eq((await ospite('mie', { code: '6397656355' })).status, 404, 'da verificare: l\'area non la apre');
+  let adm = (await H.adminApi('adm', {})).body, r = adm.reg.find(x => x.codice === '6397656355');
+  eq([r.stato, r.motivo, r.confermataDaTe], ['da_verificare', 'ICAL_SPARITO', false], 'la Gestione vede lo stato vero e il motivo (prima: sempre «confermata»)');
+  assert((await H.adminApi('reconcile', {})).body.anomalies.some(a => a.type === 'DA_VERIFICARE' && a.ref === 'BOOKING|6397656355'));
+  // solo il titolare
+  eq((await H.api('reg_conferma', { codice: '6397656355' })).status, 401);
+  eq((await H.adminApi('reg_conferma', { codice: '0000000000' })).status, 404);
+  const c = await H.adminApi('reg_conferma', { codice: ' 6397656355 ' }); eq([c.status, c.body.stato], [200, 'confermata']);
+  const m = await ospite('mie', { code: '6397656355' }); eq(m.status, 200, JSON.stringify(m.body)); eq(m.body.code || m.body.prenotazione && m.body.prenotazione.code || '6397656355', '6397656355');
+  adm = (await H.adminApi('adm', {})).body; r = adm.reg.find(x => x.codice === '6397656355');
+  eq([r.stato, r.confermataDaTe], ['confermata', true]);
+  assert(!(await H.adminApi('reconcile', {})).body.anomalies.some(a => a.type === 'DA_VERIFICARE' && a.ref === 'BOOKING|6397656355'), 'non più tra le cose da verificare');
+  assert(/6397656355 \(BOOKING\) confermata dal titolare/.test(logTxt()), 'nel registro eventi');
+  // il check-in senza numero di quella data e appartamento si collega
+  eq((await H.webhook('checkout.session.completed', ckSess(null, { metadata: { dataCheckin: '2026-10-30', appartamento: 'Torre', numeroNotti: '2' } }))).status, 200);
+  eq((await ospite('mie', { code: '6397656355' })).body.soggiorno.checkin.fatto, true);
+  // ripensamento: di nuovo da verificare
+  eq((await H.adminApi('reg_conferma', { codice: '6397656355', on: false })).status, 200);
+  eq((await ospite('mie', { code: '6397656355' })).status, 404);
+  // confermata di nuovo, poi arriva l'email di cancellazione e il foglio la annulla: vince il foglio
+  await H.adminApi('reg_conferma', { codice: '6397656355' }); snapDi('ANNULLATA');
+  eq((await ospite('mie', { code: '6397656355' })).status, 404, 'annullata nel foglio: chiusa');
+  eq((await H.adminApi('reg_conferma', { codice: '6397656355' })).status, 409, 'un\'annullata non si conferma da qui');
+  snapDi('CONFERMATA'); const no = await H.adminApi('reg_conferma', { codice: '6397656355' }); eq(no.status, 409); assert(/solo una prenotazione «da verificare»/.test(no.body.err));
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

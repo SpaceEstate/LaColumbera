@@ -628,6 +628,13 @@ if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede i
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
  try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
+if(a==='reg_conferma'){ // Gestione: conferma (o rimette «da verificare») una prenotazione del foglio che il foglio ha messo «da verificare»
+ const code=String(b.codice||'').trim().toUpperCase(),row=(await E.registryRows()).find(r=>r.fonte!=='SITO'&&String(r.codice).toUpperCase()===code);
+ if(!row)return res.status(404).json({err:'Prenotazione non trovata nel foglio'});
+ if(row.stato!=='DA_VERIFICARE')return res.status(409).json({err:'Si conferma da qui solo una prenotazione «da verificare»: questa nel foglio è '+String(row.stato).toLowerCase().replace('_',' ')+'.'});
+ await E.regConferma(row,b.on!==false);
+ await E.log({lvl:'INFO',msg:'Prenotazione '+row.codice+' ('+row.fonte+') '+(b.on!==false?'confermata dal titolare dalla Gestione':'rimessa da verificare dalla Gestione')+(row.motivo?' · motivo del foglio: '+row.motivo:'')}).catch(()=>{});
+ return res.json({ok:1,stato:b.on!==false?'confermata':'da_verificare'})}
 if(a==='adm'){const config=await cfg(req),
   // Gestione mostra solo prenotazioni vere: una prenotazione «in attesa» (pagamento non completato) non è una prenotazione e non compare,
   // né nell'elenco né nel calendario (holds:false). Compare quando Stripe conferma il pagamento (o, se pagata su date in conflitto, «da verificare»).
@@ -638,7 +645,9 @@ if(a==='adm'){const config=await cfg(req),
  for(const r of rows)ext.push({id:r.apt||'',da:r.checkin,a:r.checkout,src:'Foglio'});
  // righe del foglio con il codice (per i template da copiare su Booking e Airbnb) e messaggi non letti (badge del menu);
  // per le prenotazioni manuali anche la nota del foglio (colonna NOTE: per esempio chi è l'ospite e quanto ha pagato)
- const reg=rows.map(r=>Object.assign({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti},r.fonte==='MANUALE'?{note:r.note||''}:{}));
+ // stato vero della riga (non sempre «confermata»): «da verificare» si conferma dal sito (reg_conferma) e da allora vale come confermata
+ const okDaTe=await E.regConfermate(rows).catch(()=>new Set()),statoReg=r=>r.stato==='DA_VERIFICARE'?(okDaTe.has(r.id)?'confermata':'da_verificare'):r.stato==='IN_ATTESA'?'richiesta':'confermata';
+ const reg=rows.map(r=>Object.assign({codice:r.codice,fonte:r.fonte,apt:r.apt||'',da:r.checkin,a:r.checkout,notti:r.notti,ospiti:r.ospiti,stato:statoReg(r)},r.stato==='DA_VERIFICARE'?{motivo:r.motivo||'',confermataDaTe:okDaTe.has(r.id)}:{},r.fonte==='MANUALE'?{note:r.note||''}:{}));
  // orizzonte: fin dove si prenota dal sito (regola fissa del motore di disponibilità), mostrato in Gestione → Regole di prenotazione
  return res.json({bk,ext,occupancy,sync,reg,msgNonLetti:await MSG.nonLettiHost().catch(()=>0),orizzonte:{mesi:AV.GUEST_MONTHS,ultimoGiorno:AV.maxBookingDate(Date.now())}})}
 // ---- Messaggi (Gestione): conversazioni, risposte, template, regole automatiche, messaggi programmati ----

@@ -824,6 +824,23 @@ function makeEngine(deps) {
   const fromRow = r => ({ code: r.codice, id: r.apt, da: r.checkin, a: r.checkout, notti: r.notti, ospiti: r.ospiti, nome: '', email: '', stato: lower(r.stato), fonte: 'foglio', origine: lower(r.fonte) });
   // Prima le prenotazioni del sito (KV: hanno importo, stato del pagamento, email), poi il registro del foglio (Booking, Airbnb, manuali;
   // anche le prenotazioni del sito vi sono copiate), infine (live: true) lo script del foglio in diretta.
+  // Conferma del titolare dal sito (Gestione → Prenotazioni → «Conferma») di una riga del foglio «da verificare» (per esempio sparita dal
+  // calendario di Booking senza email di cancellazione): il foglio resta com'è, il sito la tratta come confermata (area clienti, Guest Card,
+  // check-in, «Da fare»). Vale solo finché la riga è DA_VERIFICARE: se il foglio la annulla (email di cancellazione) vince il foglio.
+  const regOkKey = r => 'regok:' + String(r.id || '').toUpperCase();
+  async function regConfermate(rows) {
+    const dv = (rows || []).filter(r => r.stato === 'DA_VERIFICARE');
+    if (!dv.length) return new Set();
+    const v = await kvp(dv.map(r => ['GET', regOkKey(r)]));
+    return new Set(dv.filter((r, i) => v[i]).map(r => r.id));
+  }
+  async function regConferma(row, on) {
+    if (!on) return kv('DEL', regOkKey(row));
+    const fine = Date.parse((isIso(row.checkout) ? row.checkout : row.checkin) + 'T12:00:00Z') + 60 * DAY;      // poi la riga sparisce dal foglio
+    return kv('SET', regOkKey(row), JSON.stringify({ il: iso(now()) }), 'EX', String(Math.max(86400, Math.round((fine - now()) / 1000))));
+  }
+  const conConferma = async row => row && row.stato === 'DA_VERIFICARE' && (await kv('GET', regOkKey(row))) ? Object.assign({}, row, { stato: 'CONFERMATA' }) : row;
+
   async function findByCode(config, code, { live = true } = {}) {
     code = String(code || '').trim().toUpperCase();
     if (!code) return null;
@@ -832,10 +849,10 @@ function makeEngine(deps) {
     const aptIds = (config.apts || []).map(a => a.id);
     const snap = bkParse(await kv('GET', K.reg));
     const row = ((snap && snap.rows) || []).find(r => r.codice.toUpperCase() === code);
-    if (row) return fromRow(row);
+    if (row) return fromRow(await conConferma(row));
     if (!live) return null;
     const lv = await webappGet('find', { code });              // codice recentissimo o riga fuori finestra export
-    if (lv.ok && lv.data.row) { const n = normReg(lv.data.row, aptIds); if (n.row) return fromRow(n.row); }
+    if (lv.ok && lv.data.row) { const n = normReg(lv.data.row, aptIds); if (n.row) return fromRow(await conConferma(n.row)); }
     return null;
   }
 
@@ -894,10 +911,11 @@ function makeEngine(deps) {
     // righe del registro
     const seenId = new Map();
     for (const r of regRows) { if (seenId.has(r.id)) add('ALTO', 'DUPLICATO_REGISTRO', { ref: r.id, msg: 'più righe con la stessa chiave FONTE|CODICE' }); seenId.set(r.id, 1); }
+    const confermateDaTe = await regConfermate(regRows).catch(() => new Set());
     for (const r of regRows) {
       if (r.stato === 'ANNULLATA' || r.checkout < today) continue;
       if (!r.apt) add('ALTO', 'SENZA_APPARTAMENTO', { ref: r.id, from: r.checkin, to: r.checkout, msg: 'appartamento non determinato: blocca entrambi finché non assegnato' + (r.motivo ? ' (' + r.motivo + ')' : '') });
-      else if (r.stato === 'DA_VERIFICARE') add('MEDIO', 'DA_VERIFICARE', { apt: r.apt, ref: r.id, from: r.checkin, to: r.checkout, msg: r.motivo || 'da verificare' });
+      else if (r.stato === 'DA_VERIFICARE' && !confermateDaTe.has(r.id)) add('MEDIO', 'DA_VERIFICARE', { apt: r.apt, ref: r.id, from: r.checkin, to: r.checkout, msg: r.motivo || 'da verificare' });
       if (r.flags && r.flags.includes('NOTTI_ASSENTI')) add('MEDIO', 'NOTTI_ASSENTI', { apt: r.apt, ref: r.id, from: r.checkin, msg: 'numero notti mancante: considerata 1 notte' });
     }
     // sovrapposizioni tra prenotazioni attive (doppia prenotazione)
@@ -952,7 +970,7 @@ function makeEngine(deps) {
   }
 
   return { T, feedsFor, feedHealth, regHealth, refreshFeeds, refreshRegistry, loadAptState, computeOccupancy, guestBusy, checkRange, conflictsFor, adminOccupancy, occupancyOf, registryRows, bkPurgePending, exportIcs, exportIcsSite, exportIcsAll, confirmBooking, findByCode, syncState, syncAll, reconcile, log, aptExists,
-    bkAll, bkGet, bkPut, bkDel, holdAcquire, holdRelease, holdsValid, holdPurge, webappUpsert, registerBooking, outboxPush, outboxDrain };
+    regConfermate, regConferma, bkAll, bkGet, bkPut, bkDel, holdAcquire, holdRelease, holdsValid, holdPurge, webappUpsert, registerBooking, outboxPush, outboxDrain };
 }
 
 module.exports = { makeEngine, parseICS, icalDate, icalFeed, rangeDays, addDays, nightsBetween, todayRome, isIso, hmac, srcOf, LUA_ACQUIRE, LUA_RELEASE, K,

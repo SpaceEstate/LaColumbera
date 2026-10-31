@@ -58,7 +58,8 @@ const buildBusy=()=>{BUSY={};S.apts.forEach(p=>BUSY[p.id]=new Set());
   (D.ext||[]).forEach(e=>days(e.da,e.a).forEach(x=>BUSY[e.id]&&BUSY[e.id].add(x)));
   (D.bk||[]).filter(x=>x.stato!=='annullata').forEach(x=>days(x.da,x.a).forEach(z=>BUSY[x.id]&&BUSY[x.id].add(z)))};
 const GEST=['richiesta','in_attesa','da_verificare'];
-const pending=()=>D.bk.filter(x=>GEST.includes(x.stato));
+// da gestire: prenotazioni del sito in sospeso e quelle del foglio (Booking, Airbnb…) «da verificare» non ancora concluse (si confermano dal dettaglio)
+const pending=()=>[...D.bk.filter(x=>GEST.includes(x.stato)),...(D.reg||[]).filter(r=>r.stato==='da_verificare'&&r.a>=ymd(new Date())).map(r=>({code:r.codice,id:r.apt,da:r.da,a:r.a,nome:'',stato:'da_verificare'}))];
 const LBL={BOOKING_ICAL:'Booking',AIRBNB_ICAL:'Airbnb',ALTRO_ICAL:'Altro iCal',SHEET:'Foglio',SITO:'Sito',HOLD:'In pagamento',MANUALE:'Blocco',CHIUSO:'Chiuso',SITO_HOLD:'In pagamento'};
 // quanti punti della sincronizzazione richiedono attenzione: feed e foglio non aggiornati, coda di ripresa non vuota
 const syncIssues=()=>{const s=D.sync;if(!s)return 0;
