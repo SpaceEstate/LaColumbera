@@ -644,6 +644,25 @@ test('C5 prenotazione del foglio «da verificare» (sparita dal calendario di Bo
   snapDi('CONFERMATA'); const no = await H.adminApi('reg_conferma', { codice: '6397656355' }); eq(no.status, 409); assert(/solo una prenotazione «da verificare»/.test(no.body.err));
 });
 
+test('C6 check-in segnato a mano dal titolare (ospite registrato di persona o check-in non collegabile): l\'area clienti mostra «Check-in completato»; si può togliere; solo il titolare', async () => {
+  await base(); await conCassetta('torre', '4821'); const code = await pagata();
+  eq((await H.adminApi('checkin_stato', { code })).body, { fatto: false });
+  eq((await H.api('checkin_segna', { code })).status, 401, 'solo il titolare');
+  eq((await H.adminApi('checkin_segna', { code: 'NONESISTE1' })).status, 404);
+  const r = await H.adminApi('checkin_segna', { code: code.toLowerCase() }); eq([r.status, r.body.fatto, r.body.come], [200, true, 'manuale']);
+  let s = (await ospite('mie', { code })).body.soggiorno; eq([s.checkin.fatto, s.cassetta], [true, { dal: '2026-10-18' }], 'come un check-in online: fatto, e il codice della cassetta nei giorni giusti');
+  assert(/Check-in di .* segnato come fatto dal titolare/.test(logTxt()));
+  // un check-in online pagato dopo non cambia la data già registrata; il titolare lo può togliere
+  eq((await H.adminApi('checkin_segna', { code, on: false })).body, { fatto: false });
+  eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: false });
+  // dal modulo online: «come» = online
+  eq((await H.webhook('checkout.session.completed', ckSess(code))).status, 200);
+  eq((await H.adminApi('checkin_stato', { code })).body.come, 'online');
+  // prenotazione Booking del foglio: stesso interruttore, con il numero di Booking
+  regAirbnb(); eq((await H.adminApi('checkin_segna', { code: 'HMSEDESZCW' })).body.fatto, true);
+  eq((await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno.checkin.fatto, true);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

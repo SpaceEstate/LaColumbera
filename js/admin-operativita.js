@@ -162,6 +162,7 @@ function vDettaglio(code){
    <div class="field" style="margin-top:14px;max-width:460px"><label for="bk-tpl">Messaggio da mandare</label><select id="bk-tpl" data-testid="admin-book-tpl"><option value="">Carico i template…</option></select></div>
    <button type="button" class="btn btn-wine" data-act="bkFill" data-code="${esc(x.code)}" data-testid="admin-book-fill">Prepara e copia</button> <span class="admin-msg" id="bk-fill-msg"></span>
    <textarea id="bk-fill" rows="6" readonly hidden data-testid="admin-book-text" style="margin-top:12px"></textarea></div>
+  <div class="admin-card" data-testid="admin-book-checkin"><h3>Check-in online</h3><div id="bk-ck"><p class="book-note">Carico…</p></div></div>
   <div class="admin-card" data-testid="admin-book-ric"><h3>Ricevuta</h3><div id="bk-ric"><p class="book-note">Carico…</p></div></div>
   <div class="admin-card" data-testid="admin-book-msg"><h3>Messaggi</h3><div id="bk-msg">${chat?'<p class="book-note">Carico…</p>':x.manuale?'<p>Per le prenotazioni manuali la chat del sito non c\'è: il messaggio qui sopra, con il link all\'area ospiti, mandaglielo per WhatsApp, SMS o email.</p>':x.portale?`<p>Gli ospiti di ${esc(x.fonte)} ti scrivono sul portale: dal sito non si chatta. Qui sopra trovi il messaggio con il link all'area ospiti da incollare nella chat.</p>`:'<p class="book-note">Si può scrivere all\'ospite quando la prenotazione è confermata.</p>'}</div></div>
   <div class="admin-card" data-testid="admin-book-actions"><h3>Azioni</h3><div class="adm-quick">
@@ -177,7 +178,7 @@ A.view.prenotazioni=r=>r.sub?vDettaglio(r.sub):vElenco();
 A.after.prenotazioni=r=>{
   if(!r.sub)return;
   const x=elenco().find(z=>String(z.code).toUpperCase()===r.sub.toUpperCase());if(!x)return;
-  ricLoad(x);
+  ricLoad(x);ckLoad(x);
   // template: per Booking e Airbnb quello con il link all'area ospiti, per il sito il benvenuto
   A.api('msg_tpl',{}).then(j=>{const el=$('#bk-tpl');if(!el)return;const l=j.templates||[],pre=x.portale?'portale':'benvenuto';
     el.innerHTML=l.length?l.map(t=>`<option value="${esc(t.id)}"${t.id===pre?' selected':''}>${esc(t.nome)}</option>`).join(''):'<option value="">Nessun template</option>';V.tpl=l},()=>{});
@@ -188,6 +189,14 @@ A.after.prenotazioni=r=>{
     el.innerHTML=(c?`<p>${c.nonLetti?`<span class="adm-badge">${c.nonLetti}</span> da leggere · `:''}ultimo messaggio ${c.da==='ospite'?'dell\'ospite':'tuo'}: «${esc(c.anteprima)}»</p>`:'<p>Nessun messaggio finora.</p>')
       +(pr.length||pg.length?`<h4 class="adm-h4">In programma</h4><ul class="adm-list">${pr.map(z=>`<li><span class="adm-apt">${esc(quando(z.quando))}</span><span class="adm-who">${esc(z.nomeRegola||z.template)} <small>(automatico${z.stato==='saltato'?', saltato':''})</small></span></li>`).join('')}${pg.map(z=>`<li><span class="adm-apt">${esc(quando(Date.parse(z.quando)))}</span><span class="adm-who">«${esc(String(z.testo).slice(0,80))}» <small>(programmato da te)</small></span></li>`).join('')}</ul>`:'')
       +`<a class="btn btn-wine" href="#messaggi/c/${esc(x.code)}" data-testid="admin-book-chat">${c?'Apri la conversazione':'Scrivi all\'ospite'}</a>`})};
+
+// ---------- Check-in online: com'è (pagato dal modulo con il numero, abbinato, oppure segnato da te) e interruttore per segnarlo a mano ----------
+// Serve quando l'ospite si è registrato di persona o il suo check-in non si collega da solo: l'area clienti mostra allora «Check-in completato».
+const ckHtml=(x,c)=>c&&c.fatto
+  ?`<p class="adm-ok" data-testid="admin-book-ck-fatto">✓ Fatto il ${esc(fmtD(c.il))}${c.come==='manuale'?' · segnato da te':' · dal modulo online'}: nell'area clienti il riquadro è «Check-in completato».</p><button type="button" class="link-btn" data-act="ckSegna" data-code="${esc(x.code)}" data-on="0" data-testid="admin-book-ck-togli">Segna come non fatto</button>`
+  :`<p class="book-note" data-testid="admin-book-ck-dafare">Non risulta fatto: nell'area clienti l'ospite vede ancora il pulsante «Check-in online». Se si è già registrato (di persona o in un altro modo), segnalo qui.</p><button type="button" class="btn btn-line" data-act="ckSegna" data-code="${esc(x.code)}" data-on="1" data-testid="admin-book-ck-segna">Segna check-in fatto</button>`;
+const ckLoad=x=>{const el=$('#bk-ck');if(!el)return;if(x.stato!=='confermata'){el.innerHTML='<p class="book-note">Vale per le prenotazioni confermate.</p>';return}
+  A.api('checkin_stato',{code:x.code}).then(c=>{const e=$('#bk-ck');if(e)e.innerHTML=ckHtml(x,c)},()=>{const e=$('#bk-ck');if(e)e.innerHTML='<p class="book-note">Non disponibile in questo momento.</p>'})};
 
 // ---------- Ricevuta (api/_ricevute.js): l'ospite la chiede dall'area clienti, tu la emetti e la mandi da qui ----------
 const ricDati=q=>[['Intestata a',q.nome],['Codice fiscale',q.cf||'—'],['Indirizzo',[q.indirizzo,[q.cap,q.citta].filter(Boolean).join(' '),q.paese].filter(Boolean).join(', ')],...(q.nota?[['Nota',q.nota]]:[])];
@@ -243,6 +252,8 @@ Object.assign(A.act,{
   todoDel:a=>{if(confirm('Togliere questa cosa da fare?'))todoCall('todo_del',{id:a.dataset.id}).catch(todoErr)},
   bkGo:a=>{V.bkf=a.dataset.f||'tutte'},
   gcFrom:a=>{V.gcFrom=a.dataset.code},
+  ckSegna:async a=>{const on=a.dataset.on==='1';if(!on&&!confirm('Segnare il check-in come non fatto? Nell\'area clienti l\'ospite rivedrà il pulsante «Check-in online».'))return;a.disabled=true;
+    try{const c=await A.api('checkin_segna',{code:a.dataset.code,on});const x=elenco().find(z=>z.code===a.dataset.code),el=$('#bk-ck');if(x&&el)el.innerHTML=ckHtml(x,c)}catch(e){alert(e.message);a.disabled=false}},
   regConferma:async a=>{const on=a.dataset.on==='1';a.disabled=true;
     try{await A.api('reg_conferma',{codice:a.dataset.code,on});await A.refreshAdm();A.body()}catch(e){alert(e.message);a.disabled=false}},
   oggiRefresh:async a=>{a.disabled=true;V.health=null;await A.refreshAdm();A.body()},

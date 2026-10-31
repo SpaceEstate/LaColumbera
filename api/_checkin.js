@@ -57,10 +57,21 @@ function makeCheckin({ kv, stripe, log, now, prenotazioni }) {
     const v = JSON.stringify({ il: new Date(il).toISOString(), sid: String(s.id || '').slice(0, 80) });
     return { code, abbinato, nuovo: (await kv('SET', 'ck:' + code, v, 'NX', 'EX', String(ttlDi(s.metadata, t)))) === 'OK' };
   }
-  // Per l'area clienti: fatto sì o no, e il giorno (ora di Trento)
-  async function stato(code) {
+  // Per l'area clienti: fatto sì o no, e il giorno (ora di Trento). Per la Gestione anche come: 'online' (pagamento del check-in) o 'manuale'.
+  async function stato(code, { come = false } = {}) {
     const v = parse(await kv('GET', 'ck:' + String(code || '').trim().toUpperCase()));
-    return v && Date.parse(v.il) ? { fatto: true, il: AV.todayRome(Date.parse(v.il)) } : { fatto: false };
+    if (!(v && Date.parse(v.il))) return { fatto: false };
+    return Object.assign({ fatto: true, il: AV.todayRome(Date.parse(v.il)) }, come ? { come: v.sid === 'manuale' ? 'manuale' : 'online' } : {});
+  }
+  // Gestione: il titolare segna a mano il check-in fatto (ospite registrato di persona, check-in fatto fuori dal modulo online o non collegabile),
+  // oppure lo toglie. Stessa chiave del check-in online: l'area clienti si comporta allo stesso modo (riquadro «Check-in completato», cassetta).
+  async function segna(b, on) {
+    const code = String(b && b.code || '').trim().toUpperCase();
+    if (!code) return false;
+    if (!on) { await kv('DEL', 'ck:' + code); return true; }
+    const t = now(), v = JSON.stringify({ il: new Date(t).toISOString(), sid: 'manuale' });
+    await kv('SET', 'ck:' + code, v, 'EX', String(ttlDi({ dataCheckin: b.da, numeroNotti: String(b.notti || '') }, t)));
+    return true;
   }
   // Rete di sicurezza (dalla sincronizzazione, al più ogni 10 minuti): le sessioni Stripe degli ultimi 3 giorni, più vecchie di 35 minuti
   // (il pagamento del check-in scade dopo 30: sono tutte chiuse e il webhook ha avuto il tempo di arrivare). Un check-in registrato qui
@@ -92,7 +103,7 @@ function makeCheckin({ kv, stripe, log, now, prenotazioni }) {
     if (log && out.errore) await log({ lvl: 'ERR', msg: 'Check-in online: controllo su Stripe non riuscito (si riprova tra 10 minuti).' }).catch(() => {});
     return out;
   }
-  return { registra, stato, riconcilia };
+  return { registra, stato, segna, riconcilia };
 }
 
 module.exports = { makeCheckin, eCheckin, codiceDi, codiceCassetta };

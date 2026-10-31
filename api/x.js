@@ -628,6 +628,12 @@ if(a==='gc_attributi'){ // solo admin: verifica se una tipologia card richiede i
  if(!idTipologiaCard)return res.status(400).json({err:'Manca idTipologiaCard'});
  try{return res.json(await tgcCall('AttributiCard.ashx?idTipologiaCard='+encodeURIComponent(idTipologiaCard)))}
  catch(e){return res.status(502).json({err:e.message})}}
+if(a==='checkin_stato'||a==='checkin_segna'){ // Gestione: check-in online di una prenotazione (sito o foglio): com'è, e segnarlo a mano fatto / non fatto
+ const config=await cfg(req),x=await findBooking(config,String(b.code||'').trim().toUpperCase());
+ if(!x)return res.status(404).json({err:'Prenotazione non trovata'});
+ if(a==='checkin_segna'){await CK.segna(x,b.on!==false);
+  await E.log({lvl:'INFO',msg:'Check-in di '+x.code+(b.on!==false?' segnato come fatto dal titolare':' tolto dal titolare (di nuovo da fare)')}).catch(()=>{})}
+ return res.json(await CK.stato(x.code,{come:true}))}
 if(a==='reg_conferma'){ // Gestione: conferma (o rimette «da verificare») una prenotazione del foglio che il foglio ha messo «da verificare»
  const code=String(b.codice||'').trim().toUpperCase(),row=(await E.registryRows()).find(r=>r.fonte!=='SITO'&&String(r.codice).toUpperCase()===code);
  if(!row)return res.status(404).json({err:'Prenotazione non trovata nel foglio'});

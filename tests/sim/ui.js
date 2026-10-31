@@ -1496,6 +1496,12 @@ test('W17b Gestione · prenotazione Booking «da verificare» (sparita dal calen
   await waitFor(() => $('[data-testid=admin-book-regok-fatto]'), 'confermata da te');
   assert(!$('[data-testid=admin-book-regok]') && /confermata/.test(text($('[data-testid=admin-book-6397656355] .stato'))), 'chip confermata');
   const g = await H.api('mie', { code: '6397656355' }, { headers: { 'x-real-ip': '198.51.100.8' } }); assert.equal(g.status, 200, 'ora l\'ospite entra con il numero di Booking');
+  // check-in: l'ospite si è registrato di persona → «Segna check-in fatto» e nell'area clienti il riquadro è completato
+  await waitFor(() => $('[data-testid=admin-book-ck-segna]'), 'check-in da fare');
+  $('[data-testid=admin-book-ck-segna]').click();
+  await waitFor(() => $('[data-testid=admin-book-ck-fatto]'), 'check-in segnato');
+  assert(/segnato da te/.test(text($('[data-testid=admin-book-ck-fatto]'))));
+  const g2 = await H.api('mie', { code: '6397656355' }, { headers: { 'x-real-ip': '198.51.100.10' } }); assert.equal(g2.body.soggiorno.checkin.fatto, true, 'area clienti: check-in completato');
   await goto(r, '#prenotazioni', '#bk-body'); assert(!riga(), 'confermata: non più da gestire'); r.doc.querySelector('[data-act=bkf][data-f=tutte]').click();
   await waitFor(() => riga(), 'riga'); assert(/confermata da te/.test(text(riga())), text(riga()));
   await goto(r, '#prenotazioni/6397656355', '[data-testid=admin-book-regok-no]');
