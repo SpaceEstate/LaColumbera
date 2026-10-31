@@ -1380,28 +1380,51 @@ test('W15b Gestione · Oggi → Da fare: registrare gli ospiti a ogni arrivo, IS
   // senza accesso alla Gestione niente cose da fare
   assert.equal((await H.api('todo_get', {})).status, 401); assert.equal((await H.api('todo_add', { testo: 'x' })).status, 401);
 });
+// Calendari come li esportano davvero Booking e Airbnb (solo da oggi in poi, con i blocchi «Airbnb (Not available)»), per W15c e W15d.
+// Foglio: Booking a Torre dal 2 al 4 ottobre, Airbnb a Corte dal 5 all'11 (lo stub del foglio non riempie il registro: si scrive l'istantanea, dopo ogni sincronizzazione).
+const regDue = () => { const row = (fonte, codice, apt, checkin, checkout, notti, ospiti) => ({ id: fonte + '|' + codice, fonte, codice, apt, checkin, checkout, notti, ospiti, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] });
+  kv.exec(['SET', 'reg:snap', JSON.stringify({ rows: [row('BOOKING', '6877180932', 'torre', '2026-10-02', '2026-10-04', 2, 4), row('AIRBNB', 'HMSEDESZCW', 'corte', '2026-10-05', '2026-10-11', 6, 2)], invalid: [], count: 2, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' })]); };
+const bloccoAirbnb = (uid, from, to) => H.vevent({ UID: uid + '@airbnb.com', 'DTSTART;VALUE=DATE': from.replace(/-/g, ''), 'DTEND;VALUE=DATE': to.replace(/-/g, ''), SUMMARY: 'Airbnb (Not available)' });
+const corteAirbnb = () => H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW');
+// i calendari di quel giorno: 2 ottobre, entra Booking a Torre, Airbnb ricopia quelle notti e chiude oggi e domani a Corte per il preavviso;
+// 3 ottobre, nessuno entra, ma Booking e Airbnb esportano da oggi: il soggiorno di Torre e i blocchi «cominciano» oggi;
+// 7 ottobre, a Torre entra un ospite Airbnb che il foglio non ha ancora («Reserved»), a Corte il preavviso cade dentro il soggiorno
+const CAL_GIORNI = {
+  '2026-10-02': { bookingTorre: [H.bookingEv('b1', '2026-10-02', '2026-10-04')], airbnbTorre: [bloccoAirbnb('x1', '2026-10-02', '2026-10-04')], airbnbCorte: [bloccoAirbnb('p1', '2026-10-02', '2026-10-04'), corteAirbnb()] },
+  '2026-10-03': { bookingTorre: [H.bookingEv('b1', '2026-10-03', '2026-10-04')], airbnbTorre: [bloccoAirbnb('x1', '2026-10-03', '2026-10-04')], airbnbCorte: [bloccoAirbnb('p1', '2026-10-03', '2026-10-05'), corteAirbnb()] },
+  '2026-10-07': { airbnbTorre: [H.airbnbEv('a2', '2026-10-07', '2026-10-09', 'HMNUOVO123'), bloccoAirbnb('p2', '2026-10-09', '2026-10-10')], airbnbCorte: [corteAirbnb(), bloccoAirbnb('p3', '2026-10-07', '2026-10-09')] } };
+const giornoCal = async iso => { clock.set(iso + 'T08:00:00Z'); for (const k of ['bookingTorre', 'bookingCorte', 'airbnbTorre', 'airbnbCorte']) H.setFeed(k, CAL_GIORNI[iso][k] || []); await H.sync(); regDue();
+  const r = await loadAdmin(); await waitFor(() => r.doc.querySelector('[data-testid=admin-todo-manuali]'), 'Oggi ' + iso); return r; };
 test('W15c Gestione · Da fare: i blocchi di Airbnb («Not available») e le date che i calendari accorciano a oggi non chiedono di registrare ospiti mai entrati; una prenotazione vista solo nel calendario sì', async () => {
   await setup();
-  // foglio: Booking a Torre dal 2 al 4 ottobre, Airbnb a Corte dal 5 all'11 (lo stub del foglio non riempie il registro: si scrive l'istantanea, dopo ogni sincronizzazione)
-  const reg = () => { const row = (fonte, codice, apt, checkin, checkout, notti, ospiti) => ({ id: fonte + '|' + codice, fonte, codice, apt, checkin, checkout, notti, ospiti, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] });
-    kv.exec(['SET', 'reg:snap', JSON.stringify({ rows: [row('BOOKING', '6877180932', 'torre', '2026-10-02', '2026-10-04', 2, 4), row('AIRBNB', 'HMSEDESZCW', 'corte', '2026-10-05', '2026-10-11', 6, 2)], invalid: [], count: 2, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' })]); };
-  const blocco = (uid, from, to) => H.vevent({ UID: uid + '@airbnb.com', 'DTSTART;VALUE=DATE': from.replace(/-/g, ''), 'DTEND;VALUE=DATE': to.replace(/-/g, ''), SUMMARY: 'Airbnb (Not available)' });
-  // un giorno: i calendari come li esportano Booking e Airbnb quel giorno (solo da oggi in poi), poi la Gestione
-  const giorno = async (iso, f) => { clock.set(iso + 'T08:00:00Z'); for (const k of ['bookingTorre', 'bookingCorte', 'airbnbTorre', 'airbnbCorte']) H.setFeed(k, f[k] || []); await H.sync(); reg();
-    const r = await loadAdmin(); await waitFor(() => r.doc.querySelector('[data-testid=admin-todo-manuali]'), 'Da fare ' + iso);
-    return [...r.doc.querySelectorAll('[data-testid=admin-todo-auto] li')].map(li => li.getAttribute('data-testid').replace('admin-todo-', '')).filter(id => id.startsWith('all:')).sort(); };
-  const corte = () => H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW');
-  // 2 ottobre: entra Booking a Torre; Airbnb ricopia le notti di Booking e chiude oggi e domani a Corte per il preavviso: un solo arrivo vero
-  assert.deepEqual(await giorno('2026-10-02', { bookingTorre: [H.bookingEv('b1', '2026-10-02', '2026-10-04')], airbnbTorre: [blocco('x1', '2026-10-02', '2026-10-04')], airbnbCorte: [blocco('p1', '2026-10-02', '2026-10-04'), corte()] }),
-    ['all:torre:2026-10-02']);
-  // 3 ottobre: nessuno entra. Booking e Airbnb esportano solo da oggi: il soggiorno di Torre e i blocchi «cominciano» oggi
-  assert.deepEqual(await giorno('2026-10-03', { bookingTorre: [H.bookingEv('b1', '2026-10-03', '2026-10-04')], airbnbTorre: [blocco('x1', '2026-10-03', '2026-10-04')], airbnbCorte: [blocco('p1', '2026-10-03', '2026-10-05'), corte()] }),
-    ['all:torre:2026-10-02'], 'nessun arrivo nuovo il 3 ottobre');
-  // 7 ottobre: a Torre entra un ospite Airbnb che il foglio non ha ancora («Reserved»): quello va registrato; a Corte il preavviso cade dentro il soggiorno
-  const ids = await giorno('2026-10-07', { airbnbTorre: [H.airbnbEv('a2', '2026-10-07', '2026-10-09', 'HMNUOVO123'), blocco('p2', '2026-10-09', '2026-10-10')], airbnbCorte: [corte(), blocco('p3', '2026-10-07', '2026-10-09')] });
-  assert.deepEqual(ids, ['all:corte:2026-10-05', 'all:torre:2026-10-02', 'all:torre:2026-10-07'], 'arrivi veri: Booking il 2, Airbnb il 5 e quello nuovo del 7');
+  const giorno = async iso => [...(await giornoCal(iso)).doc.querySelectorAll('[data-testid=admin-todo-auto] li')].map(li => li.getAttribute('data-testid').replace('admin-todo-', '')).filter(id => id.startsWith('all:')).sort();
+  assert.deepEqual(await giorno('2026-10-02'), ['all:torre:2026-10-02'], 'il 2 ottobre un solo arrivo vero');
+  assert.deepEqual(await giorno('2026-10-03'), ['all:torre:2026-10-02'], 'nessun arrivo nuovo il 3 ottobre');
+  assert.deepEqual(await giorno('2026-10-07'), ['all:corte:2026-10-05', 'all:torre:2026-10-02', 'all:torre:2026-10-07'], 'arrivi veri: Booking il 2, Airbnb il 5 e quello nuovo del 7');
   const r = await loadAdmin(), nuovo = () => r.doc.querySelector('[data-testid="admin-todo-all:torre:2026-10-07"]'); await waitFor(nuovo, 'arrivo Airbnb del 7');
   assert(/Entra oggi: Airbnb \(solo calendario\)/.test(text(nuovo())) && /Registra ospiti/.test(text(nuovo())), text(nuovo()));
+});
+test('W15d Gestione · Oggi: arrivano, partono e in casa senza i blocchi di Airbnb né le date che i calendari accorciano a oggi; i prossimi 7 giorni mostrano ancora le notti chiuse', async () => {
+  await setup();
+  // le liste di Oggi e Domani, una riga per persona: «Giorno · Lista · Appartamento · chi»
+  const righe = r => { let g = '', l = ''; const out = [];
+    for (const el of r.doc.querySelector('[data-testid=admin-oggi-oggi]').children) {
+      if (el.tagName === 'H3') g = text(el).split(' ')[0]; else if (el.tagName === 'H4') l = text(el).replace(/\s*\d+$/, '');
+      else if (el.tagName === 'UL') for (const li of el.querySelectorAll('li')) out.push([g, l, text(li.querySelector('.adm-apt')), text(li.querySelector('.adm-who'))].join(' · '));
+    }
+    return out; };
+  const contatore = r => text([...r.doc.querySelectorAll('.oggi-stats .adm-stat')].find(e => text(e.querySelector('span')) === 'Oggi').querySelector('b'));
+  const wk = (r, apt, d) => text(r.doc.querySelector('[data-testid=admin-oggi-settimana] .wk-c[data-i="' + (apt === 'corte' ? 0 : 1) + '"][data-d="' + d + '"]'));
+  let r = await giornoCal('2026-10-02');
+  assert.deepEqual(righe(r), ['Oggi · Arrivano · Torre · Booking.com · 6877180932 · 4 ospiti'], 'il 2 ottobre arriva solo Booking a Torre');
+  assert.equal(contatore(r), '1 · 0');
+  r = await giornoCal('2026-10-03');
+  assert.deepEqual(righe(r), ['Oggi · In casa · Torre · Booking.com · 6877180932 · 4 ospiti', 'Domani · Partono · Torre · Booking.com · 6877180932 · 4 ospiti'], 'il 3 ottobre nessuno arriva e nessun doppione in partenza');
+  assert.equal(contatore(r), '0 · 0');
+  assert.deepEqual([wk(r, 'torre', '2026-10-03'), wk(r, 'corte', '2026-10-03'), wk(r, 'corte', '2026-10-04')], ['Booking.com', 'Airbnb', 'Airbnb'], 'le notti chiuse su Airbnb restano occupate nei prossimi 7 giorni: ' + [wk(r, 'torre', '2026-10-03'), wk(r, 'corte', '2026-10-03'), wk(r, 'corte', '2026-10-04')]);
+  r = await giornoCal('2026-10-07');
+  assert.deepEqual(righe(r), ['Oggi · Arrivano · Torre · Airbnb (solo calendario)', 'Oggi · In casa · Corte · Airbnb · HMSEDESZCW · 2 ospiti'], 'il 7 ottobre arriva l\'ospite Airbnb non ancora nel foglio; a Corte nessun arrivo finto');
+  assert.equal(contatore(r), '1 · 0');
 });
 test('W15 Gestione · Oggi: arrivi e partenze di oggi e domani da sito, foglio e calendari senza doppioni; da gestire, messaggi da leggere, invii automatici; prossimi 7 giorni; semaforo unico', async () => {
   await setup();

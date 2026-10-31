@@ -18,6 +18,13 @@ function soggiorni(){const D=A.D,out=[],sito=new Set();
   (D.ext||[]).forEach(e=>{if(e.src==='Foglio'||out.some(o=>o.id===e.id&&o.da===e.da))return;out.push({code:'',id:e.id,da:e.da,a:e.a,ospiti:0,nome:'',fonte:e.src||'Calendario',stato:'calendario',cal:e.t||''})});      // cal: il titolo dell'evento nel calendario
   return out.sort((x,y)=>x.da<y.da?-1:x.da>y.da?1:0)}
 A.soggiorni=soggiorni;
+// Chi entra, esce o è in casa davvero (Oggi e Da fare): un evento visto solo nel calendario conta solo se è una prenotazione. Non contano i blocchi di Airbnb
+// («Airbnb (Not available)»: preavviso, tempo di preparazione, notti chiuse da altri calendari) né un evento che si accavalla a una prenotazione già nota
+// dello stesso appartamento. Booking e Airbnb esportano solo da oggi in poi: un soggiorno o un blocco in corso «comincia» ogni giorno e senza questo filtro
+// sembrerebbe ogni giorno un arrivo nuovo. Calendario, Prossimi 7 giorni e Pulizie usano tutti i soggiorni (le notti chiuse su Airbnb restano occupate).
+const RESERVED=/reserved|prenotat|booked/i;      // come in api/_avail.js: titolo di una prenotazione vera nel calendario di Airbnb; gli altri titoli sono blocchi
+const veri=st=>{const note=st.filter(y=>y.stato!=='calendario');
+  return st.filter(x=>x.stato!=='calendario'||!((x.fonte==='Airbnb'&&!RESERVED.test(x.cal||''))||note.some(y=>y.id===x.id&&x.da<y.a&&y.da<x.a)))};
 const chi=x=>x.nome||(x.code?x.fonte+' · '+fmtCode(x.code):x.fonte+' (solo calendario)');
 
 // ---------- Oggi ----------
@@ -41,7 +48,7 @@ function settimana(st){
   return `<div class="wk" data-testid="admin-oggi-settimana" style="--n:${ds.length}"><span></span>${ds.map(d=>`<b>${esc(new Date(d+'T00:00:00').toLocaleDateString('it-IT',{weekday:'short'}))}<small>${+d.slice(8)}</small></b>`).join('')}
    ${A.S.apts.map((p,i)=>`<span class="wk-a">${esc(short(p))}</span>${ds.map(d=>cell(p,i,d)).join('')}`).join('')}</div>`}
 A.view.oggi=()=>{
-  const D=A.D,st=soggiorni(),dom=addDays(today,1),pend=A.pending(),arr=d=>st.filter(x=>x.da===d),dep=d=>st.filter(x=>x.a===d),casa=st.filter(x=>x.da<today&&x.a>today);
+  const D=A.D,st=soggiorni(),ve=veri(st),dom=addDays(today,1),pend=A.pending(),arr=d=>ve.filter(x=>x.da===d),dep=d=>ve.filter(x=>x.a===d),casa=ve.filter(x=>x.da<today&&x.a>today);
   const nA=arr(today).length,nP=dep(today).length,nm=+D.msgNonLetti||0;
   return `<div class="admin-card" data-testid="admin-oggi"><div class="adm-head"><h2>Oggi <small class="adm-sub">${esc(fmtW(today))}</small></h2><button type="button" class="btn btn-line" data-act="oggiRefresh" data-testid="admin-oggi-refresh">Aggiorna</button></div>
   <div class="adm-stats oggi-stats">
@@ -64,14 +71,8 @@ const rep=(id,html)=>{const el=document.getElementById(id);if(el)el.outerHTML=ht
 // Ogni voce ha la sua spunta: spuntata resta sbiadita per tutto il giorno, dal giorno dopo sparisce; non spuntata resta finché non la spunti.
 // Le spunte stanno sul server (todo_*): valgono su tutti i dispositivi. Contano gli arrivi dal giorno in cui la lista è partita (dal), al più 90 giorni fa.
 const MESI=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
-// Arrivi da registrare: un evento visto solo nel calendario conta solo se è una prenotazione. Non contano i blocchi di Airbnb («Airbnb (Not available)»:
-// preavviso, tempo di preparazione, notti chiuse da altri calendari) né un evento che si accavalla a una prenotazione già nota dello stesso appartamento.
-// Booking e Airbnb esportano solo da oggi in poi: un soggiorno o un blocco in corso «comincia» ogni giorno e senza questo filtro chiederebbe ogni giorno una registrazione.
-const RESERVED=/reserved|prenotat|booked/i;      // come in api/_avail.js: titolo di una prenotazione vera nel calendario di Airbnb; gli altri titoli sono blocchi
-const arrivi=st=>{const note=st.filter(y=>y.stato!=='calendario');
-  return st.filter(x=>x.stato!=='calendario'||!((x.fonte==='Airbnb'&&!RESERVED.test(x.cal||''))||note.some(y=>y.id===x.id&&x.da<y.a&&y.da<x.a)))};
 function todoAuto(t){const out=[],dal=t.dal>addDays(today,-90)?t.dal:addDays(today,-90);
-  arrivi(soggiorni()).filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),
+  veri(soggiorni()).filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),
     html:`${x.da===today?'Entra oggi':'Entrato '+esc(fmtS(x.da))}: ${x.code?`<a href="#prenotazioni/${esc(x.code)}">${esc(chi(x))}</a>`:esc(chi(x))}${x.ospiti?` <small>· ${x.ospiti} ${x.ospiti===1?'ospite':'ospiti'}</small>`:''}`,
     fare:'<a href="#adempimenti">Registra ospiti</a> <small>Alloggiati Web</small>'}));
   // ISTAT: dal primo degli ultimi 7 giorni del mese; un mese non spuntato resta anche nei mesi dopo (al più gli ultimi 3)
