@@ -1380,6 +1380,29 @@ test('W15b Gestione · Oggi → Da fare: registrare gli ospiti a ogni arrivo, IS
   // senza accesso alla Gestione niente cose da fare
   assert.equal((await H.api('todo_get', {})).status, 401); assert.equal((await H.api('todo_add', { testo: 'x' })).status, 401);
 });
+test('W15c Gestione · Da fare: i blocchi di Airbnb («Not available») e le date che i calendari accorciano a oggi non chiedono di registrare ospiti mai entrati; una prenotazione vista solo nel calendario sì', async () => {
+  await setup();
+  // foglio: Booking a Torre dal 2 al 4 ottobre, Airbnb a Corte dal 5 all'11 (lo stub del foglio non riempie il registro: si scrive l'istantanea, dopo ogni sincronizzazione)
+  const reg = () => { const row = (fonte, codice, apt, checkin, checkout, notti, ospiti) => ({ id: fonte + '|' + codice, fonte, codice, apt, checkin, checkout, notti, ospiti, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] });
+    kv.exec(['SET', 'reg:snap', JSON.stringify({ rows: [row('BOOKING', '6877180932', 'torre', '2026-10-02', '2026-10-04', 2, 4), row('AIRBNB', 'HMSEDESZCW', 'corte', '2026-10-05', '2026-10-11', 6, 2)], invalid: [], count: 2, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' })]); };
+  const blocco = (uid, from, to) => H.vevent({ UID: uid + '@airbnb.com', 'DTSTART;VALUE=DATE': from.replace(/-/g, ''), 'DTEND;VALUE=DATE': to.replace(/-/g, ''), SUMMARY: 'Airbnb (Not available)' });
+  // un giorno: i calendari come li esportano Booking e Airbnb quel giorno (solo da oggi in poi), poi la Gestione
+  const giorno = async (iso, f) => { clock.set(iso + 'T08:00:00Z'); for (const k of ['bookingTorre', 'bookingCorte', 'airbnbTorre', 'airbnbCorte']) H.setFeed(k, f[k] || []); await H.sync(); reg();
+    const r = await loadAdmin(); await waitFor(() => r.doc.querySelector('[data-testid=admin-todo-manuali]'), 'Da fare ' + iso);
+    return [...r.doc.querySelectorAll('[data-testid=admin-todo-auto] li')].map(li => li.getAttribute('data-testid').replace('admin-todo-', '')).filter(id => id.startsWith('all:')).sort(); };
+  const corte = () => H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW');
+  // 2 ottobre: entra Booking a Torre; Airbnb ricopia le notti di Booking e chiude oggi e domani a Corte per il preavviso: un solo arrivo vero
+  assert.deepEqual(await giorno('2026-10-02', { bookingTorre: [H.bookingEv('b1', '2026-10-02', '2026-10-04')], airbnbTorre: [blocco('x1', '2026-10-02', '2026-10-04')], airbnbCorte: [blocco('p1', '2026-10-02', '2026-10-04'), corte()] }),
+    ['all:torre:2026-10-02']);
+  // 3 ottobre: nessuno entra. Booking e Airbnb esportano solo da oggi: il soggiorno di Torre e i blocchi «cominciano» oggi
+  assert.deepEqual(await giorno('2026-10-03', { bookingTorre: [H.bookingEv('b1', '2026-10-03', '2026-10-04')], airbnbTorre: [blocco('x1', '2026-10-03', '2026-10-04')], airbnbCorte: [blocco('p1', '2026-10-03', '2026-10-05'), corte()] }),
+    ['all:torre:2026-10-02'], 'nessun arrivo nuovo il 3 ottobre');
+  // 7 ottobre: a Torre entra un ospite Airbnb che il foglio non ha ancora («Reserved»): quello va registrato; a Corte il preavviso cade dentro il soggiorno
+  const ids = await giorno('2026-10-07', { airbnbTorre: [H.airbnbEv('a2', '2026-10-07', '2026-10-09', 'HMNUOVO123'), blocco('p2', '2026-10-09', '2026-10-10')], airbnbCorte: [corte(), blocco('p3', '2026-10-07', '2026-10-09')] });
+  assert.deepEqual(ids, ['all:corte:2026-10-05', 'all:torre:2026-10-02', 'all:torre:2026-10-07'], 'arrivi veri: Booking il 2, Airbnb il 5 e quello nuovo del 7');
+  const r = await loadAdmin(), nuovo = () => r.doc.querySelector('[data-testid="admin-todo-all:torre:2026-10-07"]'); await waitFor(nuovo, 'arrivo Airbnb del 7');
+  assert(/Entra oggi: Airbnb \(solo calendario\)/.test(text(nuovo())) && /Registra ospiti/.test(text(nuovo())), text(nuovo()));
+});
 test('W15 Gestione · Oggi: arrivi e partenze di oggi e domani da sito, foglio e calendari senza doppioni; da gestire, messaggi da leggere, invii automatici; prossimi 7 giorni; semaforo unico', async () => {
   await setup();
   const c1 = (await checkout({ id: 'corte', da: '2026-10-03', a: '2026-10-05', nome: 'Mario Rossi' })).body; await H.webhook('checkout.session.completed', H.paidSession(c1.code));

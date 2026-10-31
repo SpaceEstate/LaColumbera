@@ -64,8 +64,14 @@ const rep=(id,html)=>{const el=document.getElementById(id);if(el)el.outerHTML=ht
 // Ogni voce ha la sua spunta: spuntata resta sbiadita per tutto il giorno, dal giorno dopo sparisce; non spuntata resta finché non la spunti.
 // Le spunte stanno sul server (todo_*): valgono su tutti i dispositivi. Contano gli arrivi dal giorno in cui la lista è partita (dal), al più 90 giorni fa.
 const MESI=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+// Arrivi da registrare: un evento visto solo nel calendario conta solo se è una prenotazione. Non contano i blocchi di Airbnb («Airbnb (Not available)»:
+// preavviso, tempo di preparazione, notti chiuse da altri calendari) né un evento che si accavalla a una prenotazione già nota dello stesso appartamento.
+// Booking e Airbnb esportano solo da oggi in poi: un soggiorno o un blocco in corso «comincia» ogni giorno e senza questo filtro chiederebbe ogni giorno una registrazione.
+const RESERVED=/reserved|prenotat|booked/i;      // come in api/_avail.js: titolo di una prenotazione vera nel calendario di Airbnb; gli altri titoli sono blocchi
+const arrivi=st=>{const note=st.filter(y=>y.stato!=='calendario');
+  return st.filter(x=>x.stato!=='calendario'||!((x.fonte==='Airbnb'&&!RESERVED.test(x.cal||''))||note.some(y=>y.id===x.id&&x.da<y.a&&y.da<x.a)))};
 function todoAuto(t){const out=[],dal=t.dal>addDays(today,-90)?t.dal:addDays(today,-90);
-  soggiorni().filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),
+  arrivi(soggiorni()).filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),
     html:`${x.da===today?'Entra oggi':'Entrato '+esc(fmtS(x.da))}: ${x.code?`<a href="#prenotazioni/${esc(x.code)}">${esc(chi(x))}</a>`:esc(chi(x))}${x.ospiti?` <small>· ${x.ospiti} ${x.ospiti===1?'ospite':'ospiti'}</small>`:''}`,
     fare:'<a href="#adempimenti">Registra ospiti</a> <small>Alloggiati Web</small>'}));
   // ISTAT: dal primo degli ultimi 7 giorni del mese; un mese non spuntato resta anche nei mesi dopo (al più gli ultimi 3)
