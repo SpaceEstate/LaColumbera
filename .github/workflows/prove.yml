@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -40,7 +40,7 @@ jobs:
           if grep -q "prove UI saltate" /tmp/prova-ui.txt; then echo "::error::prove dell'interfaccia saltate (jsdom mancante)"; esito=1; fi
           exit $esito
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
