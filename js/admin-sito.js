@@ -281,7 +281,7 @@ A.after.sistema=r=>{if(r.sub!=='ical')syncAfter()};
 Object.assign(A.act,{
   phL:a=>movePh(+a.dataset.i,+a.dataset.j,+a.dataset.j-1),phR:a=>movePh(+a.dataset.i,+a.dataset.j,+a.dataset.j+1),phC:a=>movePh(+a.dataset.i,+a.dataset.j,0),
   phD:a=>{const i=+a.dataset.i;S().apts[i].foto.splice(+a.dataset.j,1);A.markDirty();phRender(i)},
-  evDel:a=>{if(confirm('Eliminare questo evento?'))A.api('event_del',{id:a.dataset.id}).then(async()=>{A.EV=(await A.get('a=events'))||[];A.body()}).catch(x=>alert(x.message))},
+  evDel:a=>{if(confirm('Eliminare questo evento?'))A.api('event_del',{id:a.dataset.id}).then(async()=>{A.EV=(await A.get('a=events&v='+Date.now()))||[];A.body()}).catch(x=>alert(x.message))},
   dlAdd:a=>{const k=a.dataset.k;mio(k).push(DL[k].nuovo());A.markDirty('Luoghi e convenzioni');dlRender();const l=$$('[data-dl^="'+k+':"]');const f=$('[data-dl="'+k+':'+(mio(k).length-1)+':'+(k==='luoghi'?'t':'nome')+'"]');if(f)f.focus();void l},
   dlDel:a=>{const k=a.dataset.k,j=+a.dataset.j,x=elenco(k)[j];if(!confirm('Togliere la scheda «'+(DL[k].nome(x)||'senza nome')+'»? Sparirà dalla pagina quando salvi.'))return;mio(k).splice(j,1);A.markDirty('Luoghi e convenzioni');dlRender()},
   dlMove:a=>{const k=a.dataset.k,j=+a.dataset.j,to=j+(+a.dataset.d),l=mio(k);if(to<0||to>=l.length)return;const[x]=l.splice(j,1);l.splice(to,0,x);A.markDirty('Luoghi e convenzioni');dlRender()},
@@ -316,7 +316,7 @@ A.onChange.push(async el=>{
     catch(x){alert(x.message)}return true}
   return false});
 A.onSubmit.push((f,e)=>{if(f.id!=='evform')return false;e.preventDefault();
-  A.api('event_add',Object.fromEntries(new FormData(f))).then(async()=>{A.EV=(await A.get('a=events'))||[];A.body()}).catch(x=>alert(x.message));return true});
+  A.api('event_add',Object.fromEntries(new FormData(f))).then(async()=>{A.EV=(await A.get('a=events&v='+Date.now()))||[];A.body()}).catch(x=>alert(x.message));return true});
 // foto degli appartamenti: trascina per cambiare l'ordine
 let dI=null,dF=null;const M=A.M;
 M.addEventListener('dragstart',e=>{const it=e.target.closest('.pm-item');if(!it)return;dI=+it.dataset.i;dF=+it.dataset.j;it.classList.add('dragging')});

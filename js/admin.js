@@ -102,7 +102,7 @@ const unauthorized=()=>{sessionStorage.removeItem('lc_t');t='';S=null;dirty=fals
 
 async function start(){
   try{D=await api('adm',{},t)}catch(x){if(x.status===401||x.status===undefined){sessionStorage.removeItem('lc_t');t='';return login()}return login()}
-  const[c,ev,gc]=await Promise.all([api('cfg_admin',{},t).catch(()=>null),get('a=events'),api('gc_manual_list',{},t).catch(()=>[])]);
+  const[c,ev,gc]=await Promise.all([api('cfg_admin',{},t).catch(()=>null),get('a=events&v='+Date.now()),api('gc_manual_list',{},t).catch(()=>[])]);
   // senza le impostazioni salvate si mostra la configurazione di partenza, ma non si salva: si sostituirebbero quelle vere
   cfgKo=!c;S=structuredClone(c||await fetch('data/default.json').then(r=>r.json()));EV=ev||[];GC=gc||[];
   norm();buildBusy();shell();body()}

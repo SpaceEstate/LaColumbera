@@ -442,6 +442,32 @@ test('S21 Pulizie · «Nel testo»: si toglie una prenotazione dal testo solo co
   eq((await H.adminApi('pul_set', { k: 'HMSEDESZCW', fuori: 1 })).status, 200); eq(kv.exec(['HGET', 'pul:info', 'HMSEDESZCW']), null);
 });
 
+test('S25 cache: configurazione pubblica ed eventi in cache 60 s sulla rete di Vercel (uguali per tutti, niente dati riservati); la Gestione li rilegge con &v= e vede subito le modifiche; le risposte riservate restano no-store', async () => {
+  await base();
+  const PUB = 'public, s-maxage=60, stale-while-revalidate=300';
+  const c = await H.api('cfg', {}, { method: 'GET' });
+  eq([c.status, c.headers['cache-control']], [200, PUB]);
+  assert.ok(Array.isArray(c.body.apts) && c.body.apts.length, 'appartamenti presenti');
+  for (const p of c.body.apts) for (const k of ['blocked', 'infoOspiti', 'infoRiservate', 'cassetta']) assert.ok(!(k in p), 'dato riservato nella configurazione pubblica: ' + k);
+  eq((await H.api('events', {}, { method: 'GET' })).headers['cache-control'], PUB);
+  // la Gestione: aggiunge ed elimina un evento e lo rilegge con &v=<ora> (indirizzo diverso: mai la copia in cache)
+  eq((await H.adminApi('event_add', { title: 'Prova cache', date: '2026-12-11', location: 'Trento' })).status, 200);
+  let ev = (await H.api('events', {}, { method: 'GET', query: { v: String(Date.now()) } })).body;
+  const nuovo = ev.find(x => x.title === 'Prova cache'); assert.ok(nuovo, 'evento appena aggiunto');
+  eq((await H.adminApi('event_del', { id: nuovo.id })).status, 200);
+  ev = (await H.api('events', {}, { method: 'GET', query: { v: String(Date.now() + 1) } })).body;
+  assert.ok(!ev.some(x => x.title === 'Prova cache'), 'evento appena eliminato');
+  for (const [f, n] of [['js/admin.js', 1], ['js/admin-sito.js', 2]]) {
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    eq((src.match(/a=events&v='\+Date\.now\(\)/g) || []).length, n, f + ': la Gestione legge gli eventi senza cache');
+    assert.ok(!/['"]a=events['"]/.test(src), f + ': nessuna lettura degli eventi dalla cache');
+  }
+  // riservate e dinamiche: come prima
+  eq((await H.adminApi('cfg_admin')).headers['cache-control'], 'no-store');
+  eq((await H.api('login', { u: 'admin', p: 'sbagliata' })).headers['cache-control'], 'no-store');
+  eq((await H.api('busy', {}, { method: 'GET', query: { id: 'torre' } })).headers['cache-control'], 'public, s-maxage=15, stale-while-revalidate=15');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

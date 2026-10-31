@@ -24,6 +24,9 @@ const withDefaults=c=>{if(!c||!Array.isArray(c.apts))return c;const d=new Map((D
  return{...c,apts:c.apts.map(p=>{const q=d.get(p.id);if(!q)return p;const o={...p};for(const k of FILL)if((o[k]===undefined||(CODICI.has(k)&&String(o[k]).trim()===''))&&q[k]!==undefined)o[k]=q[k];return o})}};
 const cfg=async r=>withDefaults((await jg('cfg'))||await(await fetch('https://'+r.headers.host+'/data/default.json')).json());
 // CIPAT della struttura (lo stesso usato per l'ISTAT, variabile ISTAT_CIPAT): è un codice che per legge compare negli annunci, quindi può essere pubblico. Solo se ha la forma giusta.
+// configurazione pubblica ed eventi del sito: uguali per tutti, in cache sulla rete di Vercel per 60 s (pagine più rapide, meno letture su KV).
+// Dopo un salvataggio il sito si aggiorna entro circa un minuto. La Gestione legge con &v=<ora> e vede sempre i dati appena salvati.
+const CACHE_PUB='public, s-maxage=60, stale-while-revalidate=300';
 const cipatPub=()=>{const v=String(process.env.ISTAT_CIPAT||'').trim();return /^[A-Za-z0-9-]{16}$/.test(v)?v:''};
 const AV=require('./_avail.js'),days=AV.rangeDays,addDays=AV.addDays,todayRome=AV.todayRome;
 // Motore unico di disponibilità: tutta la logica "busy" (iCal, foglio, sito, hold, blocchi) vive in _avail.js
@@ -351,7 +354,7 @@ if(a==='og'){ // immagine di copertina (og:image) di una pagina ufficiale: usata
 // Configurazione PUBBLICA (la leggono le pagine degli appartamenti): niente URL iCal (contengono token segreti), niente chiusure né blocchi manuali,
 // niente informazioni per gli ospiti (istruzioni, Wi-Fi: arrivano solo nell'area clienti, a chi ha il codice).
 // La configurazione completa la legge solo il pannello admin, con il login (a=cfg_admin).
-if(a==='cfg'){const c0=await cfg(req);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,cassetta,...p})=>p),home:homeOk(c0.home)||{}})}      // home: solo i testi e le foto della homepage, ricontrollati
+if(a==='cfg'){const c0=await cfg(req);res.setHeader('Cache-Control',CACHE_PUB);return res.json({chi:c0.chi,cipat:cipatPub(),apts:(c0.apts||[]).map(({blocked,infoOspiti,infoRiservate,cassetta,...p})=>p),home:homeOk(c0.home)||{}})}      // home: solo i testi e le foto della homepage, ricontrollati
 // Luoghi di interesse e Convenzioni modificati dalla Gestione (già puliti al salvataggio); null = valgono quelli di js/dintorni.js
 if(a==='dintorni'){const c0=(await jg('cfg'))||{};return res.json({luoghi:Array.isArray(c0.luoghi)?c0.luoghi:null,convenzioni:Array.isArray(c0.convenzioni)?c0.convenzioni:null})}
 if(a==='busy'){const id=String(req.query.id||'');
@@ -384,7 +387,7 @@ if(a==='ical'){const id=String(req.query.id||'');
   res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','public, s-maxage=60, stale-while-revalidate=120');res.setHeader('X-LC-Status',r.status);
   return res.send(r.ics)}
  catch(e){console.error('ical:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
-if(a==='events')return res.json((await jg('events'))||[]);
+if(a==='events'){res.setHeader('Cache-Control',CACHE_PUB);return res.json((await jg('events'))||[])}
 if(a==='events_feed'){res.setHeader('Cache-Control','s-maxage=21600, stale-while-revalidate=86400');return res.json(await feed())};
 if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(lim)return deny(res,lim);
  const config=await cfg(req),p=(config.apts||[]).find(x=>x.id===b.id);
