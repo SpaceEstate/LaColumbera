@@ -1,10 +1,12 @@
 # Gestione (pannello del titolare) – La Columbera
 
-Ambito: la pagina `admin.html`, divisa in due aree. Codice: `js/admin.js` (nucleo: aree, menu, indirizzi, salvataggio), `js/admin-operativita.js` (Oggi, Prenotazioni, Guest Card), `js/admin-calendario.js` (Calendario e prezzi), `js/admin-pulizie.js` (Pulizie), `js/admin-sito.js` (sezioni del Sito); Messaggi in `js/admin-messaggi.js`, Adempimenti in `js/adempimenti.js` e `js/istat.js`. Server: `api/x.js` (azioni `cfg_admin`, `save`, `dintorni`, `adm`, `pul_info`, `pul_set`). Prove: `tests/sim/ui.js` (W14–W22), `tests/sim/sicurezza.js` (S18–S20).
+Ambito: la pagina `admin.html`, divisa in due aree. Codice: `js/admin.js` (nucleo: aree, menu, indirizzi, salvataggio), `js/admin-operativita.js` (Oggi, Prenotazioni, Guest Card), `js/admin-calendario.js` (Calendario e prezzi), `js/admin-pulizie.js` (Pulizie), `js/admin-sito.js` (sezioni del Sito); Messaggi in `js/admin-messaggi.js`, Adempimenti in `js/adempimenti.js` e `js/istat.js`. Server: `api/x.js` (azioni `cfg_admin`, `save`, `dintorni`, `adm`, `pul_info`, `pul_set`). Prove: `tests/sim/ui.js` (W14–W22, menu del telefono W14b), `tests/sim/sicurezza.js` (S18–S20), `tests/sim/sito.js` (app della Gestione S10, menu del telefono S11).
 
 ## 1. Le due aree
 
-In alto c'è sempre il selettore **OPERATIVITÀ | SITO**. Su telefono, sotto il selettore, il menu delle sezioni scorre in orizzontale; da computer è a sinistra. Il selettore ricorda l'ultima sezione aperta di ciascuna area. Un pallino dorato sull'altra area vuol dire che lì c'è qualcosa da guardare: prenotazioni da gestire o messaggi da leggere in Operatività, problemi di sincronizzazione in Sito.
+Da computer in alto c'è sempre il selettore **OPERATIVITÀ | SITO** e il menu delle sezioni è a sinistra. Il selettore ricorda l'ultima sezione aperta di ciascuna area. Un pallino dorato sull'altra area vuol dire che lì c'è qualcosa da guardare: prenotazioni da gestire o messaggi da leggere in Operatività, problemi di sincronizzazione in Sito.
+
+**Su telefono** (schermi fino a 900 px, quindi anche tablet in verticale) in alto c'è una sola riga: il pulsante con la sezione aperta («OPERATIVITÀ · Oggi ⌄») ed **Esci**. Il pulsante apre il **menu a tendina** con tutte le sezioni delle due aree, due per riga, ognuna con la sua descrizione; la sezione aperta è in bordeaux, i numeri dorati sono le prenotazioni da gestire, i messaggi da leggere e i problemi di sincronizzazione. In fondo c'è **Vedi il sito ↗**. Il menu si chiude scegliendo una sezione, toccando fuori o con Esc. Un pallino dorato sul pulsante vuol dire che un'altra sezione ha qualcosa da guardare. Prima le sezioni stavano in una fila che scorreva di lato (se ne vedevano tre su sette) sotto il selettore, su due righe. In Gestione il menu ☰ del sito pubblico su telefono non compare, per non confonderlo con questo.
 
 | Area | Sezione | Cosa ci trovi |
 |---|---|---|
@@ -21,6 +23,21 @@ In alto c'è sempre il selettore **OPERATIVITÀ | SITO**. Su telefono, sotto il 
 | | **Luoghi e convenzioni** | Le schede delle pagine «Luoghi di interesse» e «Convenzioni» (nuovo) |
 | | **Regole di prenotazione** | Preavviso minimo, orari di check-in e check-out, Wi-Fi visibile da…, WhatsApp; fin dove si prenota |
 | | **Sistema** | Sincronizzazione, pagamenti ed email, riconciliazione, registro; Calendari iCal |
+
+## 1 bis. La Gestione come app sul telefono
+
+Non serve un'app da App Store o Play Store: la Gestione si installa dal browser e si apre come un'app, a schermo intero e già sulla Gestione (manifest `gestione.webmanifest`, collegato solo da `admin.html`).
+
+- **iPhone** (Safari): apri la Gestione (`admin.html` del sito) → tasto Condividi → **Aggiungi alla schermata Home** → «Gestione».
+- **Android** (Chrome): apri `admin.html` → menu ⋮ → **Installa app** (o «Aggiungi a schermata Home»).
+
+Come funziona e cosa resta uguale:
+
+- È la stessa pagina `admin.html`: ogni modifica pubblicata sul sito vale subito anche nell'app, non c'è niente da aggiornare a parte.
+- **Ambito solo `admin.html`**: i link al sito (es. «Vedi il sito») si aprono nel browser e, su Android, i link del sito ricevuti per WhatsApp o email non finiscono dentro l'app della Gestione.
+- **Nessun service worker** e nessuna copia salvata: prenotazioni, messaggi e impostazioni arrivano sempre dalla rete. Senza rete l'app non mostra dati vecchi.
+- **Accesso**: come nel browser. L'accesso vale 8 ore e resta solo finché l'app è aperta (`sessionStorage`): se il telefono la chiude, si rientra con utente e password (il portachiavi del telefono li propone). Nessuna regola di sicurezza è cambiata.
+- L'app dell'area clienti per gli ospiti (`manifest.webmanifest`, `sw.js`) non cambia.
 
 ## 2. Salvare
 
@@ -128,6 +145,8 @@ Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'ar
 8. Pulizie → scegli le prossime due settimane → per un arrivo «Matrimoniale» → «Copia il testo» → incollalo in WhatsApp: ci sono giorni, persone e letti, nessun nome.
 9. Rimborso (con le chiavi di prova di Stripe, carta `4242 4242 4242 4242`): prenota una data lontana, apri l'area clienti con il codice → «Annulla la prenotazione» → «Sì, annulla e rimborsa». Su Stripe il pagamento risulta rimborsato; in Gestione la prenotazione è «annullata» con «Rimborsati …»; la data è di nuovo prenotabile; ti arriva l'avviso e all'ospite l'email. Ripeti con «Annulla e rimborsa» dalla Gestione.
 10. Ricevuta: dall'area clienti «Richiedi la ricevuta» con dati di prova → ti arriva l'email; in Gestione apri la prenotazione → carica un PDF → «Manda la ricevuta»: all'ospite arriva con l'allegato e nell'area risulta «inviata».
+11. Telefono: apri la Gestione → tocca il pulsante in alto («OPERATIVITÀ · Oggi») → compaiono tutte le sezioni di Operatività e Sito → tocca «Pulizie»: si apre e il menu si chiude; riapri e tocca fuori dal menu: si chiude. Da computer il selettore e il menu a sinistra sono come prima.
+12. App: da iPhone «Aggiungi alla schermata Home» (da Android «Installa app») su `admin.html` → l'icona «Gestione» apre la Gestione a schermo intero; «Vedi il sito» si apre nel browser.
 
 ## 11. Limiti noti
 

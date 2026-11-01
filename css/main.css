@@ -1304,6 +1304,34 @@ body.adm-dirty .admin-main{padding-bottom:200px}
   .save-btns .btn{flex:1 1 auto}
 }
 
+/* ===== Gestione su telefono: menu a tendina con tutte le sezioni =====
+   Fino a 900 px il selettore Operatività | Sito e la fila di sezioni che scorreva di lato lasciano il posto a un solo pulsante
+   («Operatività · Oggi ▾»): il menu che apre elenca le sezioni delle due aree, due per riga, con i numeri da guardare. Da computer non cambia nulla. */
+.adm-mnav,.adm-mback{display:none}
+@media (max-width:900px){
+  body[data-p=admin-app] .menu-toggle{display:none}      /* in Gestione il menu del sito pubblico confonderebbe: c'è quello della Gestione, con «Vedi il sito» */
+  .adm-areas,.adm-nav{display:none}
+  .adm-bar{margin-bottom:18px;border-bottom:1px solid var(--line)}
+  .adm-mnav{display:flex;flex:1 1 auto;min-width:0}
+  .adm-mbtn{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:46px;padding:5px 16px 5px 18px;background:#fff;border:1px solid var(--line);border-radius:999px;box-shadow:var(--shadow-soft);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+  .adm-mbtn[aria-expanded="true"]{border-color:var(--wine)}
+  .adm-mcur{display:flex;flex-direction:column;min-width:0;flex:1 1 auto;line-height:1.2}
+  .adm-mcur small{font-size:.64rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--wine)}
+  .adm-mcur b{font-size:.98rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .adm-mbtn .adm-dot{position:static;flex:0 0 auto}
+  .adm-chev{flex:0 0 auto;width:9px;height:9px;margin:-4px 2px 0;border-right:2px solid var(--wine);border-bottom:2px solid var(--wine);transform:rotate(45deg);transition:transform .2s ease}
+  .adm-mbtn[aria-expanded="true"] .adm-chev{transform:rotate(-135deg);margin-top:4px}
+  .adm-mmenu{position:absolute;top:100%;left:0;right:0;z-index:46;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:4px var(--gut) 16px;background:var(--paper);border-bottom:1px solid var(--line);box-shadow:0 18px 30px -18px rgba(30,25,23,.45)}
+  .adm-mgrp{margin:10px 2px 6px;font-size:.66rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .adm-mgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .adm-mgrid a{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;min-height:48px;padding:8px 11px;background:#fff;border:1px solid var(--line);border-radius:12px;color:var(--ink);text-decoration:none;font-weight:700;font-size:.9rem;line-height:1.2}
+  .adm-mgrid a.on{background:var(--wine);border-color:var(--wine);color:#fff}
+  .adm-mgrid a.on .adm-nl small{color:rgba(255,255,255,.8)}
+  .adm-mgrid .adm-nl small{display:block;margin-top:2px;font-size:.7rem;line-height:1.25}
+  .adm-msite{display:flex;justify-content:center;margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--wine);font-weight:700;font-size:.9rem;text-decoration:none}
+  .adm-mback:not([hidden]){display:block;position:fixed;inset:0;z-index:44;background:rgba(30,25,23,.35)}
+}
+
 /* ===== Gestione · Oggi ===== */
 .adm-sub{font-family:var(--sans);font-style:normal;font-size:.85rem;font-weight:600;color:var(--muted);letter-spacing:0}
 a.adm-stat{color:inherit;text-decoration:none;transition:border-color .2s,box-shadow .2s}

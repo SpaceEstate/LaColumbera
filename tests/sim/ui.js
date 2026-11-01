@@ -1385,6 +1385,46 @@ test('W14 Gestione · due aree: selettore Operatività | Sito sempre in alto, me
   }
   const r2 = await loadAdmin('#corte/disponibilita'); assert.equal(r2.w.location.hash, '#calendario/corte', 'anche aprendo la pagina da un segnalibro vecchio'); assert(r2.doc.querySelector('[data-testid=admin-closed-corte]'));
 });
+test('W14b Gestione · su telefono un solo pulsante con la sezione aperta e un menu a tendina con tutte le sezioni delle due aree (numeri da guardare, «Vedi il sito»); si chiude scegliendo, toccando fuori o con Esc; il menu da computer resta com\'era', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  await H.api('msg_send', { code: c.code, t: c.t, testo: 'Buongiorno, a che ora si entra?' });      // un messaggio da leggere: numero su Messaggi
+  const r = await loadAdmin(), $ = s => r.doc.querySelector(s), btn = () => $('[data-testid=admin-mmenu-btn]'), mm = () => $('[data-testid=admin-mmenu]'), back = () => $('[data-testid=admin-mmenu-back]');
+  const aperto = () => !mm().hidden && !back().hidden && btn().getAttribute('aria-expanded') === 'true', chiuso = () => mm().hidden && back().hidden && btn().getAttribute('aria-expanded') === 'false';
+  assert(chiuso(), 'si parte con il menu chiuso');
+  assert.equal(btn().getAttribute('aria-controls'), 'adm-mmenu'); assert.equal(btn().type, 'button');
+  assert.equal(text(btn().querySelector('.adm-mcur')), 'Operatività Oggi', 'il pulsante dice area e sezione aperta');
+  assert(btn().querySelector('.adm-dot'), 'pallino: un\'altra sezione (Messaggi) ha qualcosa da guardare');
+  // tutte le sezioni, nell'ordine del menu da computer, divise per area
+  assert.deepEqual([...mm().querySelectorAll('.adm-mgrid a')].map(a => a.getAttribute('href')), ['#oggi', '#calendario', '#prenotazioni', '#pulizie', '#messaggi', '#adempimenti', '#guestcard', '#appartamenti', '#home', '#eventi', '#luoghi', '#regole', '#sistema']);
+  assert.deepEqual([...mm().querySelectorAll('.adm-mgrp')].map(text), ['Operatività', 'Sito']);
+  assert(/^Sistema\s*Sincronizzazione, pagamenti, email$/.test(text($('[data-testid=admin-mmenu-sistema]'))), 'nome e descrizione: ' + text($('[data-testid=admin-mmenu-sistema]')));
+  assert($('[data-testid=admin-mmenu-oggi]').classList.contains('on') && $('[data-testid=admin-mmenu-oggi]').getAttribute('aria-current') === 'page' && mm().querySelectorAll('a.on').length === 1, 'la sezione aperta è evidenziata');
+  assert.equal(text($('[data-testid=admin-mmenu-messaggi] .adm-badge')), '1', 'numero dei messaggi da leggere');
+  const sito = mm().querySelector('a.adm-msite'); assert(sito && sito.getAttribute('href') === 'index.html' && sito.target === '_blank' && /noopener/.test(sito.rel), '«Vedi il sito» nel menu');
+  // il menu da computer non cambia (W14) e i suoi segni restano unici
+  assert.equal(r.doc.querySelectorAll('#adm-nav a').length, 7); assert.equal(r.doc.querySelectorAll('[data-testid=admin-msg-badge]').length, 1); assert(r.doc.querySelector('[data-testid=admin-area-op]').classList.contains('on'));
+  // apre e chiude
+  btn().click(); assert(aperto(), 'aperto'); btn().click(); assert(chiuso(), 'richiuso dal pulsante');
+  btn().click(); back().click(); assert(chiuso(), 'un tocco fuori (sul velo) lo chiude');
+  btn().click(); r.doc.dispatchEvent(new r.w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); assert(chiuso(), 'Esc lo chiude'); assert.equal(r.doc.activeElement, btn(), 'e si torna sul pulsante');
+  // si sceglie una sezione dell'altra area: si apre, il menu si chiude, il pulsante lo dice
+  btn().click(); $('[data-testid=admin-mmenu-regole]').click();
+  await waitFor(() => r.w.location.hash === '#regole' && $('[data-testid=admin-notice]'), 'Regole di prenotazione');
+  assert(chiuso(), 'scelta la sezione il menu si chiude');
+  assert.equal(text(btn().querySelector('.adm-mcur')), 'Sito Regole di prenotazione');
+  assert($('[data-testid=admin-mmenu-regole]').classList.contains('on') && !$('[data-testid=admin-mmenu-oggi]').classList.contains('on'));
+  assert(r.doc.querySelector('[data-testid=admin-area-sito]').classList.contains('on'), 'anche il selettore da computer segue');
+  btn().click(); $('[data-testid=admin-mmenu-regole]').click(); assert(chiuso(), 'toccare la sezione già aperta chiude soltanto il menu');
+  await sleep(60); assert.equal(r.w.location.hash, '#regole');      // jsdom segue il link un attimo dopo il clic: si aspetta prima di cambiare sezione
+  // sezione con appartamento: il pulsante lo dice
+  await goto(r, '#calendario/torre', '[data-testid=admin-base-torre]');
+  assert.equal(text(btn().querySelector('.adm-mcur')), 'Operatività Calendario e prezzi · Torre');
+  // dopo aver letto il messaggio il numero sparisce anche dal menu del telefono
+  await goto(r, '#messaggi/c/' + c.code, '[data-testid=msg-thread]');
+  await waitFor(() => !$('[data-testid=admin-mmenu-messaggi] .adm-badge'), 'letto: il numero sparisce');
+  assert(!btn().querySelector('.adm-dot'), 'niente più pallino');
+});
 test('W15b Gestione · Oggi → Da fare: registrare gli ospiti a ogni arrivo, ISTAT a fine mese, cose scritte a mano; spuntate sbiadite fino a sera, poi spariscono', async () => {
   await setup();      // 2 ottobre: oggi entra a Torre la prenotazione di Booking, il 5 a Corte quella di Airbnb
   let r = await loadAdmin(); const $ = s => r.doc.querySelector(s), row = id => r.doc.querySelector('[data-testid="admin-todo-' + id + '"]'), chk = id => r.doc.querySelector('[data-testid="admin-todo-chk-' + id + '"]');

@@ -7,6 +7,10 @@
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#7A2E39">
 <link rel="icon" href="favicon.ico?v=2" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="img/favicon/favicon-32.png?v=2"><link rel="icon" type="image/png" sizes="16x16" href="img/favicon/favicon-16.png?v=2"><link rel="apple-touch-icon" href="img/favicon/apple-touch-icon.png?v=2">
+<!-- «Aggiungi alla schermata Home»: la Gestione si apre come un'app, a schermo intero, già su admin.html. Ambito solo admin.html: i link al sito non finiscono nell'app. Nessun service worker: i dati arrivano sempre dalla rete. -->
+<link rel="manifest" href="gestione.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gestione">
 
 <link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/main.css">

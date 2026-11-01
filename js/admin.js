@@ -1,6 +1,7 @@
 // La Columbera · Pannello di gestione, in due aree (selettore in alto, sempre visibile):
 //  OPERATIVITÀ — Oggi · Calendario e prezzi · Prenotazioni · Pulizie · Messaggi · Adempimenti · Guest Card
 //  SITO        — Appartamenti · Home · Eventi · Luoghi e convenzioni · Regole di prenotazione · Sistema
+// Su telefono (fino a 900 px) selettore e menu lasciano il posto a un solo pulsante con la sezione aperta: il menu a tendina elenca tutte le sezioni delle due aree.
 // Le sezioni vivono in file separati, caricati prima di questo: js/admin-operativita.js (Oggi, Prenotazioni, Guest Card), js/admin-calendario.js,
 // js/admin-pulizie.js, js/admin-sito.js; Messaggi in js/admin-messaggi.js, Adempimenti in js/adempimenti.js e js/istat.js. Ognuno si registra in window.LCAdmParts
 // e riceve da qui lo stato e le utilità comuni (oggetto A).
@@ -113,7 +114,8 @@ async function reloadCfg(msg){
 
 function shell(){
   M.innerHTML=`<h1 class="sr-only">Gestione</h1>
-  <div class="adm-bar" data-testid="admin-bar"><nav class="adm-areas" id="adm-areas" aria-label="Area della gestione"></nav>
+  <div class="adm-mback" id="adm-mback" hidden data-testid="admin-mmenu-back"></div>
+  <div class="adm-bar" data-testid="admin-bar"><div class="adm-mnav"><button type="button" class="adm-mbtn" id="adm-mbtn" aria-expanded="false" aria-controls="adm-mmenu" data-testid="admin-mmenu-btn"></button><nav class="adm-mmenu" id="adm-mmenu" aria-label="Sezioni della gestione" hidden data-testid="admin-mmenu"></nav></div><nav class="adm-areas" id="adm-areas" aria-label="Area della gestione"></nav>
    <div class="adm-top-actions"><a class="btn btn-line adm-site" href="index.html" target="_blank" rel="noopener">Vedi il sito ↗</a><button type="button" class="btn btn-line" id="out" data-testid="admin-logout">Esci</button></div></div>
   <div class="adm-shell"><nav class="adm-nav" id="adm-nav" aria-label="Sezioni"></nav><section class="adm-body" id="adm-body"></section></div>
   <div class="admin-card save-bar" id="save-bar" data-testid="admin-save-bar"><span class="admin-msg" id="o" data-testid="admin-save-msg" role="status"></span><span class="save-x" id="save-x"></span><span class="save-btns"><button type="button" class="btn btn-line" id="undo" hidden data-testid="admin-undo">Annulla</button><button type="button" class="btn btn-wine" id="save" data-testid="admin-save">Salva modifiche</button></span></div>`}
@@ -124,7 +126,16 @@ function nav(){
   // l'altra area ha qualcosa da guardare (prenotazioni da gestire, messaggi da leggere, sincronizzazione): un pallino sul selettore
   const altro={op:badge.prenotazioni+badge.messaggi,sito:badge.sistema};
   $('#adm-areas').innerHTML=[['op','Operatività'],['sito','Sito']].map(([k,l])=>`<a href="#${esc(V.last[k])}" class="${ar===k?'on':''}"${ar===k?' aria-current="true"':''} data-testid="admin-area-${k}">${l}${altro[k]&&ar!==k?'<i class="adm-dot" title="C\'è qualcosa da guardare"></i>':''}</a>`).join('');
-  const nv=$('#adm-nav'),on=nv.querySelector('a.on');if(on&&nv.scrollWidth>nv.clientWidth)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2}      // su telefono il menu scorre: la sezione aperta resta in vista
+  const nv=$('#adm-nav'),on=nv.querySelector('a.on');if(on&&nv.scrollWidth>nv.clientWidth)nv.scrollLeft=on.offsetLeft-(nv.clientWidth-on.offsetWidth)/2;      // se il menu non ci sta e scorre, la sezione aperta resta in vista (su telefono c'è il menu a tendina)
+  // su telefono: il pulsante dice dove sei (e ha il pallino se un'altra sezione ha qualcosa da guardare); il menu a tendina ha le sezioni di tutte e due le aree
+  const fuori=Object.keys(badge).some(h=>badge[h]&&h!==r.s);
+  $('#adm-mbtn').innerHTML=`<span class="sr-only">Menu della gestione, sezione aperta: </span><span class="adm-mcur"><small>${ar==='sito'?'Sito':'Operatività'}</small> <b>${esc(where())}</b></span>${fuori?'<i class="adm-dot" title="C\'è qualcosa da guardare"></i>':''}<span class="adm-chev" aria-hidden="true"></span>`;
+  $('#adm-mmenu').innerHTML=[['op','Operatività'],['sito','Sito']].map(([k,l])=>`<p class="adm-mgrp">${l}</p><div class="adm-mgrid">${SEZ[k].map(([h,n,d])=>`<a href="#${h}" class="${r.s===h?'on':''}"${r.s===h?' aria-current="page"':''} data-testid="admin-mmenu-${h}"><span class="adm-nl">${n}<small>${d}</small></span>${badge[h]?`<span class="adm-badge">${badge[h]}</span>`:''}</a>`).join('')}</div>`).join('')
+    +'<a class="adm-msite" href="index.html" target="_blank" rel="noopener">Vedi il sito ↗</a>'}
+// apre (true), chiude (false) o alterna (nulla) il menu a tendina del telefono; l'altezza si adatta allo spazio sotto la barra
+function menu(open){const mm=$('#adm-mmenu'),mb=$('#adm-mbtn'),bk=$('#adm-mback');if(!mm||!mb||!bk)return;
+  open=open==null?mm.hidden:!!open;mm.hidden=bk.hidden=!open;mb.setAttribute('aria-expanded',String(open));
+  if(open)mm.style.maxHeight=Math.max(240,innerHeight-mb.closest('.adm-bar').getBoundingClientRect().bottom-12)+'px'}
 
 function body(){
   const el=$('#adm-body');if(!el||!S)return;
@@ -136,7 +147,7 @@ function body(){
   el.innerHTML=(A.view[r.s]||A.view.oggi)(r);
   document.body.classList.toggle('adp-active',AUTO.has(r.s));
   if(A.after[r.s])A.after[r.s](r);
-  nav();bar()}
+  menu(false);nav();bar()}
 
 // ---------- Adempimenti (Alloggiati Web, ISTAT): la sezione vive in js/adempimenti.js e js/istat.js; i dati degli ospiti restano solo in memoria ----------
 const vAdp=r=>{const sub=r.sub==='istat'?'istat':'alloggiati';
@@ -190,6 +201,9 @@ function logout(){
   window.LCAdempimenti&&window.LCAdempimenti.reset();window.LCIstat&&window.LCIstat.reset();window.LCMessaggi&&window.LCMessaggi.reset();unauthorized()}
 function wire(){
   M.addEventListener('click',e=>{
+    // menu a tendina del telefono: il pulsante lo apre e chiude; una sezione scelta o un tocco fuori (sul velo) lo chiudono
+    if(e.target.closest('#adm-mbtn')){menu();return}
+    if(e.target.id==='adm-mback'||e.target.closest('#adm-mmenu a')){menu(false);return}
     if(e.target.id==='out'){logout();return}
     if(e.target.id==='save'){save();return}
     if(e.target.id==='undo'){if(confirm('Annullare le modifiche non salvate? Tornano le impostazioni salvate.'))reloadCfg('Modifiche annullate.');return}
@@ -199,6 +213,7 @@ function wire(){
   M.addEventListener('change',e=>{for(const f of A.onChange)if(f(e.target,e))return});
   M.addEventListener('submit',e=>{for(const f of A.onSubmit)if(f(e.target,e))return});
   window.addEventListener('hashchange',()=>{if(S){body();window.scrollTo({top:0,behavior:'smooth'})}});
+  document.addEventListener('keydown',e=>{const mm=$('#adm-mmenu');if(e.key==='Escape'&&mm&&!mm.hidden){menu(false);$('#adm-mbtn').focus()}});
   window.addEventListener('beforeunload',e=>{if(dirty||(window.LCMessaggi&&window.LCMessaggi.dirty())){e.preventDefault();e.returnValue=''}})}
 
 // ---------- Salvataggio ----------

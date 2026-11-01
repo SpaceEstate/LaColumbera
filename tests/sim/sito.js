@@ -10,6 +10,8 @@
 //  S7 accessibilità di base su ogni pagina: menu, logo, descrizione, titoli del piè di pagina, numero di telefono
 //  S8 cache delle immagini (vercel.json)
 //  S9 scheda di prenotazione: compatta, sugli schermi larghi segue la pagina restando intera (mai altezza massima né scorrimento interno); nessun prezzo fisso nell'HTML
+//  S10 app della Gestione: manifest proprio (solo admin.html), nessun service worker; l'app dell'area clienti non cambia
+//  S11 Gestione su telefono: menu a tendina solo fino a 900 px; da computer selettore e menu laterale come prima
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -133,6 +135,42 @@ test('S9 scheda di prenotazione: più compatta; sugli schermi larghi segue la pa
     assert(!/€\s?(120|180)\b/.test(h), f + ': importo fisso nella pagina');
   }
   assert(!/booking-limit|notice-note|Prenotabile fino al/.test(js), 'niente note fisse su orizzonte e preavviso sotto il calendario');
+});
+
+test('S10 app della Gestione: «Aggiungi alla schermata Home» apre admin.html a schermo intero; ambito solo admin.html (i link al sito non finiscono nell\'app), nessun service worker; l\'app dell\'area clienti non cambia', () => {
+  const m = JSON.parse(read('gestione.webmanifest'));
+  assert.strictEqual(m.start_url, 'admin.html'); assert.strictEqual(m.scope, 'admin.html', 'ambito: solo la Gestione'); assert.strictEqual(m.id, 'admin.html', 'app distinta da quella dell\'area clienti');
+  assert.strictEqual(m.display, 'standalone'); assert.strictEqual(m.short_name, 'Gestione'); assert.strictEqual(m.lang, 'it');
+  for (const s of ['192x192', '512x512']) { const i = m.icons.find(x => x.sizes === s); assert(i && i.type === 'image/png' && fs.existsSync(path.join(ROOT, i.src)), 'icona ' + s); }
+  const adm = read('admin.html');
+  assert(/<link rel="manifest" href="gestione\.webmanifest">/.test(adm) && /<meta name="apple-mobile-web-app-capable" content="yes">/.test(adm) && /<meta name="apple-mobile-web-app-title" content="Gestione">/.test(adm), 'admin.html porta il manifest della Gestione');
+  assert(!/manifest\.webmanifest/.test(adm), 'admin.html non porta il manifest dell\'area clienti');
+  for (const f of HTML.filter(f => f !== 'admin.html')) assert(!/gestione\.webmanifest/.test(read(f)), f + ': il manifest della Gestione è solo in admin.html');
+  assert(/<link rel="manifest" href="manifest\.webmanifest">/.test(read('area-clienti.html')) && JSON.parse(read('manifest.webmanifest')).start_url === 'area-clienti.html', 'l\'app dell\'area clienti resta com\'era');
+  for (const f of fs.readdirSync(path.join(ROOT, 'js')).filter(f => /^admin/.test(f))) assert(!/serviceWorker/.test(read('js/' + f)), 'js/' + f + ': la Gestione non registra service worker (dati sempre dalla rete)');
+  assert(!/serviceWorker/.test(adm));
+  const h = JSON.parse(read('vercel.json')).headers.find(x => x.source === '/gestione.webmanifest');
+  assert(h && h.headers.find(k => k.key === 'Content-Type').value === 'application/manifest+json', 'tipo del manifest (vercel.json)');
+});
+
+test('S11 Gestione su telefono: menu a tendina (pulsante con la sezione aperta) solo fino a 900 px; da computer selettore Operatività | Sito e menu laterale come prima', () => {
+  const css = read('css/main.css').replace(/\/\*[\s\S]*?\*\//g, ''), regole = [];
+  for (let i = 0, media = '', sel = '', depth = 0, buf = ''; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') { const t = buf.trim(); buf = ''; if (t.startsWith('@media')) media = t; else sel = t; depth++; }
+    else if (ch === '}') { if (sel) regole.push({ media: depth > 1 ? media : '', sel, dec: buf.trim() }); else media = ''; sel = ''; buf = ''; depth--; }
+    else buf += ch;
+  }
+  const r = (sel, media) => regole.filter(x => x.sel === sel && x.media === media);
+  assert(r('.adm-mnav,.adm-mback', '').some(x => /display:none/.test(x.dec)), 'da computer il pulsante e il velo del telefono non ci sono');
+  const tel = '@media (max-width:900px)';
+  assert(r('.adm-areas,.adm-nav', tel).some(x => /display:none/.test(x.dec)), 'su telefono selettore e fila di sezioni lasciano il posto al menu');
+  assert(r('.adm-mnav', tel).some(x => /display:flex/.test(x.dec)), 'su telefono il pulsante c\'è');
+  assert(r('body[data-p=admin-app] .menu-toggle', tel).some(x => /display:none/.test(x.dec)), 'in Gestione il menu del sito pubblico non si confonde con quello della Gestione');
+  for (const x of regole.filter(x => /adm-mnav|adm-mbtn|adm-mmenu|adm-mgrid|adm-mback|adm-mgrp|adm-msite|adm-mcur|adm-chev/.test(x.sel)))
+    assert(x.media === '' ? x.sel === '.adm-mnav,.adm-mback' : x.media === tel, 'regola del menu del telefono fuori dalla sua @media: ' + x.media + ' ' + x.sel);
+  // da computer restano le regole di prima per selettore e menu laterale
+  assert(r('.adm-areas', '').some(x => /display:inline-flex/.test(x.dec)) && r('.adm-nav', '').some(x => /position:sticky/.test(x.dec) && /flex-direction:column/.test(x.dec)), 'selettore e menu laterale da computer');
 });
 
 (async () => {
