@@ -4,7 +4,9 @@
 // coerente su Gmail, Outlook e Apple Mail.
 const x=require('./x.js');
 
-const C={wine:'#7A2E39',wine2:'#5F222B',wine3:'#3A151B',ink:'#1E1917',muted:'#6C5F55',paper:'#FAF5EC',paper2:'#F1E9D9',line:'#DCCFB6',gold:'#B08D3C',white:'#FFFDF7'};
+// oro: le scritte di risalto (codice, importi, link, numeri dei passaggi, nomi nei titoli). Leggibile su bianco, crema e crema dei cerchi (contrasto
+// da 4,8 a 5,7:1, WCAG AA); nell'app Gmail in modalità scura diventa oro chiaro (il bordeaux di prima diventava rosa). Prova: tests/sim/pagamenti.js P23.
+const C={wine:'#7A2E39',wine2:'#5F222B',wine3:'#3A151B',ink:'#1E1917',muted:'#6C5F55',paper:'#FAF5EC',paper2:'#F1E9D9',line:'#DCCFB6',gold:'#B08D3C',oro:'#806120',white:'#FFFDF7'};
 const SERIF="Georgia,'Times New Roman',serif",SANS="'Helvetica Neue',Helvetica,Arial,sans-serif",MONO="'SFMono-Regular',Menlo,Consolas,'Courier New',monospace";
 
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -23,14 +25,14 @@ const fmtCode=code=>{const s=String(code||'');return /^[0-9A-Z]{13}$/.test(s)?s.
 // I gruppi vanno a capo tra loro (mai dentro un gruppo) se lo schermo del telefono è stretto
 const codeBox=code=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border:1px dashed ${C.gold};border-radius:10px"><tr><td align="center" style="padding:20px 16px">
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">Codice di prenotazione</div>
-<div style="font-family:${MONO};font-size:28px;line-height:38px;font-weight:700;letter-spacing:4px;word-spacing:6px;color:${C.wine};padding:8px 0 0 4px">${fmtCode(code).split(' ').map(g=>`<span style="white-space:nowrap">${esc(g)}</span>`).join(' ')}</div></td></tr></table>`;
+<div style="font-family:${MONO};font-size:28px;line-height:38px;font-weight:700;letter-spacing:4px;word-spacing:6px;color:${C.oro};padding:8px 0 0 4px">${fmtCode(code).split(' ').map(g=>`<span style="white-space:nowrap">${esc(g)}</span>`).join(' ')}</div></td></tr></table>`;
 
 const row=(k,v,last)=>`<tr><td style="padding:13px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:14px;color:${C.muted}">${k}</td><td align="right" style="padding:13px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:15px;font-weight:700;color:${C.ink}">${v}</td></tr>`;
 
 const recap=b=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td colspan="2" style="padding:0 0 14px"><div style="font-family:${SERIF};font-size:22px;line-height:28px;color:${C.ink}">${esc(aptName(b.id))}</div>${aptSub(b.id)?`<div style="font-family:${SANS};font-size:13px;color:${C.muted};padding-top:2px">${esc(aptSub(b.id))}</div>`:''}</td></tr>
 ${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Notti',esc(plural(b.notti,'notte','notti')))}${row('Ospiti',esc(ospitiTxt(b)))}
-<tr><td style="padding:16px 0 0;font-family:${SANS};font-size:14px;color:${C.muted};vertical-align:middle">Importo pagato</td><td align="right" style="padding:16px 0 0;font-family:${SERIF};font-size:28px;line-height:32px;color:${C.wine}">${esc(eur(b.totale))}</td></tr></table>`;
+<tr><td style="padding:16px 0 0;font-family:${SANS};font-size:14px;color:${C.muted};vertical-align:middle">Importo pagato</td><td align="right" style="padding:16px 0 0;font-family:${SERIF};font-size:28px;line-height:32px;color:${C.oro}">${esc(eur(b.totale))}</td></tr></table>`;
 
 const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine2}" class="gm-wine" style="border-radius:999px"><div class="gm-screen"><div class="gm-difference"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></div></div></td></tr></table>`;
 
@@ -40,9 +42,8 @@ const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspaci
 // Pulsante e piè di pagina hanno scritte chiare, che Gmail scurirebbe anche su un bordeaux bloccato: per loro la tinta unita sta nelle regole qui sotto,
 // insieme a due livelli con mix-blend-mode (screen e difference, tecnica di Rémi Parmentier) che riportano le scritte chiare. Le regole valgono solo in
 // Gmail («u + .body»: Gmail mette un <u> prima del corpo); dove Gmail non legge il blocco <style> (account non Google nell'app) restano come prima, rosa
-// ma leggibili, e gli altri programmi non le applicano. Le scritte bordeaux su fondo chiaro (codice, importo, link) restano schiarite: sul fondo scuro
-// di Gmail il bordeaux non si leggerebbe. Intestazione, pulsante e piè di pagina hanno lo stesso bordeaux (C.wine2), in tutti i programmi.
-// Prove: tests/sim/pagamenti.js P21 e P22.
+// ma leggibili, e gli altri programmi non le applicano. Intestazione, pulsante e piè di pagina hanno lo stesso bordeaux (C.wine2), in tutti i programmi.
+// Le scritte di risalto sono in oro (C.oro): su fondo scuro Gmail le schiarisce in oro chiaro. Prove: tests/sim/pagamenti.js P21, P22 e P23.
 const GMAIL_CSS=`<style>u + .body .gm-wine{background-image:linear-gradient(${C.wine2},${C.wine2})}u + .body .gm-screen{background:#000;mix-blend-mode:screen}u + .body .gm-difference{background:#000;mix-blend-mode:difference}</style>`;
 const shell=({site,preheader,eyebrow,title,body,lang})=>`<!doctype html>
 <html lang="${lang||'it'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(title)}</title>${GMAIL_CSS}</head>
@@ -74,7 +75,7 @@ const annulloRiga=b=>{const ug=require('./_annulla.js').ultimoGiorno(b.da);
 const guestMail=(b,site,token)=>{
   const link=site+'/area-clienti.html'+(token?'#c='+encodeURIComponent(b.code)+'&t='+encodeURIComponent(token):'');
   const nome=String(b.nome||'').trim().split(/\s+/)[0];
-  const step=(n,t,d)=>`<tr><td valign="top" width="40" style="padding:0 0 14px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="30" height="30" bgcolor="${C.paper2}" style="width:30px;height:30px;border-radius:15px;background:${C.paper2};font-family:${SERIF};font-size:15px;color:${C.wine};font-weight:700">${n}</td></tr></table></td><td valign="top" style="padding:0 0 14px"><div style="font-family:${SANS};font-size:15px;font-weight:700;color:${C.ink}">${t}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:2px">${d}</div></td></tr>`;
+  const step=(n,t,d)=>`<tr><td valign="top" width="40" style="padding:0 0 14px"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" width="30" height="30" bgcolor="${C.paper2}" style="width:30px;height:30px;border-radius:15px;background:${C.paper2};font-family:${SERIF};font-size:15px;color:${C.oro};font-weight:700">${n}</td></tr></table></td><td valign="top" style="padding:0 0 14px"><div style="font-family:${SANS};font-size:15px;font-weight:700;color:${C.ink}">${t}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:2px">${d}</div></td></tr>`;
   const html=shell({site,eyebrow:'Prenotazione confermata',preheader:`Il tuo codice è ${b.code}: con questo accedi all'area personale per check-in online e Trentino Guest Card.`,
     title:`Grazie${nome?', '+esc(nome):''}!<br>Ti aspettiamo alla Columbera`,
     body:
@@ -84,10 +85,10 @@ const guestMail=(b,site,token)=>{
     sec(piede(esc(annulloRiga(b))),'14px 32px 0')+
     sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-radius:12px"><tr><td style="padding:24px 22px 10px">
 <div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink};padding-bottom:8px">La tua area personale</div>
-<p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il codice di prenotazione <b style="color:${C.wine};font-family:${MONO};letter-spacing:1px;white-space:nowrap">${esc(fmtCode(b.code))}</b> entri nell'<b>area personale</b> del nostro sito e, prima di arrivare, sbrighi tutto online:</p>
+<p style="margin:0 0 18px;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted}">Con il codice di prenotazione <b style="color:${C.oro};font-family:${MONO};letter-spacing:1px;white-space:nowrap">${esc(fmtCode(b.code))}</b> entri nell'<b>area personale</b> del nostro sito e, prima di arrivare, sbrighi tutto online:</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${step('1','Check-in online','Compili i dati degli ospiti in pochi minuti, così all\'arrivo è tutto pronto.')}${step('2','Trentino Guest Card','La richiedi direttamente dall\'area personale: musei, trasporti e attrazioni del territorio inclusi.')}</table>
-</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.wine}">area clienti</a> e inserisci il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.</div></td></tr></table>`,'30px 32px 0')+
-    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594" style="color:${C.wine};white-space:nowrap">+39 351 704 3594</a>.<br>Questa è un'email automatica: non rispondere a questo messaggio.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
+</td></tr><tr><td style="padding:4px 22px 26px" align="center">${button(link,'Vai alla mia area personale')}<div style="font-family:${SANS};font-size:12px;color:${C.muted};padding-top:12px">Il link ti fa entrare direttamente. In alternativa vai su <a href="${esc(site)}/area-clienti.html" style="color:${C.oro}">area clienti</a> e inserisci il codice di prenotazione. Codice e link valgono come una chiave: non inoltrarli a chi non soggiorna con te.</div></td></tr></table>`,'30px 32px 0')+
+    sec(`<p style="margin:0;font-family:${SANS};font-size:14px;line-height:22px;color:${C.muted};text-align:center">Conserva questa email: ti servirà il codice per tutto il soggiorno.<br>Per qualsiasi domanda scrivici a <a href="mailto:lacolumbera@gmail.com" style="color:${C.oro}">lacolumbera@gmail.com</a> o chiamaci al <a href="tel:+393517043594" style="color:${C.oro};white-space:nowrap">+39 351 704 3594</a>.<br>Questa è un'email automatica: non rispondere a questo messaggio.<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">Informativa privacy</a></p>`,'26px 32px 32px')});
   const text=`Grazie${nome?', '+nome:''}! La tua prenotazione a La Columbera è confermata.
 
 CODICE DI PRENOTAZIONE: ${fmtCode(b.code)}
@@ -115,14 +116,14 @@ const ownerMail=(b,site)=>{
   const tel=String(b.tel||'').trim();
   const kv=(k,v,last)=>`<tr><td style="padding:10px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:13px;color:${C.muted};width:90px">${k}</td><td style="padding:10px 0;${last?'':`border-bottom:1px solid ${C.line};`}font-family:${SANS};font-size:15px;font-weight:600;color:${C.ink}">${v}</td></tr>`;
   const html=shell({site,eyebrow:'Pagamento ricevuto',preheader:`${aptName(b.id)} · ${dLong(b.da)} · ${plural(b.notti,'notte','notti')} · ${eur(b.totale)} · ${b.nome||''}`,
-    title:`Nuova prenotazione da<br><span style="color:${C.wine}">${esc(b.nome||'un ospite')}</span>`,
+    title:`Nuova prenotazione da<br><span style="color:${C.oro}">${esc(b.nome||'un ospite')}</span>`,
     body:
     sec(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td bgcolor="#E4EFE2" style="background:#E4EFE2;border-radius:999px;padding:6px 16px;font-family:${SANS};font-size:12px;font-weight:700;letter-spacing:.6px;color:#2F6B3B">● PRENOTAZIONE CONFERMATA</td></tr></table>`,'14px 32px 0')+
     sec(codeBox(b.code),'22px 32px 0')+
     sec(`<div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:12px">Soggiorno</div>${recap(b)}`,'28px 32px 0')+
     sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border-radius:12px"><tr><td style="padding:20px 22px 12px">
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700;padding-bottom:6px">Dati ospite</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${kv('Nome',esc(b.nome||'—'))}${kv('Email',b.email?`<a href="mailto:${esc(b.email)}" style="color:${C.wine};text-decoration:none">${esc(b.email)}</a>`:'—')}${kv('Telefono',tel?`<a href="tel:${esc(tel.replace(/[^\d+]/g,''))}" style="color:${C.wine};text-decoration:none">${esc(tel)}</a>`:'—',true)}</table></td></tr></table>`,'28px 32px 0')+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${kv('Nome',esc(b.nome||'—'))}${kv('Email',b.email?`<a href="mailto:${esc(b.email)}" style="color:${C.oro};text-decoration:none">${esc(b.email)}</a>`:'—')}${kv('Telefono',tel?`<a href="tel:${esc(tel.replace(/[^\d+]/g,''))}" style="color:${C.oro};text-decoration:none">${esc(tel)}</a>`:'—',true)}</table></td></tr></table>`,'28px 32px 0')+
     sec(`<p style="margin:0;font-family:${SANS};font-size:13px;line-height:20px;color:${C.muted};text-align:center">L'ospite riceve la mail di conferma con lo stesso codice.<br>Rispondendo a questa email scrivi direttamente all'ospite.${b.pagamento?`<br><span style="font-family:${MONO};font-size:11px">Rif. Stripe: ${esc(b.pagamento)}</span>`:''}</p>`,'22px 32px 32px')});
   const text=`Nuova prenotazione confermata da ${b.nome||'un ospite'} · pagamento ricevuto
 
@@ -147,7 +148,7 @@ Telefono: ${tel||'—'}${b.pagamento?'\nRif. Stripe: '+b.pagamento:''}`;
 // e, nei messaggi della struttura (md), «[testo](https://…)»; in quelli dell'ospite quella forma resta com'è, con l'indirizzo cliccabile.
 const RE_LINK=/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)|((?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?)\]'])/gi;
 const linkMsg=(s,md)=>{s=String(s==null?'':s);let o='',i=0;
-  const a=(u,l)=>`<a href="${esc(/^www\./i.test(u)?'https://'+u:u)}" target="_blank" style="color:${C.wine};font-weight:700;word-break:break-all">${esc(l)}</a>`;
+  const a=(u,l)=>`<a href="${esc(/^www\./i.test(u)?'https://'+u:u)}" target="_blank" style="color:${C.oro};font-weight:700;word-break:break-all">${esc(l)}</a>`;
   for(const m of s.matchAll(RE_LINK)){o+=esc(s.slice(i,m.index))+(m[2]?(md?a(m[2],m[1]):esc('['+m[1]+'](')+a(m[2],m[2])+esc(')')):a(m[3],m[3]));i=m.index+m[0].length}
   return (o+esc(s.slice(i))).replace(/\r?\n/g,'<br>')};
 const semplice=s=>String(s==null?'':s).replace(/\[([^\]\n]{1,200})\]\s?\((https?:\/\/[^\s()<>"]+)\)/g,'$1: $2');      // per la parte di solo testo
@@ -161,7 +162,7 @@ const piede=t=>`<p style="margin:0;font-family:${SANS};font-size:12px;line-heigh
 const avvisoTitolare=(b,site,m)=>{m=m||{};
   const link=site+'/admin.html#messaggi/c/'+encodeURIComponent(b.code||''),chi=String(b.nome||'').trim()||'un ospite',quando=b.da?dLong(b.da).replace(/^./,c=>c.toLowerCase()):'';
   const testo=String(m.testo||''),it=m.it&&m.it!==testo?String(m.it):'',dove=b.id?aptName(b.id)+(quando?', arrivo '+quando:''):'';
-  const html=shell({site,eyebrow:'Nuovo messaggio',preheader:testo.slice(0,110)||`${chi} ti ha scritto nell'area ospiti`,title:`Nuovo messaggio da<br><span style="color:${C.wine}">${esc(chi)}</span>`,
+  const html=shell({site,eyebrow:'Nuovo messaggio',preheader:testo.slice(0,110)||`${chi} ti ha scritto nell'area ospiti`,title:`Nuovo messaggio da<br><span style="color:${C.oro}">${esc(chi)}</span>`,
     body:sec(pc(`Ti ha scritto nell'area ospiti${dove?' ('+esc(dove)+')':''}:`),'16px 32px 0')+
       (testo?sec(msgBox(testo),'14px 32px 0'):'')+(it?sec(msgBox(it,'Traduzione automatica in italiano'),'10px 32px 0'):'')+
       sec(button(link,'Rispondi'),'24px 32px 0')+
@@ -216,9 +217,9 @@ const annullataOspite=(b,site,lingua)=>{
     body:sec(pc(esc(intro)),'14px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border:1px dashed ${C.gold};border-radius:10px"><tr><td align="center" style="padding:20px 16px">
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">${esc(L.rimb)}</div>
-${gia?`<div style="font-family:${SANS};font-size:15px;line-height:22px;color:${C.ink};padding-top:8px">${esc(L.gia)}</div>`:`<div style="font-family:${SERIF};font-size:30px;line-height:36px;color:${C.wine};padding-top:6px">${esc(eur(r.importo))}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:6px">${esc(L.carta)}</div>`}</td></tr></table>`,'22px 32px 0')+
+${gia?`<div style="font-family:${SANS};font-size:15px;line-height:22px;color:${C.ink};padding-top:8px">${esc(L.gia)}</div>`:`<div style="font-family:${SERIF};font-size:30px;line-height:36px;color:${C.oro};padding-top:6px">${esc(eur(r.importo))}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:6px">${esc(L.carta)}</div>`}</td></tr></table>`,'22px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row(esc(L.checkin),esc(dLg(b.da,lg)))}${row(esc(L.checkout),esc(dLg(b.a,lg)))}${row(esc(L.codice),`<span style="font-family:${MONO};letter-spacing:1px">${esc(fmtCode(b.code))}</span>`,true)}</table>`,'26px 32px 0')+
-      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
+      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.oro}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
   const text=`${L.tit(nome).replace('<br>',' ')}\n\n${intro}\n\n${gia?L.gia:L.rimb+': '+eur(r.importo)+'\n'+L.carta}\n\n${aptName(b.id)}\n${L.checkin}: ${dLg(b.da,lg)}\n${L.checkout}: ${dLg(b.a,lg)}\n${L.codice}: ${fmtCode(b.code)}\n\n${L.domande} lacolumbera@gmail.com · +39 351 704 3594\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
   return{subject:L.sub(b.code),html,text}};
 // Al titolare, quando annulla l'ospite: chi, quale soggiorno, quanto è stato rimborsato e che le notti sono di nuovo libere.
@@ -226,7 +227,7 @@ const annullataTitolare=(b,site)=>{
   const r=b.rimborso||{},link=site+'/admin.html#prenotazioni/'+encodeURIComponent(b.code),gia=r.stato==='gia_rimborsato',chi=String(b.nome||'').trim()||'L\'ospite';
   const rimb=gia?'il pagamento risultava già rimborsato su Stripe':'rimborso di '+eur(r.importo)+' avviato su Stripe'+(r.id?' ('+r.id+')':'');
   const html=shell({site,eyebrow:'Prenotazione annullata',preheader:`${chi} ha annullato · ${aptName(b.id)} · ${dLong(b.da)} · ${eur(r.importo)}`,
-    title:`Annullata da<br><span style="color:${C.wine}">${esc(chi)}</span>`,
+    title:`Annullata da<br><span style="color:${C.oro}">${esc(chi)}</span>`,
     body:sec(pc(`${esc(chi)} ha annullato dall'area clienti (fino a 7 giorni prima dell'arrivo si può): ${esc(rimb)}.`),'14px 32px 0')+
       sec(codeBox(b.code),'22px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Ospite',esc(b.nome||'—'))}${row('Email',esc(b.email||'—'))}${row('Rimborso',esc(gia?'già fatto su Stripe':eur(r.importo)),true)}</table>`,'26px 32px 0')+
@@ -243,7 +244,7 @@ const ricevutaRichiesta=(b,site,q)=>{
   const dove=[q.indirizzo,[q.cap,q.citta].filter(Boolean).join(' '),q.paese].filter(Boolean).join(', ');
   const righe=[['Intestata a',q.nome],['Codice fiscale',q.cf||'—'],['Indirizzo',dove],['Mandala a',q.invio||'—']];
   const html=shell({site,eyebrow:q.aggiornata?'Richiesta di ricevuta aggiornata':'Richiesta di ricevuta',preheader:`${chi} chiede la ricevuta · ${aptName(b.id)} · ${dLong(b.da)}`,
-    title:`Ricevuta per<br><span style="color:${C.wine}">${esc(chi)}</span>`,
+    title:`Ricevuta per<br><span style="color:${C.oro}">${esc(chi)}</span>`,
     body:sec(pc(`Ha chiesto la ricevuta del soggiorno ${esc(aptName(b.id))}, dal ${esc(dLong(b.da))} al ${esc(dLong(b.a))}${b.totale?' ('+esc(eur(b.totale))+')':''}. Codice <b>${esc(b.code)}</b>.`),'14px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${righe.map(([k,v],i)=>kv2(esc(k),esc(v),i===righe.length-1)).join('')}</table>`,'22px 32px 0')+
       (q.nota?sec(msgBox(q.nota,'Nota dell\'ospite'),'16px 32px 0'):'')+
@@ -260,7 +261,7 @@ const ricevutaOspite=(b,site,lingua,m)=>{m=m||{};
   const lg=RIC[lingua]?lingua:'it',L=RIC[lg],nome=String(m.nome||b.nome||'').trim().split(/\s+/)[0],dd=s=>lg==='it'?dLg(s,lg).replace(/^./,c=>c.toLowerCase()):dLg(s,lg),intro=L.intro(aptName(b.id),dd(b.da),dd(b.a));
   const html=shell({site,lang:lg,eyebrow:L.eye,preheader:intro,title:esc(L.tit(nome)),
     body:sec(pc(esc(intro)),'14px 32px 0')+(m.messaggio?sec(msgBox(m.messaggio),'16px 32px 0'):'')+
-      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.wine}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
+      sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.oro}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
   const text=`${L.tit(nome)} ${intro}${m.messaggio?'\n\n'+m.messaggio:''}\n\n${L.domande} lacolumbera@gmail.com.\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
   return{subject:L.sub,html,text}};
 

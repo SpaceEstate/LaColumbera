@@ -425,6 +425,29 @@ test('P22 email del sito nell\'app Gmail in modalità scura: pulsante e piè di 
   }
 });
 
+test('P23 email del sito: le scritte di risalto (codice, importi, link, numeri, nomi nei titoli) sono in oro leggibile su tutti i fondi chiari, non più in bordeaux (che in Gmail scuro diventava rosa)', async () => {
+  const M = require(path.join(__dirname, '..', '..', 'api', '_mail.js'));
+  const b = { code: '558RTE56487A9', id: 'torre', da: '2026-11-05', a: '2026-11-08', notti: 3, ospiti: 2, bambini: 0, totale: 360, nome: 'Giulia Prova', email: 'giulia@esempio.it', tel: '+39 333 1234567', annullata_da: 'ospite', rimborso: { importo: 360, stato: 'rimborsato' } };
+  const site = 'https://www.lacolumbera.test', m = { testo: 'Ciao Giulia, il menù è su www.esempio.it', lingua: 'en', tradotto: 'Hi Giulia, the menu is on www.esempio.it' };
+  const email = [['conferma', M.guestMail(b, site, 'token-di-prova')], ['titolare', M.ownerMail(b, site)], ['messaggio all\'ospite', M.avvisoOspite(b, site, 'token-di-prova', m)], ['messaggio al titolare', M.avvisoTitolare(b, site, m)],
+    ['annullamento', M.annullataOspite(b, site, 'it')], ['annullamento al titolare', M.annullataTitolare(b, site)], ['richiesta di ricevuta', M.ricevutaRichiesta(b, site, { nome: 'Giulia Prova', cf: '', indirizzo: 'Via Roma 1', cap: '38100', citta: 'Trento', paese: 'Italia', invio: 'giulia@esempio.it' })],
+    ['ricevuta', M.ricevutaOspite(b, site, 'it', { messaggio: 'Ecco la ricevuta' })]];
+  const ORO = '#806120';
+  // contrasto WCAG con i fondi chiari delle email (bianco della scheda, crema, crema dei cerchi numerati): almeno 4,5:1 anche per le scritte piccole
+  const lum = h => { const c = [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16) / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const contrasto = (a, f) => { const [x, y] = [lum(a), lum(f)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  for (const f of ['#FFFDF7', '#FAF5EC', '#F1E9D9']) assert.ok(contrasto(ORO, f) >= 4.5, 'oro su ' + f + ': ' + contrasto(ORO, f).toFixed(2));
+  for (const [tipo, x] of email) {
+    const h = x.html;
+    assert.ok(!/(^|[^-])color:#(7A2E39|5F222B|3A151B)/i.test(h), tipo + ': nessuna scritta in bordeaux');
+    assert.ok((h.match(/(^|[^-])color:#806120/gi) || []).length >= 1, tipo + ': scritte di risalto in oro');
+    for (const f of (h.match(/(?:^|[^-])background(?:-color)?:(#[0-9A-F]{6})/gi) || []).map(z => z.slice(-7)).filter(c => lum(c) > 0.5)) assert.ok(contrasto(ORO, f) >= 4.5, tipo + ': oro leggibile su ' + f);      // ogni fondo chiaro usato nell'email
+  }
+  const conferma = email[0][1].html;
+  assert.ok(conferma.includes('word-spacing:6px;color:#806120;padding:8px 0 0 4px">'), 'codice della prenotazione in oro');
+  assert.ok((conferma.match(/color:#806120/g) || []).length >= 6, 'conferma: codice, importo, numeri dei passaggi, codice nel testo e link in oro');
+});
+
 test('R1 l\'ospite annulla dall\'area clienti fino a 7 giorni prima dell\'arrivo: rimborso totale su Stripe, prenotazione annullata, notti di nuovo libere (sito e calendario per Booking/Airbnb), foglio, email all\'ospite e al titolare; ripetere non rimborsa due volte', async () => {
   await base();
   const code = await pagata(); global.__mails = [];
