@@ -1233,6 +1233,29 @@ test('W10 pagina Eventi: eventi automatici e inseriti a mano, raggruppati per me
   // la pagina Luoghi di interesse non ha più la sezione e non carica il codice degli eventi
   const html = fs.readFileSync(path.join(ROOT, 'dintorni.html'), 'utf8'); assert(!/id="eventi"|id="events"|data-p="eventi"|js\/pages\.js/.test(html), 'dintorni.html senza eventi');
 });
+test('W39 recensioni (pagina Recensioni e schede di Torre e Corte): sotto ogni recensione solo il nome, con il link al profilo per Google, e la fonte; niente «da quanto tempo» (es. «10 mesi fa»)', async () => {
+  await setup();
+  const REV = { google: { rating: 4.6, count: 23, url: 'https://maps.google.com/?cid=1', reviews: [
+    { author: 'Raffaele Pozzessere', authorUri: 'https://www.google.com/maps/contrib/1', rating: 4, text: 'Posto tranquillo, vicino abbiamo trovato un ottimo bar: ci torneremo volentieri.', when: '10 mesi fa' },
+    { author: 'Daniela Campanini', authorUri: 'https://www.google.com/maps/contrib/2', rating: 5, text: 'Bella costruzione a Ravina, ottima collocazione vicino al casello autostradale.', when: 'un anno fa' }] },
+    booking: { score: 9.2, count: 15, url: 'https://www.booking.com/hotel/it/columbera.html', reviews: [{ author: 'Anna', text: 'Tutto perfetto, casa bellissima e accoglienza gentilissima.', score: 10, when: 'ottobre 2026' }] } };
+  // la risposta di /api/reviews (con la data relativa che manda Google), poi lo script vero della pagina
+  const conRecensioni = (x, src) => { const chieste = []; x.w.fetch = async u => { chieste.push(String(u)); return { ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(REV)) }; }; x.w.eval(src); return chieste; };
+  const autori = x => [...x.doc.querySelectorAll('.review-quote .author')].map(text);
+  // pagina Recensioni: lo script è scritto nella pagina
+  const r = await load('recensioni.html', { scripts: [] }), inline = fs.readFileSync(path.join(ROOT, 'recensioni.html'), 'utf8').match(/<script>([\s\S]*?)<\/script>\s*<\/body>/)[1];
+  const chieste = conRecensioni(r, inline);
+  await waitFor(() => r.doc.querySelectorAll('[data-testid=reviews-grid] .review-quote .author').length === 3, 'recensioni');
+  assert.deepEqual(autori(r), ['Raffaele Pozzessere — Google', 'Daniela Campanini — Google', 'Anna — Booking · 10'], 'nome e fonte, nient\'altro: ' + autori(r).join(' | '));
+  assert.equal(r.doc.querySelector('[data-testid=reviews-grid] .author a').getAttribute('href'), 'https://www.google.com/maps/contrib/1', 'per Google il nome resta il link al profilo dell\'autore');
+  assert(chieste.some(u => /\/api\/reviews\?all=1$/.test(u)), chieste.join());
+  // scheda di Torre: la sezione recensioni
+  const t = await load('torre.html', { scripts: [] });
+  conRecensioni(t, fs.readFileSync(path.join(ROOT, 'js', 'reviews.js'), 'utf8'));
+  await waitFor(() => !t.doc.querySelector('[data-testid=apt-reviews]').hidden, 'sezione recensioni della scheda');
+  assert.deepEqual(autori(t), ['Raffaele Pozzessere — Google', 'Daniela Campanini — Google', 'Anna — Booking · 10'], 'anche nella scheda dell\'appartamento: ' + autori(t).join(' | '));
+  assert(!/mesi fa|anno fa|ottobre 2026/.test(text(r.doc.body) + text(t.doc.body)), 'nessuna data delle recensioni');
+});
 test('W11 Convenzioni: niente etichetta "Convenzionato" su Pizzeria Da Mimmo, Bistò e Palestra Juta', async () => {
   const { doc } = await load('convenzioni.html', { scripts: ['js/dintorni.js', 'js/site.js'] });
   await waitFor(() => doc.querySelector('[data-testid=partner-card-bisto]'), 'schede');

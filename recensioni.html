@@ -79,7 +79,7 @@
   const card=rv=>{
     const c=add('div','review-quote'),au=add('span','author'),href=https(rv.href);
     au.appendChild(href?link(rv.author,href):document.createTextNode(rv.author));
-    au.appendChild(document.createTextNode(' — '+rv.src+(rv.when?' · '+rv.when:'')));
+    au.appendChild(document.createTextNode(' — '+rv.src));      // solo nome e fonte: niente «da quanto tempo» (scelta del titolare)
     c.append(add('span','stars',stars(rv.rating)),add('span','',rv.text),au);
     return c;
   };
@@ -89,8 +89,8 @@
       const r=await fetch('/api/reviews?all=1');
       if(!r.ok)throw new Error('HTTP '+r.status);
       const d=await r.json(),g=d&&d.google,b=d&&d.booking,list=[];
-      if(g&&Array.isArray(g.reviews))g.reviews.forEach(rv=>list.push({src:'Google',rating:rv.rating,text:rv.text,author:rv.author||'Ospite',href:rv.authorUri||rv.url||g.url,when:rv.when}));
-      if(b&&Array.isArray(b.reviews))b.reviews.forEach(rv=>list.push({src:'Booking'+(rv.score?' · '+rv.score:''),rating:rv.rating||5,text:rv.text,author:rv.author,href:'',when:rv.when}));
+      if(g&&Array.isArray(g.reviews))g.reviews.forEach(rv=>list.push({src:'Google',rating:rv.rating,text:rv.text,author:rv.author||'Ospite',href:rv.authorUri||rv.url||g.url}));
+      if(b&&Array.isArray(b.reviews))b.reviews.forEach(rv=>list.push({src:'Booking'+(rv.score?' · '+rv.score:''),rating:rv.rating||5,text:rv.text,author:rv.author,href:''}));
       if(!list.length)show('Nessuna recensione disponibile al momento.');
       else{root.textContent='';list.forEach(rv=>root.appendChild(card(rv)))}
       // riga riepilogo: punteggio + conteggio + link alla fonte

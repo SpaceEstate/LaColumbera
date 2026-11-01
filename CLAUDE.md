@@ -82,7 +82,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (31/10/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +4 con P20, P21, P22 e P23, ui +4 con W15c, W15d, W30b e W1v)
+## Baseline (31/10/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +4 con P20, P21, P22 e P23, ui +5 con W15c, W15d, W30b, W1v e W39)
 
 | Prova | Risultato |
 |---|---|
@@ -95,7 +95,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 | istat | 30 ok |
 | adempimenti | 40 ok |
 | informativa | 5 ok |
-| ui | 105 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`) |
+| ui | 106 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.
