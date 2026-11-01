@@ -1,7 +1,7 @@
 // La Columbera · Gestione → OPERATIVITÀ → Pulizie: nel periodo scelto, per ogni appartamento chi esce e chi entra giorno per giorno
 // (ospiti, notti, come preparare i letti, una nota) e il testo pronto da copiare e mandare a chi fa le pulizie.
 // Nel testo non ci sono nomi né contatti degli ospiti: a chi pulisce bastano giorni, orari, persone e letti (i nomi li vedi solo tu, qui).
-// Le prenotazioni lette male o doppie (es. un blocco del calendario di Airbnb, la stessa prenotazione dal foglio e dal calendario con date
+// Le prenotazioni lette male o doppie (es. la stessa prenotazione dal foglio e dal calendario con date
 // diverse) si tolgono dal testo con la spunta «Nel testo»: restano qui in grigio. Chi si sovrappone a un'altra prenotazione è segnalato.
 // Letti: quanti matrimoniali e quanti singoli (si combinano: 3 ospiti = 1 matrimoniale e 1 singolo), più la culla. Nel testo non c'è l'orario
 // d'ingresso (a chi pulisce non serve), resta quello d'uscita. Letti, culla, nota e «Nel testo» si salvano subito (api/x.js, azioni pul_info
@@ -29,8 +29,10 @@ const fuori=(p,x)=>!!info(chiave(p,x)).fuori;      // tolta dal testo dal titola
 // le altre prenotazioni dello stesso appartamento con cui le notti si accavallano (solo tra quelle rimaste nel testo; arrivare il giorno in cui un altro parte va bene)
 const sovrapposte=(p,x,tutte)=>fuori(p,x)?[]:tutte.filter(y=>chiave(p,y)!==chiave(p,x)&&!fuori(p,y)&&x.da<y.a&&y.da<x.a);      // per chiave: A.soggiorni() crea oggetti nuovi a ogni chiamata
 
-// entrate e uscite dell'appartamento nel periodo, giorno per giorno (stesse prenotazioni di Oggi: sito, foglio, calendari, senza doppioni)
-const suoi=p=>(A.soggiorni?A.soggiorni():[]).filter(x=>x.id===p.id);
+// entrate e uscite dell'appartamento nel periodo, giorno per giorno (stesse prenotazioni di Oggi: sito, foglio, calendari, senza doppioni).
+// I blocchi di Airbnb («Airbnb (Not available)»: preavviso, preparazione, notti chiuse da altri calendari) non sono ospiti e non ci sono: Airbnb li esporta
+// da oggi in poi, quindi «cominciano» ogni giorno e la spunta «Nel testo» (per appartamento e giorno d'arrivo) non bastava a toglierli.
+const suoi=p=>(A.soggiorni?A.soggiorni():[]).filter(x=>x.id===p.id&&!(A.bloccoAirbnb&&A.bloccoAirbnb(x)));
 function movimenti(p,da,al){const g={},add=(d,k,x)=>{(g[d]=g[d]||{d,esce:[],entra:[]})[k].push(x)};
   suoi(p).forEach(x=>{if(x.a>=da&&x.a<=al)add(x.a,'esce',x);if(x.da>=da&&x.da<=al)add(x.da,'entra',x)});
   return Object.values(g).sort((x,y)=>x.d<y.d?-1:1)}

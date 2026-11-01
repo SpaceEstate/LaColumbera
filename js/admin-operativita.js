@@ -20,11 +20,14 @@ function soggiorni(){const D=A.D,out=[],sito=new Set();
 A.soggiorni=soggiorni;
 // Chi entra, esce o è in casa davvero (Oggi e Da fare): un evento visto solo nel calendario conta solo se è una prenotazione. Non contano i blocchi di Airbnb
 // («Airbnb (Not available)»: preavviso, tempo di preparazione, notti chiuse da altri calendari) né un evento che si accavalla a una prenotazione già nota
-// dello stesso appartamento. Booking e Airbnb esportano solo da oggi in poi: un soggiorno o un blocco in corso «comincia» ogni giorno e senza questo filtro
-// sembrerebbe ogni giorno un arrivo nuovo. Calendario, Prossimi 7 giorni e Pulizie usano tutti i soggiorni (le notti chiuse su Airbnb restano occupate).
+// dello stesso appartamento. Airbnb esporta solo da oggi in poi: un soggiorno o un blocco in corso «comincia» ogni giorno e senza questo filtro
+// sembrerebbe ogni giorno un arrivo nuovo. Calendario e Prossimi 7 giorni usano tutti i soggiorni (le notti chiuse su Airbnb restano occupate);
+// Pulizie toglie solo i blocchi di Airbnb (A.bloccoAirbnb) e continua a segnalare le sovrapposizioni.
 const RESERVED=/reserved|prenotat|booked/i;      // come in api/_avail.js: titolo di una prenotazione vera nel calendario di Airbnb; gli altri titoli sono blocchi
+const bloccoAirbnb=x=>x.stato==='calendario'&&x.fonte==='Airbnb'&&!RESERVED.test(x.cal||'');
+A.bloccoAirbnb=bloccoAirbnb;
 const veri=st=>{const note=st.filter(y=>y.stato!=='calendario');
-  return st.filter(x=>x.stato!=='calendario'||!((x.fonte==='Airbnb'&&!RESERVED.test(x.cal||''))||note.some(y=>y.id===x.id&&x.da<y.a&&y.da<x.a)))};
+  return st.filter(x=>x.stato!=='calendario'||!(bloccoAirbnb(x)||note.some(y=>y.id===x.id&&x.da<y.a&&y.da<x.a)))};
 const chi=x=>x.nome||(x.code?x.fonte+' · '+fmtCode(x.code):x.fonte+' (solo calendario)');
 
 // ---------- Oggi ----------

@@ -1981,6 +1981,22 @@ test('W31 Gestione · Messaggi → Template: un template nuovo parte da solo gi�
   const n = r.log.confirms.length; $('[data-testid=msg-tpl-auto-link-' + iG + ']').click();
   await waitFor(() => $('[data-testid=msg-auto]'), 'Automatici'); assert.equal(r.log.confirms.length, n);
 });
+test('W30b Gestione · Pulizie: i blocchi di Airbnb («Not available»: preavviso, preparazione, notti chiuse da altri calendari) non compaiono come entrate o uscite; una prenotazione Airbnb vista solo nel calendario sì', async () => {
+  await setup();
+  const pul = async iso => { const r = await giornoCal(iso); await goto(r, '#pulizie', '[data-testid=admin-pul-torre]'); return r; };
+  const txt = (r, id) => r.doc.querySelector('[data-testid=admin-pul-txt-' + id + ']').textContent, card = (r, id) => text(r.doc.querySelector('[data-testid=admin-pul-' + id + ']'));
+  // 2 ottobre: a Corte Airbnb chiude il 2 e il 3 per il preavviso; nel testo solo l'arrivo vero del 5
+  let r = await pul('2026-10-02');
+  assert(/Venerdì 2 ottobre\n• entra: 4 ospiti, 2 notti/.test(txt(r, 'torre')) && /Domenica 4 ottobre\n• esce: 4 ospiti/.test(txt(r, 'torre')), txt(r, 'torre'));
+  assert(/^PULIZIE CORTE\n\nLunedì 5 ottobre\n• entra: 2 ospiti, 6 notti/.test(txt(r, 'corte')) && !/2 ottobre|4 ottobre/.test(txt(r, 'corte')), 'il blocco del preavviso non entra né esce: ' + txt(r, 'corte'));
+  assert(!/Not available|solo calendario/.test(card(r, 'corte') + card(r, 'torre')), 'nessun blocco nella pagina');
+  // 7 ottobre: a Torre entra un ospite Airbnb non ancora nel foglio (poi un giorno chiuso per la preparazione); a Corte il preavviso cade dentro il soggiorno
+  r = await pul('2026-10-07');
+  assert(/Mercoledì 7 ottobre\n• entra: ospiti da confermare, 2 notti/.test(txt(r, 'torre')) && /Venerdì 9 ottobre\n• esce: ospiti da confermare/.test(txt(r, 'torre')) && !/10 ottobre/.test(txt(r, 'torre')), txt(r, 'torre'));
+  assert(/Airbnb \(solo calendario: «Reserved»\)/.test(card(r, 'torre')) && !/Not available/.test(card(r, 'torre')), card(r, 'torre'));
+  assert.equal(txt(r, 'corte'), 'PULIZIE CORTE\n\nDomenica 11 ottobre\n• esce: 2 ospiti', 'a Corte solo l\'uscita vera');
+  assert(!r.doc.querySelector('[data-testid=admin-pul-corte] .pul-warn') && !/Not available/.test(card(r, 'corte')), 'niente avvisi di sovrapposizione per un blocco');
+});
 test('W32 Gestione · prenotazione manuale (scritta a mano nel foglio): «Manuale» con la nota, nessun testo da portale, come mandare il codice, come annullarla; anche in Pulizie', async () => {
   await setup();
   const snap = JSON.parse(kv.exec(['GET', 'reg:snap']) || '{"rows":[]}'), NOTA = 'Rossi, 300 € in contanti <b>';
