@@ -387,6 +387,21 @@ test('P20 email all\'ospite del sito (conferma, annullamento, ricevuta; it, en, 
   }
 });
 
+test('P21 email del sito: intestazione bordeaux e riga oro anche nell\'app Gmail in modalità scura (sfondo ripetuto come immagine a tinta unita, che Gmail non capovolge); colore di prima per gli altri programmi; pulsante e piè di pagina invariati', async () => {
+  const M = require(path.join(__dirname, '..', '..', 'api', '_mail.js'));
+  const b = { code: '558RTE56487A9', id: 'torre', da: '2026-11-05', a: '2026-11-08', notti: 3, ospiti: 2, bambini: 0, totale: 360, nome: 'Giulia Prova', email: 'giulia@esempio.it', annullata_da: 'ospite', rimborso: { importo: 360, stato: 'rimborsato' } };
+  const site = 'https://www.lacolumbera.test', m = { testo: 'Ciao Giulia, a presto!', lingua: 'en', tradotto: 'Hi Giulia, see you soon!' };
+  const email = [['conferma', M.guestMail(b, site, 'token-di-prova')], ['titolare', M.ownerMail(b, site)], ['messaggio all\'ospite', M.avvisoOspite(b, site, 'token-di-prova', m)], ['messaggio al titolare', M.avvisoTitolare(b, site, m)],
+    ['annullamento', M.annullataOspite(b, site, 'it')], ['ricevuta', M.ricevutaOspite(b, site, 'it', { messaggio: 'Ecco la ricevuta' })]];
+  for (const [tipo, x] of email) {
+    const h = x.html;
+    assert.ok(/<td align="center" bgcolor="#5F222B" style="background:#5F222B;background-image:linear-gradient\(#5F222B,#5F222B\);padding:22px 24px 18px">\s*<a [^>]*><img [^>]*email-logo\.png/.test(h), tipo + ': intestazione bordeaux protetta');
+    assert.ok(/<td height="4" bgcolor="#B08D3C" style="height:4px;line-height:4px;font-size:0;background:#B08D3C;background-image:linear-gradient\(#B08D3C,#B08D3C\)">&nbsp;<\/td>/.test(h), tipo + ': riga oro protetta');
+    assert.equal((h.match(/linear-gradient/g) || []).length, 2, tipo + ': solo intestazione e riga oro (con il testo, Gmail scurirebbe le scritte chiare)');
+    assert.ok(h.includes('<td bgcolor="#3A151B" style="background:#3A151B;padding:24px 32px" align="center">'), tipo + ': piè di pagina come prima');
+  }
+});
+
 test('R1 l\'ospite annulla dall\'area clienti fino a 7 giorni prima dell\'arrivo: rimborso totale su Stripe, prenotazione annullata, notti di nuovo libere (sito e calendario per Booking/Airbnb), foglio, email all\'ospite e al titolare; ripetere non rimborsa due volte', async () => {
   await base();
   const code = await pagata(); global.__mails = [];

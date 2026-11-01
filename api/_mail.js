@@ -34,15 +34,19 @@ ${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Not
 
 const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine}" style="border-radius:999px"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></td></tr></table>`;
 
+// Modalità scura dell'app Gmail (iPhone soprattutto): capovolge i colori di sfondo, e il bordeaux dell'intestazione diventava rosa. Le immagini di sfondo
+// non le tocca: intestazione e riga oro ripetono il loro colore come immagine a tinta unita (linear-gradient con due colori uguali); gli altri programmi
+// vedono lo stesso colore di prima (bgcolor e background restano per chi non legge le immagini di sfondo). Solo dove non c'è testo: su un bordeaux
+// bloccato Gmail scurirebbe comunque le scritte chiare (pulsante, piè di pagina), che quindi restano come prima. Prova: tests/sim/pagamenti.js P21.
 const shell=({site,preheader,eyebrow,title,body,lang})=>`<!doctype html>
 <html lang="${lang||'it'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:${C.paper2};-webkit-text-size-adjust:100%">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${esc(preheader)}&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper2}"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:${C.white};border-radius:14px;overflow:hidden;border:1px solid ${C.line}">
-<tr><td align="center" bgcolor="${C.wine2}" style="background:${C.wine2};padding:22px 24px 18px">
+<tr><td align="center" bgcolor="${C.wine2}" style="background:${C.wine2};background-image:linear-gradient(${C.wine2},${C.wine2});padding:22px 24px 18px">
 <a href="${esc(site)}" target="_blank" style="text-decoration:none"><img src="${esc(site)}/img/brand/email-logo.png" width="240" alt="La Columbera · Abitazione in villa storica" style="display:block;width:240px;max-width:100%;height:auto;border:0;color:#F1E9D9;font-family:${SERIF};font-size:22px"></a></td></tr>
-<tr><td height="4" style="height:4px;line-height:4px;font-size:0;background:${C.gold}">&nbsp;</td></tr>
+<tr><td height="4" bgcolor="${C.gold}" style="height:4px;line-height:4px;font-size:0;background:${C.gold};background-image:linear-gradient(${C.gold},${C.gold})">&nbsp;</td></tr>
 <tr><td style="padding:34px 32px 8px" align="center">
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:${C.gold};font-weight:700">${esc(eyebrow)}</div>
 <h1 style="margin:10px 0 0;font-family:${SERIF};font-weight:400;font-size:29px;line-height:36px;color:${C.ink}">${title}</h1></td></tr>
