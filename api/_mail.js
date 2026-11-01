@@ -32,7 +32,7 @@ const recap=b=>`<table role="presentation" width="100%" cellpadding="0" cellspac
 ${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Notti',esc(plural(b.notti,'notte','notti')))}${row('Ospiti',esc(ospitiTxt(b)))}
 <tr><td style="padding:16px 0 0;font-family:${SANS};font-size:14px;color:${C.muted};vertical-align:middle">Importo pagato</td><td align="right" style="padding:16px 0 0;font-family:${SERIF};font-size:28px;line-height:32px;color:${C.wine}">${esc(eur(b.totale))}</td></tr></table>`;
 
-const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine}" class="gm-wine" style="border-radius:999px"><div class="gm-screen"><div class="gm-difference"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></div></div></td></tr></table>`;
+const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td align="center" bgcolor="${C.wine2}" class="gm-wine" style="border-radius:999px"><div class="gm-screen"><div class="gm-difference"><a href="${esc(href)}" target="_blank" style="display:inline-block;padding:15px 34px;font-family:${SANS};font-size:15px;font-weight:700;letter-spacing:.3px;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></div></div></td></tr></table>`;
 
 // Modalità scura dell'app Gmail (iPhone soprattutto): capovolge i colori (sfondi e scritte), e il bordeaux diventava rosa. Le immagini di sfondo
 // non le tocca: intestazione e riga oro ripetono il loro colore come immagine a tinta unita (linear-gradient con due colori uguali); gli altri programmi
@@ -41,8 +41,9 @@ const button=(href,label)=>`<table role="presentation" cellpadding="0" cellspaci
 // insieme a due livelli con mix-blend-mode (screen e difference, tecnica di Rémi Parmentier) che riportano le scritte chiare. Le regole valgono solo in
 // Gmail («u + .body»: Gmail mette un <u> prima del corpo); dove Gmail non legge il blocco <style> (account non Google nell'app) restano come prima, rosa
 // ma leggibili, e gli altri programmi non le applicano. Le scritte bordeaux su fondo chiaro (codice, importo, link) restano schiarite: sul fondo scuro
-// di Gmail il bordeaux non si leggerebbe. Prove: tests/sim/pagamenti.js P21 e P22.
-const GMAIL_CSS=`<style>u + .body .gm-wine{background-image:linear-gradient(${C.wine},${C.wine})}u + .body .gm-wine3{background-image:linear-gradient(${C.wine3},${C.wine3})}u + .body .gm-screen{background:#000;mix-blend-mode:screen}u + .body .gm-difference{background:#000;mix-blend-mode:difference}</style>`;
+// di Gmail il bordeaux non si leggerebbe. Intestazione, pulsante e piè di pagina hanno lo stesso bordeaux (C.wine2), in tutti i programmi.
+// Prove: tests/sim/pagamenti.js P21 e P22.
+const GMAIL_CSS=`<style>u + .body .gm-wine{background-image:linear-gradient(${C.wine2},${C.wine2})}u + .body .gm-screen{background:#000;mix-blend-mode:screen}u + .body .gm-difference{background:#000;mix-blend-mode:difference}</style>`;
 const shell=({site,preheader,eyebrow,title,body,lang})=>`<!doctype html>
 <html lang="${lang||'it'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>${esc(title)}</title>${GMAIL_CSS}</head>
 <body class="body" style="margin:0;padding:0;background:${C.paper2};-webkit-text-size-adjust:100%">
@@ -56,7 +57,7 @@ const shell=({site,preheader,eyebrow,title,body,lang})=>`<!doctype html>
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.6px;text-transform:uppercase;color:${C.gold};font-weight:700">${esc(eyebrow)}</div>
 <h1 style="margin:10px 0 0;font-family:${SERIF};font-weight:400;font-size:29px;line-height:36px;color:${C.ink}">${title}</h1></td></tr>
 ${body}
-<tr><td bgcolor="${C.wine3}" class="gm-wine3" style="background-color:${C.wine3};padding:24px 32px" align="center"><div class="gm-screen"><div class="gm-difference">
+<tr><td bgcolor="${C.wine2}" class="gm-wine" style="background-color:${C.wine2};padding:24px 32px" align="center"><div class="gm-screen"><div class="gm-difference">
 <div style="font-family:${SERIF};font-size:16px;color:#F1E9D9">La Columbera</div>
 <div style="font-family:${SANS};font-size:12px;line-height:19px;color:#CDBFAE;padding-top:6px">Dimora storica del XV secolo · Ravina, Trento<br><a href="tel:+393517043594" style="color:#CDBFAE;text-decoration:none">+39 351 704 3594</a> · <a href="mailto:lacolumbera@gmail.com" style="color:#CDBFAE;text-decoration:none">lacolumbera@gmail.com</a></div></div></div></td></tr>
 </table></td></tr></table></body></html>`;
