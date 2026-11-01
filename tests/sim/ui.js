@@ -932,6 +932,30 @@ test('W1u due ospiti sulle stesse date: tutti e due arrivano ai campi della cart
   const bk = JSON.parse(kv.exec(['HGET', 'bkh', JSON.parse(b.w.sessionStorage.getItem('lc_acc') || 'null')?.c || '']) || 'null');
   assert(!bk || (bk.stato === 'in_attesa' && bk.scaduta), 'B non è confermata e il suo pagamento è chiuso');
 });
+test('W1v pagina di prenotazione: dopo «Paga» la vista va sul riquadro (conferma, o date non più disponibili) DOPO averlo mostrato, con uno spostamento immediato (lo scorrimento morbido su iPhone si fermava in fondo alla pagina); il fuoco sul titolo', async () => {
+  await setup();
+  const a = await loadPren(), b = await loadPren();
+  for (const [x, em] of [[a, 'a@test.it'], [b, 'b@test.it']]) {
+    await waitFor(() => x.doc.querySelector('[data-testid=booking-form]'), 'modulo'); fill(x.doc, { name: 'Ospite', surname: em[0], email: em }); x.doc.querySelector('#f').requestSubmit();
+    await waitFor(() => x.doc.querySelector('[data-testid=stripe-fake-card]'), 'carta ' + em);
+    x.scroll = []; x.w.scrollTo = (...arg) => x.scroll.push({ arg: JSON.parse(JSON.stringify(arg)), riquadro: !!x.doc.querySelector('[data-testid=booking-success],[data-testid=prenota-vuota]'), css: x.doc.documentElement.style.scrollBehavior });      // da qui: ogni spostamento della vista
+  }
+  // immediato: niente behavior 'smooth' e, per quell'istante, html senza lo scroll-behavior:smooth del foglio di stile; poi il foglio di stile torna a valere
+  const ok = x => x.scroll.length > 0 && x.scroll.every(s => s.riquadro && s.css === 'auto' && !(s.arg[0] && typeof s.arg[0] === 'object' && s.arg[0].behavior === 'smooth')) && x.doc.documentElement.style.scrollBehavior === '';
+  // A paga: conferma
+  const sa = global.__stripeSessions.find(s => s.params.customer_email === 'a@test.it');
+  a.w.__stripeConfirm = async () => { global.__stripeState[sa.id] = { paid: true }; return { type: 'success', session: {} }; };
+  a.doc.querySelector('[data-testid=prenota-paga]').click();
+  const ca = await waitFor(() => a.doc.querySelector('[data-testid=booking-success][data-stato=confermata]'), 'A confermata');
+  assert(ok(a), 'A: la vista si sposta dopo che il riquadro c\'è, senza scorrimento morbido: ' + JSON.stringify(a.scroll));
+  assert(a.doc.activeElement && a.doc.activeElement.tagName === 'H3' && ca.contains(a.doc.activeElement), 'A: fuoco sul titolo della conferma (anche dopo l\'aggiornamento dello stato)');
+  // B paga dopo: le date non ci sono più
+  b.w.__stripeConfirm = async () => { throw new Error('non deve arrivare a Stripe'); };
+  b.doc.querySelector('[data-testid=prenota-paga]').click();
+  const v = await waitFor(() => b.doc.querySelector('[data-testid=prenota-vuota]'), 'B: date non più disponibili');
+  assert(ok(b), 'B: come A: ' + JSON.stringify(b.scroll));
+  assert(b.doc.activeElement && b.doc.activeElement.tagName === 'H3' && v.contains(b.doc.activeElement), 'B: fuoco sul titolo');
+});
 test('W1t bambini sotto i 4 anni dopo la prenotazione: area clienti, dettaglio in Gestione e testo per le pulizie (serve la culla)', async () => {
   await setup();
   const co = (await checkout({ ui: 'elements', da: '2026-10-12', a: '2026-10-14', adulti: 2, bambini: 1 })).body; await H.webhook('checkout.session.completed', H.paidSession(co.code));

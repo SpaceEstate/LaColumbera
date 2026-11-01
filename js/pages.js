@@ -118,6 +118,14 @@ const offline=`<div class="offline-note" data-testid="booking-offline"><h3>Dispo
 // pochi secondi dopo il pagamento: qui si chiede lo stato al server (che, se il webhook ritarda, controlla direttamente su Stripe) e si dice all'ospite
 // com'è davvero: confermata, in verifica oppure ancora in registrazione. Con o.riprova (pagina di prenotazione) un pagamento che su Stripe è ancora
 // aperto (la banca non l'ha confermato) si può ripetere; o.cls = classe in più per il riquadro.
+// Dopo «Paga» il modulo lungo lascia il posto a un riquadro corto (esito, o date non più disponibili): la vista va sul riquadro DOPO averlo mostrato,
+// con uno spostamento immediato, appena sotto l'intestazione fissa. Lo scorrimento morbido lanciato prima del cambio, su iPhone (Safari) si fermava
+// quando la pagina si accorciava e la vista restava in fondo, sul piè di pagina. Il fuoco va sul titolo del riquadro (lettori di schermo), senza scorrere.
+const alTitolo=box=>{const t=box.querySelector('h3');if(!t)return;t.setAttribute('tabindex','-1');try{t.focus({preventScroll:true})}catch{t.focus()}};
+const alRiquadro=box=>{const h=document.querySelector('.site-header'),hb=h?Math.max(0,h.getBoundingClientRect().bottom):0,r=document.documentElement,prima=r.style.scrollBehavior;
+  r.style.scrollBehavior='auto';      // html{scroll-behavior:smooth} (css/main.css) renderebbe morbido anche questo spostamento
+  if(window.scrollTo)window.scrollTo(0,Math.max(0,Math.round(box.getBoundingClientRect().top+(window.scrollY||0)-hb-16)));
+  r.style.scrollBehavior=prima;alTitolo(box)};
 async function esito(box,cc,o={}){
   const s=accGet(),tk=s&&s.c===cc?s.t:'',
     view=(st,em)=>{
@@ -125,7 +133,9 @@ async function esito(box,cc,o={}){
       if(st==='da_verificare'||st==='annullata')return`<h3>Pagamento ricevuto</h3><p>Il tuo codice è <b class="code-g">${esc(fmtCode(cc))}</b>. Stiamo verificando la tua prenotazione e ti scriviamo al più presto. Per qualsiasi dubbio scrivici a ${MAIL_LC} indicando il codice.</p>`;
       if(st==='aperta')return`<h3>Pagamento non completato</h3><p>La banca non ha confermato il pagamento: non ti è stato addebitato nulla. Puoi riprovare, anche con un'altra carta.</p><button type="button" class="btn btn-wine" data-act="riprova" data-testid="booking-retry">Riprova il pagamento</button>`;
       return`<h3>Grazie, stiamo registrando la prenotazione</h3><p>Il tuo codice è <b class="code-g">${esc(fmtCode(cc))}</b>. Riceverai a breve una email di conferma con il link alla tua <a href="area-clienti.html">area clienti</a>. Se entro qualche minuto non la vedi (controlla anche lo spam), scrivici a ${MAIL_LC} indicando il codice.</p>`};
-  const paint=(st,em)=>{box.innerHTML=`<div class="form-ok${o.cls?' '+o.cls:''}" data-testid="booking-success" data-stato="${esc(st||'')}">${view(st,em)}</div>`;
+  const paint=(st,em)=>{const fuoco=!!document.activeElement&&document.activeElement.tagName==='H3'&&box.contains(document.activeElement);
+    box.innerHTML=`<div class="form-ok${o.cls?' '+o.cls:''}" data-testid="booking-success" data-stato="${esc(st||'')}">${view(st,em)}</div>`;
+    if(fuoco)alTitolo(box);      // lo stato si aggiorna (es. «confermata»): chi era sul titolo ci resta
     const b=box.querySelector('[data-act=riprova]');if(b)b.onclick=o.riprova};
   paint('');
   let aperta=0;
@@ -525,16 +535,16 @@ async function prenota(c){
     let h;try{h=await api('checkout_hold',{code:pend.code,t:pend.t})}
     catch(x){fine();
       if(x.code==='NON_DISPONIBILE'){libera();try{if(el)el.destroy()}catch{}el=null;azioni=null;
-        box.innerHTML=torna('Queste date non sono più disponibili',esc(x.message),[{id:p.id,t:'Scegli altre date'}]);if(window.scrollTo)window.scrollTo({top:0,behavior:'smooth'});return}
+        box.innerHTML=torna('Queste date non sono più disponibili',esc(x.message),[{id:p.id,t:'Scegli altre date'}]);alRiquadro(box);return}
       if(x.code==='SCADUTA'){aiDati(x.message);return}
       msgPag(x.message);return}
-    if(h&&h.stato&&h.stato!=='in_attesa'){clearTimeout(timer);const code=pend.code;pend=null;attSet(null);history.replaceState(null,'',location.pathname);return esito(box,code,{cls:'pr-esito'})}      // già pagata (per esempio da un'altra scheda)
+    if(h&&h.stato&&h.stato!=='in_attesa'){clearTimeout(timer);const code=pend.code;pend=null;attSet(null);history.replaceState(null,'',location.pathname);const fatto=esito(box,code,{cls:'pr-esito'});alRiquadro(box);return fatto}      // già pagata (per esempio da un'altra scheda)
     // 2) la conferma a Stripe (con la banca, se la chiede)
     btn.textContent='Pagamento in corso…';
     pagando=true;      // da qui le notti restano trattenute anche lasciando la pagina: la banca può chiedere una conferma su un'altra pagina
     let r;try{r=await(await azioni).confirm({redirect:'if_required'})}catch(x){r={type:'error',error:{}}}
     if(r&&r.type==='success'){clearTimeout(timer);const code=pend.code;pend=null;attSet(null);history.replaceState(null,'',location.pathname);
-      if(window.scrollTo)window.scrollTo({top:0,behavior:'smooth'});return esito(box,code,{cls:'pr-esito'})}
+      const fatto=esito(box,code,{cls:'pr-esito'});alRiquadro(box);return fatto}      // esito mostra subito il riquadro, poi chiede lo stato
     pagando=false;fine();
     // rifiutato da Stripe o dalla banca: le notti tornano subito libere (si ritrattengono al prossimo «Paga»). Senza una risposta di Stripe
     // (rete interrotta) restano trattenute fino alla scadenza: il pagamento potrebbe essere partito, e la conferma arriverebbe dal webhook.
