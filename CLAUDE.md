@@ -82,12 +82,12 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (31/10/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +2 con P20 e P21, ui +3 con W15c, W15d e W30b)
+## Baseline (31/10/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +3 con P20, P21 e P22, ui +3 con W15c, W15d e W30b)
 
 | Prova | Risultato |
 |---|---|
 | scenarios | 15 ok, 0 falliti, 20 saltati (senza `LC_GAS_FILE`) |
-| pagamenti | 37 ok (35 fino a `6336695`, 36 fino a `e4af913`) |
+| pagamenti | 38 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`) |
 | preavviso | 12 ok |
 | sicurezza | 25 ok (24 fino a `6336695`) |
 | messaggi | 15 ok |

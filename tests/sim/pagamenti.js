@@ -387,7 +387,7 @@ test('P20 email all\'ospite del sito (conferma, annullamento, ricevuta; it, en, 
   }
 });
 
-test('P21 email del sito: intestazione bordeaux e riga oro anche nell\'app Gmail in modalità scura (sfondo ripetuto come immagine a tinta unita, che Gmail non capovolge); colore di prima per gli altri programmi; pulsante e piè di pagina invariati', async () => {
+test('P21 email del sito: intestazione bordeaux e riga oro anche nell\'app Gmail in modalità scura (sfondo ripetuto come immagine a tinta unita, che Gmail non capovolge); colore di prima per gli altri programmi', async () => {
   const M = require(path.join(__dirname, '..', '..', 'api', '_mail.js'));
   const b = { code: '558RTE56487A9', id: 'torre', da: '2026-11-05', a: '2026-11-08', notti: 3, ospiti: 2, bambini: 0, totale: 360, nome: 'Giulia Prova', email: 'giulia@esempio.it', annullata_da: 'ospite', rimborso: { importo: 360, stato: 'rimborsato' } };
   const site = 'https://www.lacolumbera.test', m = { testo: 'Ciao Giulia, a presto!', lingua: 'en', tradotto: 'Hi Giulia, see you soon!' };
@@ -397,8 +397,30 @@ test('P21 email del sito: intestazione bordeaux e riga oro anche nell\'app Gmail
     const h = x.html;
     assert.ok(/<td align="center" bgcolor="#5F222B" style="background:#5F222B;background-image:linear-gradient\(#5F222B,#5F222B\);padding:22px 24px 18px">\s*<a [^>]*><img [^>]*email-logo\.png/.test(h), tipo + ': intestazione bordeaux protetta');
     assert.ok(/<td height="4" bgcolor="#B08D3C" style="height:4px;line-height:4px;font-size:0;background:#B08D3C;background-image:linear-gradient\(#B08D3C,#B08D3C\)">&nbsp;<\/td>/.test(h), tipo + ': riga oro protetta');
-    assert.equal((h.match(/linear-gradient/g) || []).length, 2, tipo + ': solo intestazione e riga oro (con il testo, Gmail scurirebbe le scritte chiare)');
-    assert.ok(h.includes('<td bgcolor="#3A151B" style="background:#3A151B;padding:24px 32px" align="center">'), tipo + ': piè di pagina come prima');
+    assert.equal((h.split('</head>')[1].match(/linear-gradient/g) || []).length, 2, tipo + ': nel corpo, in linea, solo intestazione e riga oro (pulsante e piè di pagina hanno le regole per Gmail: P22)');
+  }
+});
+
+test('P22 email del sito nell\'app Gmail in modalità scura: pulsante e piè di pagina restano bordeaux con le scritte chiare (regole solo per Gmail: tinta unita e due livelli screen/difference); gli altri programmi non le applicano e vedono l\'email di prima', async () => {
+  const M = require(path.join(__dirname, '..', '..', 'api', '_mail.js'));
+  const b = { code: '558RTE56487A9', id: 'torre', da: '2026-11-05', a: '2026-11-08', notti: 3, ospiti: 2, bambini: 0, totale: 360, nome: 'Giulia Prova', email: 'giulia@esempio.it', annullata_da: 'ospite', rimborso: { importo: 360, stato: 'rimborsato' } };
+  const site = 'https://www.lacolumbera.test', m = { testo: 'Ciao Giulia, a presto!', lingua: 'en', tradotto: 'Hi Giulia, see you soon!' };
+  const email = [['conferma', M.guestMail(b, site, 'token-di-prova')], ['titolare', M.ownerMail(b, site)], ['messaggio all\'ospite', M.avvisoOspite(b, site, 'token-di-prova', m)], ['messaggio al titolare', M.avvisoTitolare(b, site, m)],
+    ['annullamento', M.annullataOspite(b, site, 'it')], ['ricevuta', M.ricevutaOspite(b, site, 'it', { messaggio: 'Ecco la ricevuta' })]];
+  const CSS = '<style>u + .body .gm-wine{background-image:linear-gradient(#7A2E39,#7A2E39)}u + .body .gm-wine3{background-image:linear-gradient(#3A151B,#3A151B)}u + .body .gm-screen{background:#000;mix-blend-mode:screen}u + .body .gm-difference{background:#000;mix-blend-mode:difference}</style>';
+  for (const [tipo, x] of email) {
+    const h = x.html, head = h.split('</head>')[0];
+    assert.ok(head.endsWith(CSS), tipo + ': regole per Gmail nell\'intestazione del documento');
+    assert.equal((h.match(/<style/g) || []).length, 1, tipo + ': un solo blocco di regole');
+    assert.ok((CSS.match(/\{/g) || []).length === 4 && CSS.split('}').slice(0, -1).every(r => r.replace(/^<style>/, '').startsWith('u + .body .gm-')), tipo + ': ogni regola vale solo in Gmail (u + .body)');
+    assert.ok(/<body class="body" style="margin:0;padding:0;background:#F1E9D9;/.test(h), tipo + ': il corpo ha la classe che le regole cercano');
+    const btn = h.match(/<td align="center" bgcolor="#7A2E39"[^>]*>[\s\S]*?<\/td>/g) || [];
+    assert.deepEqual([...new Set((h.match(/class="[^"]*"/g) || []))].sort(), ['class="body"', 'class="gm-difference"', 'class="gm-screen"', ...(btn.length ? ['class="gm-wine"'] : []), 'class="gm-wine3"'], tipo + ': nessun\'altra classe');
+    // piè di pagina: background-color (non la forma breve, che annullerebbe l'immagine della regola) e i due livelli attorno alle scritte
+    assert.ok(/<td bgcolor="#3A151B" class="gm-wine3" style="background-color:#3A151B;padding:24px 32px" align="center"><div class="gm-screen"><div class="gm-difference">\s*<div style="[^"]*color:#F1E9D9">La Columbera<\/div>[\s\S]*?lacolumbera@gmail\.com<\/a><\/div><\/div><\/div><\/td><\/tr>/.test(h), tipo + ': piè di pagina');
+    // ogni pulsante (conferma, messaggi; non tutte le email ne hanno): tinta unita bordeaux e i due livelli attorno al link (scritta bianca)
+    assert.ok((!['conferma', 'messaggio all\'ospite', 'messaggio al titolare'].includes(tipo) || btn.length === 1) && btn.every(t => /^<td align="center" bgcolor="#7A2E39" class="gm-wine" style="border-radius:999px"><div class="gm-screen"><div class="gm-difference"><a [^>]*color:#ffffff[^>]*>[^<]+<\/a><\/div><\/div><\/td>$/.test(t)), tipo + ': pulsante ' + btn.join(' | ').slice(0, 300));
+    assert.equal((h.match(/<div/g) || []).length, (h.match(/<\/div>/g) || []).length, tipo + ': div bilanciati');
   }
 });
 
