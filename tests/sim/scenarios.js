@@ -502,9 +502,45 @@ test('X20 pulizia notturna del registro: via le prenotazioni concluse da più di
   assert(codici().length === 2 && /^M/.test(codici()[1]) && codici()[1] !== man[1], codici().join(','));
 });
 
+/* ===================== assegnazione con prenotazioni già nel registro, giorno d'arrivo Booking (novembre 2026) ===================== */
+test('X21 manuale su Corte chiusa a mano su Booking (blocco di 9 notti): una Booking per Torre arrivata prima del suo iCal NON finisce su Corte', async () => {
+  const { gas } = await base();
+  const n = riga(gas, ['', '14/10/2026', C, 1, 4]); await rapida(gas);                                   // manuale Corte 14→18
+  const man = aRiga(gas, n); assert(/^M/.test(man['Numero Prenotazione']) && man.STATO === 'CONFERMATA', 'manuale registrata');
+  H.setFeed('bookingCorte', [H.bookingEv('blk', '2026-10-14', '2026-10-23')]);                         // chiusura su Booking fusa in un blocco 14→23
+  mailBooking(gas, '5555555555', '14 ott 2026'); await rapida(gas);                                      // l'iCal di Torre non mostra ancora la prenotazione
+  let r = row(gas, 'BOOKING|5555555555');
+  assert(!/Corte/.test(r.Appartamento), 'mai sulla Corte: ' + r.Appartamento + ' ' + r['Numero Notti']);
+  eq([r.STATO, r.Appartamento, r.UID_ESTERNO], ['DA_VERIFICARE', '', '']);
+  H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04'), H.bookingEv('b2', '2026-11-19', '2026-11-22'), H.bookingEv('t5', '2026-10-14', '2026-10-17')]);
+  await rapida(gas);                                                                                     // l'iCal di Torre si aggiorna: si risolve da sola
+  r = row(gas, 'BOOKING|5555555555');
+  eq([r.STATO, r.CHECK_OUT, Number(r['Numero Notti']), r.UID_ESTERNO, r.MOTIVO], ['CONFERMATA', '2026-10-17', 3, 't5', '']); assert(/Torre/.test(r.Appartamento));
+  eq(aRiga(gas, n).STATO, 'CONFERMATA', 'la manuale non si tocca');
+});
+test('X22 giorno d\'arrivo: Booking esporta solo le notti future (evento da domani, UID nuovo): la prenotazione resta CONFERMATA, non ICAL_SPARITO', async () => {
+  const { gas } = await base();
+  H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04'), H.bookingEv('b2', '2026-11-19', '2026-11-22'), H.bookingEv('n1', '2026-10-09', '2026-10-12')]);
+  mailBooking(gas, '1111111111', '9 ott 2026'); await rapida(gas);
+  eq(row(gas, 'BOOKING|1111111111').UID_ESTERNO, 'n1');
+  clock.set('2026-10-08T22:30:00Z');                                                                     // 00:30 del 9/10 a Roma: giorno d'arrivo
+  H.setFeed('bookingTorre', [H.bookingEv('b2', '2026-11-19', '2026-11-22'), H.bookingEv('n1b', '2026-10-10', '2026-10-12')]);
+  for (let i = 0; i < 9; i++) await rapida(gas);                                                         // oltre 6 sync e 45 minuti
+  let r = row(gas, 'BOOKING|1111111111');
+  eq([r.STATO, r.MOTIVO, r.UID_ESTERNO, Number(r.SYNC_MANCANTI || 0)], ['CONFERMATA', '', 'n1b', 0]);
+  clock.set('2026-10-09T22:30:00Z');                                                                     // giorno dopo: l'evento parte dall'11
+  H.setFeed('bookingTorre', [H.bookingEv('b2', '2026-11-19', '2026-11-22'), H.bookingEv('n1c', '2026-10-11', '2026-10-12')]);
+  for (let i = 0; i < 9; i++) await rapida(gas);
+  r = row(gas, 'BOOKING|1111111111'); eq([r.STATO, r.UID_ESTERNO], ['CONFERMATA', 'n1c']);
+  // l'evento sparisce davvero (nessuna email di cancellazione): la rete di sicurezza scatta ancora
+  H.setFeed('bookingTorre', [H.bookingEv('b2', '2026-11-19', '2026-11-22')]);
+  for (let i = 0; i < 9; i++) await rapida(gas);
+  r = row(gas, 'BOOKING|1111111111'); eq([r.STATO, r.MOTIVO], ['DA_VERIFICARE', 'ICAL_SPARITO']);
+});
+
 /* ===================== esecuzione ===================== */
 // Test che dipendono dal comportamento REALE dello script Apps Script (lettura Gmail, righe del foglio, trigger): saltati se nel repo c'è solo lo stub
-const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16', 'X19', 'X20']);
+const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16', 'X19', 'X20', 'X21', 'X22']);
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0, skip = 0; const t0 = process.hrtime.bigint();      // cronometro reale: Date.now() è l'orologio simulato
   if (!H.GAS_REAL) console.log('ATTENZIONE: google-apps-script.gs non è nel repo: uso lo stub minimo e SALTO i test che richiedono lo script vero (rimettilo nella radice per la suite completa).\n');
