@@ -1,6 +1,9 @@
 // La Columbera · Gestione → OPERATIVITÀ → Calendario e prezzi: un calendario per appartamento (schede Torre / Corte) e la vista «Entrambi».
 // Nel calendario si selezionano le notti e si cambia in un colpo prezzo, blocco o minimo di notti; sotto: prezzo base e ospiti in più,
 // prezzi di stagione, notti minime, notti bloccate e chiusura. Stessi dati di prima (prices, periodi, blocked, minPeriodi, closed): cambia solo la schermata.
+// Il pannello delle notti selezionate sta accanto al calendario sugli schermi larghi e, su telefono e tablet, compare fisso in basso
+// (al posto della barra «Salva modifiche», che torna appena la selezione si chiude): non serve scorrere per arrivarci.
+// Anche le notti bloccate mostrano e prendono un prezzo: il blocco non cambia, e quando le sblocchi il prezzo è già quello giusto.
 // Si registra in window.LCAdmParts: stato e utilità comuni arrivano da js/admin.js (oggetto A).
 (window.LCAdmParts=window.LCAdmParts||[]).push(function(A){
 'use strict';
@@ -26,11 +29,12 @@ function vApt(p,i){const chiuso=!!S().closed[p.id];
   <div class="adm-head"><h2>Calendario <span class="n">${esc(short(p))}</span></h2>
    <label class="closed-toggle"><input type="checkbox" data-b="closed:${p.id}" ${chiuso?'checked':''} data-testid="admin-closed-${p.id}"> Chiudi appartamento — blocca tutte le prenotazioni dal sito</label></div>
   <p class="adm-warn cal-closed-note" ${chiuso?'':'hidden'} id="closed-note-${i}">${esc(short(p))} è chiuso: dal sito non si può prenotare nessuna data. Ricordati di salvare.</p>
-  <div class="pcal-mode" role="group" aria-label="Come selezionare i giorni"><span>Seleziona:</span><button type="button" data-act="selMode" data-m="giorni" class="${V.selMode==='intervallo'?'':'on'}" aria-pressed="${V.selMode==='intervallo'?'false':'true'}">giorno per giorno</button><button type="button" data-act="selMode" data-m="intervallo" class="${V.selMode==='intervallo'?'on':''}" aria-pressed="${V.selMode==='intervallo'?'true':'false'}" data-testid="admin-cal-mode-range">dal… al…</button></div>
-  <div id="cal-${i}"></div>
+  <div class="pcal-layout">
+  <div class="pcal-bar"><div class="pcal-mode" role="group" aria-label="Come selezionare i giorni"><span>Seleziona:</span><button type="button" data-act="selMode" data-m="giorni" class="${V.selMode==='intervallo'?'':'on'}" aria-pressed="${V.selMode==='intervallo'?'false':'true'}">giorno per giorno</button><button type="button" data-act="selMode" data-m="intervallo" class="${V.selMode==='intervallo'?'on':''}" aria-pressed="${V.selMode==='intervallo'?'true':'false'}" data-testid="admin-cal-mode-range">dal… al…</button></div><button type="button" class="pcal-all" data-act="selMonth" data-i="${i}" data-testid="admin-cal-month-${p.id}">Tutto il mese</button></div>
+  <div id="cal-${i}" class="pcal-cal"></div>
   <div id="act-${i}" class="pcal-act" data-testid="admin-cal-act-${p.id}"></div>
   <details class="pcal-dates"><summary>Oppure scrivi le date</summary>
-   <div class="pcal-sel"><div class="adm-inp"><span>Dal</span><input type="date" id="rf-${i}" min="${today}"></div><div class="adm-inp"><span>al</span><input type="date" id="rt-${i}" min="${today}"></div><button type="button" class="btn btn-line" data-act="selRange" data-i="${i}">Aggiungi alla selezione</button></div></details></div>
+   <div class="pcal-sel"><div class="adm-inp"><span>Dal</span><input type="date" id="rf-${i}" min="${today}"></div><div class="adm-inp"><span>al</span><input type="date" id="rt-${i}" min="${today}"></div><button type="button" class="btn btn-line" data-act="selRange" data-i="${i}">Aggiungi alla selezione</button></div></details></div></div>
   <div class="adm-cols">
   <div class="admin-card"><h3 style="margin-top:0">Prezzo del 1° ospite</h3>
    <div class="fields-grid"><div class="field"><label>Prezzo a notte con 1 ospite (€)</label><input type="number" min="0" data-b="a:${i}:base" value="${p.base}" data-testid="admin-base-${p.id}"></div></div>
@@ -57,9 +61,9 @@ function vApt(p,i){const chiuso=!!S().closed[p.id];
 // --- vista «Entrambi»: le prossime 8 settimane, una riga per notte, una colonna per appartamento ---
 function vTutti(){const apts=S().apts,ds=[],st=occupanti();for(let d=today;ds.length<56;d=addDays(d,1))ds.push(d);
   const cell=(p,i,d)=>{const busy=(A.BUSY[p.id]||new Set()).has(d),who=busy?chiOccupa(st,p,d):null,bl=!!p.blocked[d];
-    return `<td data-label="${esc(short(p))}" class="${busy?'mx-busy':bl?'mx-blk':'mx-free'}"><a href="#calendario/${p.id}" data-act="calGo" data-i="${i}" data-d="${d}">${busy?esc(who?who.tit:'occupata'):bl?'bloccata':eur(A.np(p,d))+(S().closed[p.id]?' · chiuso':'')}</a></td>`};
+    return `<td data-label="${esc(short(p))}" class="${busy?'mx-busy':bl?'mx-blk':'mx-free'}"><a href="#calendario/${p.id}" data-act="calGo" data-i="${i}" data-d="${d}">${busy?esc(who?who.tit:'occupata'):bl?'bloccata · '+eur(A.np(p,d)):eur(A.np(p,d))+(S().closed[p.id]?' · chiuso':'')}</a></td>`};
   const giorno=d=>new Date(d+'T00:00:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric'});
-  return `<div class="admin-card" data-testid="admin-cal-matrice"><h2>Entrambi gli appartamenti</h2><p class="book-note">Le prossime 8 settimane: chi c'è, le notti bloccate e il prezzo del 1° ospite delle notti libere. Tocca una notte per aprire il calendario di quell'appartamento.</p>
+  return `<div class="admin-card" data-testid="admin-cal-matrice"><h2>Entrambi gli appartamenti</h2><p class="book-note">Le prossime 8 settimane: chi c'è, le notti bloccate e il prezzo del 1° ospite delle notti libere (e di quelle bloccate, per quando le sblocchi). Tocca una notte per aprire il calendario di quell'appartamento.</p>
   <div class="table-wrap"><table class="data mx mx-cal"><thead><tr><th>Notte</th>${apts.map(p=>`<th>${esc(short(p))}</th>`).join('')}</tr></thead><tbody>${ds.map((d,k)=>(k===0||d.slice(8)==='01'?`<tr class="mx-month"><th colspan="${apts.length+1}">${esc(new Date(d+'T00:00:00').toLocaleDateString('it-IT',{month:'long',year:'numeric'}))}</th></tr>`:'')+`<tr><td data-label="Notte">${esc(giorno(d))}</td>${apts.map((p,i)=>cell(p,i,d)).join('')}</tr>`).join('')}</tbody></table></div></div>`}
 
 // --- scaglioni ospiti ---
@@ -81,20 +85,47 @@ function calRender(i){const p=S().apts[i],el=$('#cal-'+i);if(!el)return;
   const y=m.getFullYear(),mo=m.getMonth(),f=(new Date(y,mo,1).getDay()+6)%7,n=new Date(y,mo+1,0).getDate(),busy=A.BUSY[p.id]||new Set(),an=V.anchor[i],st=occupanti();
   let h=`<div class="pcal-head"><button type="button" class="cal-nav" data-act="calPrev" data-i="${i}" aria-label="Mese precedente">‹</button><b>${m.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</b><button type="button" class="cal-nav" data-act="calNext" data-i="${i}" aria-label="Mese successivo">›</button></div><div class="pcal-grid">`+'Lun Mar Mer Gio Ven Sab Dom'.split(' ').map(x=>`<b>${x}</b>`).join('')+'<i></i>'.repeat(f);
   for(let d=1;d<=n;d++){const ds=`${y}-${pad(mo+1)}-${pad(d)}`,past=ds<today,bs=busy.has(ds),bl=!!p.blocked[ds],ov=p.prices[ds]!=null,mn=A.minFor(p,ds),who=bs?chiOccupa(st,p,ds):null;
-    const lab=bs?`<span class="pstate">${esc(who?who.lab:'occupato')}</span>`:bl?'<span class="pstate blk-l">bloccato</span>':`<span class="pprice">${eur(A.np(p,ds))}</span>`;
+    // notte bloccata: il prezzo resta visibile (e si cambia), così quando la sblocchi è già quello giusto
+    const pr=`<span class="pprice">${eur(A.np(p,ds))}</span>`,lab=bs?`<span class="pstate">${esc(who?who.lab:'occupato')}</span>`:bl?pr+'<span class="pstate blk-l" data-s="bloc.">bloccato</span>':pr;
     h+=`<div class="pcell${past?' past':''}${bs?' busy':''}${bl?' blk':''}${ov&&!bs?' ov':''}${sel.has(ds)?' sel':''}${an===ds&&V.selMode==='intervallo'?' anchor':''}" data-day="${ds}" data-i="${i}"${who&&who.code?` data-code="${esc(who.code)}"`:''}${who?` title="${esc(who.tit)}"`:''}><span class="pday">${d}</span>${lab}${!bs&&!past&&mn!==(+p.min||1)?`<span class="pmin">min ${mn}</span>`:''}</div>`}
-  h+='</div><p class="book-note pcal-leg"><span class="lg lg-free"></span>libera, con il prezzo del 1° ospite · <span class="lg lg-ov"></span>prezzo messo a mano · <span class="lg lg-blk"></span>bloccata da te · <span class="lg lg-busy"></span>occupata (prenotazioni, Booking, Airbnb: non si modifica, tocca per aprirla) · «min» = notti minime diverse dal solito</p>';
+  h+='</div><p class="book-note pcal-leg"><span class="lg lg-free"></span>libera, con il prezzo del 1° ospite · <span class="lg lg-ov"></span>prezzo messo a mano · <span class="lg lg-blk"></span>bloccata da te (con il prezzo che avrà quando la sblocchi) · <span class="lg lg-busy"></span>occupata (prenotazioni, Booking, Airbnb: non si modifica, tocca per aprirla) · «min» = notti minime diverse dal solito</p>';
   el.innerHTML=h;actRender(i)}
-// --- pannello delle azioni sui giorni selezionati ---
-function actRender(i){const p=S().apts[i],el=$('#act-'+i);if(!el)return;const s=V.sel[i]||new Set();
-  if(!s.size){el.innerHTML=`<p class="book-note" style="margin:0">${V.selMode==='intervallo'?(V.anchor[i]?'Ora tocca l\'ultima notte dell\'intervallo.':'Tocca la prima notte, poi l\'ultima: si selezionano tutte quelle in mezzo.'):'Tocca una o più notti per cambiarne il prezzo, bloccarle o fissare un minimo di notti.'}</p><button type="button" class="btn btn-line" data-act="selMonth" data-i="${i}">Seleziona tutto il mese</button>`;return}
-  const g=gruppi(s),dove=g.slice(0,3).map(r=>r.da===r.a?fmtS(r.da):fmtS(r.da)+' → '+fmtS(r.a)).join(', ')+(g.length>3?'…':'');
-  el.innerHTML=`<div class="pcal-act-h"><b data-testid="admin-cal-sel-${p.id}"><span data-selcount="${i}">${s.size}</span> ${s.size===1?'notte selezionata':'notti selezionate'}</b> <small>${esc(dove)}</small><button type="button" class="btn btn-line" data-act="selClear" data-i="${i}">Deseleziona</button></div>
+// --- pannello delle notti selezionate: accanto al calendario sugli schermi larghi; su telefono e tablet, quando ci sono notti selezionate
+// (classe «on»), fisso in basso al posto della barra «Salva modifiche». Su telefono le tre azioni stanno in schede (Prezzo · Blocco ·
+// Notti minime) per tenere il pannello basso e il calendario in vista. Con «dal… al…», dopo il primo tocco il pannello resta basso finché non
+// tocchi l'ultima notte (o di nuovo la stessa, per una notte sola). Quello che hai scritto nei campi resta quando aggiungi o togli notti.
+const TABS=[['prezzo','Prezzo'],['blocco','Blocco'],['min','Notti minime']];
+const bozza={};      // per appartamento, quello che hai scritto nei campi del pannello: resta mentre cambi la selezione, si svuota quando la selezione si chiude
+const ora=(v,f)=>{const lo=Math.min(...v),hi=Math.max(...v);return lo===hi?f(lo):'da '+f(lo)+' a '+f(hi)};
+function actRender(i){const p=S().apts[i],el=$('#act-'+i);if(!el)return;const s=V.sel[i]||new Set(),tab=V.actTab||'prezzo';
+  const pv=$('#pv-'+i),mv=$('#mv-'+i),b=bozza[i]||(bozza[i]={pv:'',mv:''});if(pv)b.pv=pv.value;if(mv)b.mv=mv.value;
+  el.classList.toggle('on',!!s.size);el.dataset.tab=tab;
+  if(!s.size){bozza[i]={pv:'',mv:''};el.innerHTML=`<p class="book-note pcal-hint">${V.selMode==='intervallo'?(V.anchor[i]?'Ora tocca l\'ultima notte dell\'intervallo.':'Tocca la prima notte, poi l\'ultima: si selezionano tutte quelle in mezzo.'):'Tocca una o più notti per cambiarne il prezzo, bloccarle o fissare un minimo di notti.'} Il prezzo si mette anche sulle notti bloccate: restano bloccate e, quando le sblocchi, hanno già il prezzo giusto.</p>`;return}
+  const g=gruppi(s),dove=g.slice(0,3).map(r=>r.da===r.a?fmtS(r.da):fmtS(r.da)+' → '+fmtS(r.a)).join(', ')+(g.length>3?'…':''),
+    ds=[...s],uno=ds.length===1,prz=ds.map(d=>A.np(p,d)),mins=ds.map(d=>A.minFor(p,d)),nb=ds.filter(d=>p.blocked[d]).length,na=ds.length-nb,
+    blkNota=!nb?'':nb===1?(uno?'È bloccata':'Una è bloccata')+': prende il prezzo e resta bloccata.':(na?nb+' sono bloccate':'Sono tutte bloccate')+': prendono il prezzo e restano bloccate.',
+    blkStato=!nb?(uno?'Aperta sul sito.':'Tutte aperte sul sito.'):!na?(uno?'Bloccata.':'Tutte bloccate.'):nb+(nb===1?' bloccata, ':' bloccate, ')+na+(na===1?' aperta.':' aperte.');
+  const head=`<div class="pcal-act-h"><b data-testid="admin-cal-sel-${p.id}"><span data-selcount="${i}">${s.size}</span> ${uno?'notte selezionata':'notti selezionate'}</b> <small>${esc(dove)}</small><button type="button" class="btn btn-line" data-act="selClear" data-i="${i}">Deseleziona</button></div>`;
+  // «dal… al…» a metà: manca l'ultima notte
+  if(V.selMode==='intervallo'&&V.anchor[i]){el.innerHTML=head+`<p class="pcal-act-n pcal-wait" data-testid="admin-cal-wait-${p.id}">Ora tocca l'ultima notte dell'intervallo (o di nuovo la stessa, per una notte sola).</p>`;inVista(i,el);return}
+  el.innerHTML=head+`
+   <div class="pcal-tabs" role="group" aria-label="Cosa vuoi cambiare">${TABS.map(([k,l])=>`<button type="button" data-act="actTab" data-t="${k}" class="${tab===k?'on':''}" aria-pressed="${tab===k}">${l}</button>`).join('')}</div>
    <div class="pcal-act-g">
-    <div class="pcal-act-b"><label for="pv-${i}">Prezzo a notte del 1° ospite</label><div class="pcal-act-r"><div class="adm-inp"><span>€</span><input type="number" min="0" id="pv-${i}" placeholder="${esc(p.base)}" data-testid="admin-cal-price-${p.id}"></div><button type="button" class="btn btn-wine" data-act="applyPrice" data-i="${i}" data-testid="admin-cal-apply-${p.id}">Applica</button><button type="button" class="btn btn-line" data-act="resetPrice" data-i="${i}" title="Torna al prezzo di stagione o al prezzo base">Prezzo normale</button></div></div>
-    <div class="pcal-act-b"><label>Disponibilità sul sito</label><div class="pcal-act-r"><button type="button" class="btn btn-wine" data-act="block" data-i="${i}" data-testid="admin-cal-block-${p.id}">Blocca</button><button type="button" class="btn btn-line" data-act="unblock" data-i="${i}" data-testid="admin-cal-unblock-${p.id}">Sblocca</button></div></div>
-    <div class="pcal-act-b"><label for="mv-${i}">Notti minime per chi arriva in questi giorni</label><div class="pcal-act-r"><div class="adm-inp"><input type="number" min="1" id="mv-${i}" placeholder="${esc(p.min)}" style="max-width:90px" data-testid="admin-cal-min-${p.id}"><span>notti</span></div><button type="button" class="btn btn-line" data-act="applyMin" data-i="${i}" data-testid="admin-cal-minapply-${p.id}">Applica</button><button type="button" class="btn btn-line" data-act="resetMin" data-i="${i}" title="Vale di nuovo il minimo generale">Togli</button></div></div>
-   </div>`}
+    <div class="pcal-act-b" data-k="prezzo"><label for="pv-${i}">Prezzo a notte del 1° ospite</label><div class="pcal-act-r"><div class="adm-inp"><span>€</span><input type="number" min="0" inputmode="decimal" enterkeyhint="done" id="pv-${i}" placeholder="${esc(Math.min(...prz)===Math.max(...prz)?prz[0]:p.base)}" data-testid="admin-cal-price-${p.id}"></div><button type="button" class="btn btn-wine" data-act="applyPrice" data-i="${i}" data-testid="admin-cal-apply-${p.id}">Applica</button></div>
+     <p class="pcal-act-n">Ora: ${ora(prz,eur)} · <button type="button" class="pcal-link" data-act="resetPrice" data-i="${i}" title="Toglie il prezzo messo a mano: torna il prezzo di stagione o il prezzo base">Prezzo normale</button></p>${nb?`<p class="pcal-act-n pcal-act-blk" data-testid="admin-cal-blknote-${p.id}">${blkNota}</p>`:''}</div>
+    <div class="pcal-act-b" data-k="blocco"><label>Disponibilità sul sito</label><div class="pcal-act-r"><button type="button" class="btn btn-wine" data-act="block" data-i="${i}" data-testid="admin-cal-block-${p.id}">Blocca</button><button type="button" class="btn btn-line" data-act="unblock" data-i="${i}" data-testid="admin-cal-unblock-${p.id}">Sblocca</button></div>
+     <p class="pcal-act-n">${blkStato} I prezzi non cambiano.</p></div>
+    <div class="pcal-act-b" data-k="min"><label for="mv-${i}">Notti minime per chi arriva in questi giorni</label><div class="pcal-act-r"><div class="adm-inp"><input type="number" min="1" inputmode="numeric" enterkeyhint="done" id="mv-${i}" placeholder="${esc(p.min)}" style="max-width:90px" data-testid="admin-cal-min-${p.id}"><span>notti</span></div><button type="button" class="btn btn-line" data-act="applyMin" data-i="${i}" data-testid="admin-cal-minapply-${p.id}">Applica</button></div>
+     <p class="pcal-act-n">Ora: minimo ${ora(mins,n=>n)} ${Math.max(...mins)===1?'notte':'notti'} · <button type="button" class="pcal-link" data-act="resetMin" data-i="${i}" title="Vale di nuovo il minimo generale">Minimo generale</button></p></div>
+   </div>`;
+  $('#pv-'+i).value=b.pv;$('#mv-'+i).value=b.mv;
+  inVista(i,el)}
+// pannello in basso (telefono e tablet): la pagina sale quanto basta perché il calendario resti sopra il pannello (senza far sparire
+// la parte alta sotto la barra della Gestione) e comunque perché l'ultima notte selezionata resti in vista
+function inVista(i,el){if(getComputedStyle(el).position!=='fixed')return;const gr=$('#cal-'+i+' .pcal-grid');if(!gr)return;
+  const g=gr.getBoundingClientRect(),sel=$$('#cal-'+i+' .pcell.sel'),lim=innerHeight-el.offsetHeight-22,
+    su=Math.max(Math.min(g.bottom-lim,g.top-80),sel.length?sel[sel.length-1].getBoundingClientRect().bottom-lim:0);
+  if(su>0)window.scrollBy({top:su,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})}
 function chipsRender(i){const p=S().apts[i],el=$('#chips-'+i);if(!el)return;const busy=A.BUSY[p.id]||new Set(),o=[],d0=new Date();d0.setDate(1);
   for(let k=0;k<18;k++){const d=new Date(d0.getFullYear(),d0.getMonth()+k,1),y=d.getFullYear(),mo=d.getMonth(),n=new Date(y,mo+1,0).getDate();let tot=0,bl=0;
     for(let x=1;x<=n;x++){const ds=`${y}-${pad(mo+1)}-${pad(x)}`;if(ds<today||busy.has(ds))continue;tot++;if(p.blocked[ds])bl++}
@@ -123,6 +154,9 @@ Object.assign(A.act,{
     S().apts.forEach((p,i)=>{V.anchor[i]='';if($('#cal-'+i))calRender(i)})},
   selMonth:a=>{const i=+a.dataset.i,m=V.month[i],y=m.getFullYear(),mo=m.getMonth(),n=new Date(y,mo+1,0).getDate();setSel(i,rangeIncl(`${y}-${pad(mo+1)}-01`,`${y}-${pad(mo+1)}-${pad(n)}`));calRender(i)},
   selClear:a=>{const i=+a.dataset.i;V.sel[i]=new Set();V.anchor[i]='';calRender(i)},
+  // schede del pannello su telefono: cambia solo cosa si vede (i campi già scritti restano)
+  actTab:a=>{V.actTab=a.dataset.t;const el=a.closest('.pcal-act');if(!el)return;el.dataset.tab=V.actTab;
+    el.querySelectorAll('.pcal-tabs button').forEach(b=>{const on=b.dataset.t===V.actTab;b.classList.toggle('on',on);b.setAttribute('aria-pressed',String(on))})},
   selRange:a=>{const i=+a.dataset.i,f=$('#rf-'+i).value,t2=$('#rt-'+i).value;if(!f||!t2||t2<f){alert('Scegli le due date (dal ≤ al)');return}setSel(i,rangeIncl(f,t2));const m=V.month[i]||(V.month[i]=new Date());const d=new Date(f+'T00:00:00');m.setFullYear(d.getFullYear(),d.getMonth(),1);calRender(i)},
   applyPrice:a=>{const i=+a.dataset.i,v=$('#pv-'+i).value;if(v===''||+v<0){$('#pv-'+i).focus();return}const s=need(i);if(!s)return;s.forEach(d=>S().apts[i].prices[d]=+v);done(i)},
   resetPrice:a=>{const i=+a.dataset.i,s=need(i);if(!s)return;s.forEach(d=>delete S().apts[i].prices[d]);done(i)},
@@ -154,6 +188,9 @@ function cellClick(cell,e){
   else{s.has(day)?s.delete(day):s.add(day);V.anchor[i]=day}
   calRender(i)}
 A.onClick.push(e=>{const c=e.target.closest('.pcell');if(!c)return false;cellClick(c,e);return true});
+// Invio nel campo del prezzo o delle notti minime = «Applica»
+A.M.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const m=/^(pv|mv)-(\d+)$/.exec(e.target.id||'');if(!m)return;
+  e.preventDefault();const b=$(`[data-act=${m[1]==='pv'?'applyPrice':'applyMin'}][data-i="${m[2]}"]`);if(b)b.click()});
 A.onInput.push(el=>{const d=el.dataset;
   if(d.step){const[i,j]=d.step.split(':').map(Number);S().apts[i].extraSteps[j]=Math.max(0,+el.value||0);A.markDirty();prevRender(i);return true}
   if(d.per){const[i,j,k]=d.per.split(':');S().apts[+i].periodi[+j][k]=k==='prezzo'?(+el.value||0):el.value;A.markDirty();calRender(+i);return true}

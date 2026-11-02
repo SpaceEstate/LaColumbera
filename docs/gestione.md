@@ -66,17 +66,19 @@ Lo stesso vale per Corte. Il preavviso minimo e le impostazioni dell'area ospiti
 
 ## 4. Calendario e prezzi
 
-1. Scegli l'appartamento (Torre / Corte) oppure **Entrambi** per vedere le prossime 8 settimane in una tabella: chi c'è, le notti bloccate, il prezzo delle notti libere.
-2. Seleziona le notti: **giorno per giorno** (tocchi le notti una alla volta; da computer Maiusc + clic per un intervallo) oppure **dal… al…** (tocchi la prima e l'ultima notte). C'è anche «Oppure scrivi le date».
-3. Nel riquadro sotto il calendario scegli cosa fare sulle notti selezionate:
-   - **Prezzo a notte del 1° ospite** → «Applica»; «Prezzo normale» toglie il prezzo messo a mano e torna a quello di stagione o al prezzo base;
-   - **Blocca** / **Sblocca** (vale solo sul sito: le stesse notti vanno chiuse anche su Booking e Airbnb);
-   - **Notti minime per chi arriva in questi giorni** → «Applica» o «Togli». Se quei giorni erano dentro un periodo con un altro minimo, il periodo viene spezzato attorno a loro.
+1. Scegli l'appartamento (Torre / Corte) oppure **Entrambi** per vedere le prossime 8 settimane in una tabella: chi c'è, le notti bloccate (con il loro prezzo), il prezzo delle notti libere.
+2. Seleziona le notti: **giorno per giorno** (tocchi le notti una alla volta; da computer Maiusc + clic per un intervallo) oppure **dal… al…** (tocchi la prima e l'ultima notte), o **Tutto il mese**. C'è anche «Oppure scrivi le date». Si selezionano anche le notti **bloccate** (non quelle occupate).
+3. Il riquadro delle notti selezionate è sempre a portata, senza scorrere: da computer (schermi da 1240 px) sta **accanto al calendario** e resta in vista; su telefono e tablet compare **fisso in basso** appena scegli una notte, al posto della barra «Salva modifiche» (che torna da sola dopo «Applica» o «Deseleziona»), e la pagina sale quanto basta perché il calendario resti sopra. Con «dal… al…», dopo il primo tocco il riquadro resta basso («Ora tocca l'ultima notte») finché non tocchi l'ultima notte, o di nuovo la stessa per una notte sola. Su telefono le azioni stanno in tre schede (**Prezzo**, **Blocco**, **Notti minime**):
+   - **Prezzo a notte del 1° ospite** → «Applica» (o Invio); sotto c'è il prezzo di adesso («Ora: €180» o «da €180 a €230») e **Prezzo normale**, che toglie il prezzo messo a mano e torna a quello di stagione o al prezzo base. Vale **anche per le notti bloccate**: prendono il prezzo e **restano bloccate**; quando le sblocchi hanno già il prezzo giusto (il riquadro lo dice: «2 sono bloccate: prendono il prezzo e restano bloccate»);
+   - **Blocca** / **Sblocca** (vale solo sul sito: le stesse notti vanno chiuse anche su Booking e Airbnb); bloccare e sbloccare non cambia i prezzi;
+   - **Notti minime per chi arriva in questi giorni** → «Applica» (o Invio) o **Minimo generale**. Se quei giorni erano dentro un periodo con un altro minimo, il periodo viene spezzato attorno a loro.
+
+   Quello che scrivi nei campi resta mentre aggiungi o togli notti dalla selezione.
 4. **Salva modifiche.**
 
 **Bambini sotto i 4 anni:** l'ospite li indica a parte nella scheda di prenotazione («Bambini · sotto i 4 anni · gratis»). Non pagano e non contano tra gli ospiti in più, ma contano per il numero massimo di ospiti dell'appartamento; li vedi nel dettaglio della prenotazione, nelle email e nel testo per le pulizie («3 ospiti (di cui 1 bambino sotto i 4 anni)»).
 
-Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», il nome di chi occupa la notte (o Booking / Airbnb) e «min N» quando il minimo è diverso dal solito. Una notte occupata da una prenotazione si apre con un tocco. Sotto il calendario restano prezzo base e ospiti in più, prezzi di stagione, notti minime, notti bloccate (anche per mese intero) e la chiusura dell'appartamento. I dati salvati sono gli stessi di prima (`prices`, `periodi`, `blocked`, `minPeriodi`, `closed`): sito e server calcolano esattamente come prima.
+Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato» con il prezzo che la notte avrà quando la sblocchi (su telefono «bloc.»), il nome di chi occupa la notte (o Booking / Airbnb) e «min N» quando il minimo è diverso dal solito. Una notte occupata da una prenotazione si apre con un tocco. Sotto il calendario restano prezzo base e ospiti in più, prezzi di stagione, notti minime, notti bloccate (anche per mese intero) e la chiusura dell'appartamento. I dati salvati sono gli stessi di prima (`prices`, `periodi`, `blocked`, `minPeriodi`, `closed`): sito e server calcolano esattamente come prima.
 
 ## 5. Prenotazioni e Oggi
 
@@ -182,8 +184,8 @@ Preavviso minimo e orario di check-in, orario di check-out, giorni prima dell'ar
 ## 10. Verifica a mano (telefono e computer)
 
 1. Apri `admin.html`: si apre su **Oggi**; il selettore OPERATIVITÀ | SITO resta in alto scorrendo.
-2. Calendario e prezzi → Torre → «dal… al…» → tocca due notti → metti un prezzo → Applica → Salva. Ricarica la pagina: il prezzo c'è; la pagina dell'appartamento lo mostra.
-3. Blocca una notte e controlla che sul sito non sia prenotabile; sbloccala e salva.
+2. Calendario e prezzi → Torre → «dal… al…» → tocca due notti → metti un prezzo → Applica → Salva. Ricarica la pagina: il prezzo c'è; la pagina dell'appartamento lo mostra. Su telefono il riquadro con il prezzo compare in basso appena tocchi la prima notte, senza scorrere; da computer sta accanto al calendario.
+3. Blocca una notte e controlla che sul sito non sia prenotabile; mettile un prezzo diverso: la casella resta «bloccato» e mostra il nuovo prezzo. Sbloccala e salva: sul sito quella notte costa il prezzo che le hai dato.
 4. Apri un vecchio segnalibro (`admin.html#torre/prezzi`): deve aprirsi Calendario e prezzi di Torre.
 5. Due dispositivi: apri la Gestione su telefono e computer, salva da uno, poi prova a salvare dall'altro: deve comparire l'avviso con «Ricarica» e «Salva comunque».
 6. Prenotazioni → cerca un ospite per nome; apri il dettaglio di una prenotazione Airbnb → «Prepara e copia» → incolla il testo nella chat di Airbnb.
