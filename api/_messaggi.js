@@ -23,7 +23,7 @@
 //   msg:fatto:<regola>:<codice> · msg:fatto:p:<id>   invio fatto, saltato o in corso: mai due volte la stessa cosa (SET NX)
 //   msg:avv:h:<codice> · msg:avv:o:<codice>           ultimo avviso email al titolare / all'ospite (15 minuti: dopo il primo non letto, al massimo uno ogni 15 minuti)
 //   tr:tpl:<impronta>:<lingua>                        traduzione di un template (senza i dati della prenotazione)
-// Traduzione (api/_traduci.js, DeepL): i messaggi automatici si traducono dal template, con le variabili protette: a DeepL non arrivano
+// Traduzione (api/_traduci.js, DeepL o Microsoft): i messaggi automatici si traducono dal template, con le variabili protette: al traduttore non arrivano
 // mai nomi, codici o Wi-Fi della prenotazione. I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono; in quelli
 // del titolare gli indirizzi dei link restano fuori dalla traduzione (come le variabili).
 // Foto: le foto di un messaggio (foto/msg/) si cancellano da Vercel Blob insieme alla conversazione, o quando un messaggio programmato non parte;
@@ -92,7 +92,7 @@ function riempi(testo, b, config, site, lg) {
 
 function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueToken, mail, log, now, cancellaFoto }) {
   now = now || (() => Date.now());
-  const T = traduci || { attiva: () => false, traduci: async () => ({ ok: false }), supportata: () => false };
+  const T = traduci || { attiva: () => false, traduci: async () => ({ ok: false }), supportata: () => false, nome: () => '' };
   const jget = async k => parse(await kv('GET', k));
   const newId = () => now().toString(36) + crypto.randomBytes(4).toString('hex');
   const logE = m => Promise.resolve().then(() => log && log({ lvl: 'ERR', msg: m })).catch(() => {});
@@ -211,7 +211,7 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     const da = AV.addDays(AV.todayRome(now()), -30);
     const senza = (bks || []).filter(b => b && b.stato === 'confermata' && !I[b.code] && String(b.a) >= da).sort((a, b) => String(a.da).localeCompare(String(b.da)))
       .map(b => ({ code: b.code, nome: b.nome || '', apt: b.id, dal: b.da, al: b.a }));
-    return { conversazioni, senza, nonLetti: conversazioni.reduce((s, c) => s + c.nonLetti, 0), traduzione: T.attiva() };
+    return { conversazioni, senza, nonLetti: conversazioni.reduce((s, c) => s + c.nonLetti, 0), traduzione: T.attiva(), traduttore: T.nome ? T.nome() : '' };
   }
   const nonLettiHost = async () => Object.values(hashObj(await kv('HGETALL', 'msg:nh'))).reduce((s, n) => s + (+n || 0), 0);
   const nonLettiOspite = async code => +(await kv('HGET', 'msg:no', code)) || 0;

@@ -119,6 +119,19 @@ async function routeFetch(url, opts = {}) {
     const tgt = String(body.target_lang || '').slice(0, 2), src = l => /[äöüß]/i.test(l) ? 'DE' : /\b(the|and|is|we|you|thanks?)\b/i.test(l) ? 'EN' : /\b(merci|bonjour|nous)\b/i.test(l) ? 'FR' : 'IT';
     return res(200, JSON.stringify({ translations: (body.text || []).map(t => ({ detected_source_language: body.source_lang || src(t), text: src(t) === tgt && !body.source_lang ? t : '[' + tgt + '] ' + t })) }));
   }
+  if (url.startsWith('https://api-eur.cognitive.microsofttranslator.com/') || url.startsWith('https://api.cognitive.microsofttranslator.com/')) {      // Microsoft Translator finto (API v3): "[EN] testo"; global.__azure = { mode: 'ok'|'down'|'slow'|'quota', calls: [] }
+    const d = global.__azure || (global.__azure = { mode: 'ok', calls: [] }), u = new URL(url), h = opts.headers || {}, q = Object.fromEntries(u.searchParams.entries());
+    let body; try { body = JSON.parse(opts.body || ''); } catch { body = null; }
+    d.calls.push({ url, q, body, key: h['Ocp-Apim-Subscription-Key'], region: h['Ocp-Apim-Subscription-Region'] });
+    if (!h['Ocp-Apim-Subscription-Key']) return res(401, '{"error":{"code":401000,"message":"chiave mancante"}}');
+    if (d.mode === 'down') return res(503, '{"error":{"code":503000,"message":"giù"}}');
+    if (d.mode === 'quota') return res(403, '{"error":{"code":403001,"message":"The operation is not allowed because the subscription has exceeded its free quota."}}');
+    if (d.mode === 'slow') await sleepAbortable(60000, opts.signal);
+    if (u.pathname !== '/translate' || q['api-version'] !== '3.0' || !q.to || !Array.isArray(body) || !body.length || body.length > 1000 || body.some(x => !x || typeof x.Text !== 'string') || body.reduce((s, x) => s + x.Text.length, 0) > 50000) return res(400, '{"error":{"code":400000,"message":"richiesta non valida"}}');
+    const src = l => /[äöüß]/i.test(l) ? 'de' : /\b(the|and|is|we|you|thanks?)\b/i.test(l) ? 'en' : /\b(merci|bonjour|nous)\b/i.test(l) ? 'fr' : 'it';
+    return res(200, JSON.stringify(body.map(x => Object.assign(q.from ? {} : { detectedLanguage: { language: src(x.Text), score: 1 } },
+      { translations: [{ text: !q.from && src(x.Text) === q.to.slice(0, 2) ? x.Text : '[' + q.to.slice(0, 2).toUpperCase() + '] ' + x.Text, to: q.to }] }))));
+  }
   if (url.startsWith(WEBAPP_URL)) {
     webapp.calls.push({ method: opts.method || 'GET', url });
     if (webapp.mode === 'down') return res(500, 'Internal Error');
@@ -137,7 +150,7 @@ global.fetch = (...a) => routeFetch(...a);
 /* ---------------- ambiente Vercel ---------------- */
 const SECRETS = { SYNC_SECRET: 'sync-test-secret', SHEET_SECRET: 'sheet-test-secret', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 function setEnv(extra) {
-  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|CODICE_CASSETTA_)/.test(k)) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|AZURE_|CODICE_CASSETTA_)/.test(k)) delete process.env[k];
   Object.assign(process.env, { KV_REST_API_URL: KV_URL, KV_REST_API_TOKEN: 'tok', SHEET_WEBAPP_URL: WEBAPP_URL, SHEET_SECRET: SECRETS.SHEET_SECRET, SYNC_SECRET: SECRETS.SYNC_SECRET,
     STRIPE_SECRET_KEY: 'sk_test', STRIPE_PUBLISHABLE_KEY: 'pk_test_prova', STRIPE_WEBHOOK_SECRET: SECRETS.STRIPE_WEBHOOK_SECRET, GMAIL_USER: 'info@test', GMAIL_APP_PASSWORD: 'x', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 'sess',
     OWNER_EMAIL: 'owner@test', FEED_TIMEOUT_MS: '150', REG_TIMEOUT_MS: '300' }, extra || {});
@@ -297,7 +310,7 @@ const PREFETCH = { syncRapida: [PRE.feeds], syncCompleta: [PRE.feeds, PRE.recon]
 /* ---------------- ambiente di test ---------------- */
 const defaultCfg = () => { const d = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')); return Object.assign(d, { ical: { torre: FEED.bookingTorre + ',' + FEED.airbnbTorre, corte: FEED.bookingCorte + ',' + FEED.airbnbCorte }, closed: {} }); };
 async function newEnv({ legacyRows, env, cfg, startIso } = {}) {
-  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false;
+  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__azure = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false;
   clock.set(startIso || '2026-10-02T09:00:00Z');
   setEnv(env); V = loadVercel();
   const c = cfg || defaultCfg(); kv.exec(['SET', 'cfg', JSON.stringify(c)]);

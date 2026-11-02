@@ -427,6 +427,74 @@ test('M11 controllo leggero (msg_v): solo con il token, pochissimi comandi, limi
   eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 1, 'orfana e ferma da oltre il periodo di conservazione: cancellata');
 });
 
+test('M16 traduzione gratuita con Microsoft (Azure Translator): come con DeepL; indirizzo europeo e regione; template e indirizzi dei link protetti; con entrambe le chiavi vale DeepL', async () => {
+  await base({ AZURE_TRANSLATOR_KEY: 'chiave-azure', AZURE_TRANSLATOR_REGION: 'westeurope' });
+  const c = await confermata(), a = global.__azure.calls;
+  await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });                     // l'ospite usa l'area in inglese
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'Thanks, we arrive at 6pm', lingua: 'en' });
+  let th = await thread(c.code);
+  eq([th.lingua, th.traduzione, th.messaggi[0].lingua, th.messaggi[0].tradotto], ['en', true, 'en', '[IT] Thanks, we arrive at 6pm']);
+  eq([(await H.adminApi('msg_inbox', {})).body.traduttore, (await H.adminApi('msg_auto', {})).body.traduttore], ['Microsoft', 'Microsoft'], 'la Gestione dice chi traduce');
+  assert(a.length && a.every(x => x.url.startsWith('https://api-eur.cognitive.microsofttranslator.com/translate?') && x.key === 'chiave-azure' && x.region === 'westeurope' && x.q['api-version'] === '3.0'), 'server europeo, chiave e regione: ' + JSON.stringify(a));
+  eq([a[0].q.to, a[0].q.from, a[0].body], ['it', undefined, [{ Text: 'Thanks, we arrive at 6pm' }]], 'la lingua dell\'ospite la riconosce Microsoft');
+  eq(global.__deepl.calls.length, 0, 'niente DeepL');
+  await H.adminApi('msg_reply', { code: c.code, testo: 'Perfetto, a presto' });
+  let l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+  eq([l[1].testo, l[1].originale], ['[EN] Perfetto, a presto', 'Perfetto, a presto'], 'tradotta nella lingua dell\'ospite, con l\'originale');
+  eq([a[a.length - 1].q.to, a[a.length - 1].q.from], ['en', 'it']);
+  l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' })).body.messaggi;
+  eq(l[1].testo, '[DE] Perfetto, a presto', 'cambia lingua: si traduce al volo (e resta salvata)');
+  const n = a.length; await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' }); eq(a.length, n, 'già tradotto: nessuna nuova chiamata');
+  // link: l'indirizzo va a Microsoft protetto (HTML con «notranslate») e torna intatto
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example' })).status, 200);
+  const ul = a[a.length - 1];
+  eq([ul.q.textType, ul.body], ['html', [{ Text: 'Prenota qui: [il ristorante](<span class="notranslate">https://r.example/x?a=1&amp;b=2</span>) o <span class="notranslate">www.museo.example</span>' }]], 'indirizzi protetti');
+  l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' })).body.messaggi;
+  eq(l[2].testo, '[DE] Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example');
+  // messaggio automatico: Microsoft riceve il template con le variabili protette, mai i dati della prenotazione
+  await H.adminApi('msg_tpl_save', { templates: [{ id: 'w', nome: 'Wi-Fi', testo: 'Ciao {nome}, il codice è {codice} & il Wi-Fi è {wifi}.' }] });
+  const cf = (await H.adminApi('cfg_admin', {})).body; cf.apts.find(p => p.id === 'torre').infoRiservate = 'Password: SEGRETA'; await H.adminApi('save', cf);
+  await H.adminApi('msg_auto_save', { regole: [{ id: 'conf', nome: 'Alla conferma', attiva: true, tpl: 'w', base: 'conferma' }] });
+  const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' });
+  const k0 = a.length; await sync();
+  const inviati = a.slice(k0), sent = inviati.flatMap(x => x.body.map(y => y.Text)).join('\n');
+  assert(inviati.length && inviati.every(x => x.q.textType === 'html' && x.q.from === 'it'), 'template in HTML, dall\'italiano');
+  assert(sent.includes('<span class="notranslate">{nome}</span>') && sent.includes('&amp;') && !sent.includes('<x>') && !/Mario|SEGRETA|nuovo@|Prova/.test(sent) && !sent.includes(d.code), 'template protetto: ' + sent);
+  const ld = (await ospite('msg_list', { code: d.code, t: d.t, lingua: 'en' })).body.messaggi[0];
+  eq(ld.testo, '[EN] Ciao Mario, il codice è ' + d.code.slice(0, 4) + ' ' + d.code.slice(4, 8) + ' ' + d.code.slice(8) + ' & il Wi-Fi è Password: SEGRETA.', 'variabili inserite dopo la traduzione');
+  // con entrambe le chiavi resta DeepL, come prima
+  await base({ DEEPL_API_KEY: 'chiave-pro', AZURE_TRANSLATOR_KEY: 'chiave-azure' });
+  const e = await confermata();
+  await ospite('msg_send', { code: e.code, t: e.t, testo: 'Hello, is parking free?', lingua: 'en' });
+  eq([(await thread(e.code)).messaggi[0].tradotto, global.__deepl.calls.length, global.__azure.calls.length], ['[IT] Hello, is parking free?', 1, 0], 'vale DeepL');
+  eq((await H.adminApi('msg_inbox', {})).body.traduttore, 'DeepL');
+});
+
+test('M17 Microsoft non disponibile (giù, lento, quota gratuita finita): il messaggio parte e si legge in originale; poi le traduzioni mancanti si completano, a lotti se la conversazione è lunga', async () => {
+  await base({ AZURE_TRANSLATOR_KEY: 'chiave-azure', AZURE_TRANSLATOR_TIMEOUT_MS: '150' });
+  const c = await confermata();
+  global.__azure.mode = 'quota';
+  let r = await ospite('msg_send', { code: c.code, t: c.t, testo: 'Hello, is parking free?', lingua: 'en' }); eq(r.status, 200);
+  let th = await thread(c.code); eq([th.messaggi[0].testo, th.messaggi[0].tradotto], ['Hello, is parking free?', undefined], 'quota gratuita finita: si legge in originale');
+  assert(global.__azure.calls.length && global.__azure.calls.every(x => x.region === undefined), 'senza AZURE_TRANSLATOR_REGION nessuna regione (risorsa globale)');
+  global.__azure.mode = 'slow';
+  r = await H.adminApi('msg_reply', { code: c.code, testo: 'Sì, gratuito' }); eq(r.status, 200, 'Microsoft lento: si risponde lo stesso');
+  global.__azure.mode = 'down';
+  const lungo = i => ('Message ' + i + ': we would like to know the way and the parking. ').repeat(40).slice(0, 1900);
+  for (let i = 1; i <= 6; i++) eq((await ospite('msg_send', { code: c.code, t: c.t, testo: lungo(i), lingua: 'en' })).status, 200, 'Microsoft giù: il messaggio parte');
+  global.__azure.mode = 'ok';
+  const k0 = global.__azure.calls.length;
+  th = await thread(c.code);
+  const g = th.messaggi.filter(m => m.da === 'ospite');
+  eq(g.map(m => m.tradotto), g.map(m => '[IT] ' + m.testo), 'tornato Microsoft: le traduzioni mancanti si completano alla lettura');
+  const lotti = global.__azure.calls.slice(k0);
+  eq([lotti.length, lotti.reduce((s, x) => s + x.body.length, 0)], [2, 7], 'sette messaggi in due richieste');
+  assert(lotti.every(x => x.body.reduce((s, y) => s + y.Text.length, 0) <= 10000), 'ogni richiesta entro 10.000 caratteri');
+  await base();
+  const d = await confermata(); r = await ospite('msg_send', { code: d.code, t: d.t, testo: 'Hello', lingua: 'en' }); eq(r.status, 200);
+  eq([(await thread(d.code)).traduzione, (await H.adminApi('msg_inbox', {})).body.traduttore, global.__azure.calls.length], [false, '', 0], 'senza chiavi: traduzione spenta, nessuna chiamata');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

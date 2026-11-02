@@ -1,6 +1,6 @@
 # Messaggi, template, messaggi automatici e traduzione – La Columbera
 
-Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M15; foto e link: M14, M15) e `tests/sim/ui.js` (U4j, W13, W31, W38).
+Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M17; foto e link: M14, M15; traduzione con Microsoft: M16, M17) e `tests/sim/ui.js` (U4j, W13, W31, W38).
 
 ---
 
@@ -71,18 +71,23 @@ Regole del motore (`esegui` in `api/_messaggi.js`), pensate per non sbagliare ma
 - **Solo prenotazioni confermate:** mai alle annullate, alle «da verificare» o ai pagamenti non completati.
 - **Quando gira:** dentro l'azione `sync`, che lo script del foglio chiama ogni pochi minuti (e «Sincronizza ora» in Gestione). Niente servizi o cron nuovi. Ha un tempo massimo (~6 secondi) e non lancia mai: se i messaggi falliscono (KV, DeepL, email) la sincronizzazione delle date continua uguale (test M9) e nel registro eventi resta «Messaggi automatici: N invii non riusciti».
 
-## 4. Traduzione automatica (DeepL)
+## 4. Traduzione automatica (Microsoft, gratuita, oppure DeepL)
 
-- **Come si attiva:** variabile d'ambiente **`DEEPL_API_KEY`** su Vercel. Le chiavi che finiscono con `:fx` sono del piano gratuito (api-free.deepl.com), le altre del piano Pro (api.deepl.com). Senza la variabile la traduzione è spenta e tutto funziona in italiano.
-- **Quale piano:** per i messaggi degli ospiti usare **DeepL API Pro**: per contratto DeepL non conserva i testi tradotti con il piano Pro. **Prima di attivarla verificare le condizioni del contratto** e aggiornare, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga DeepL).
+- **Come si attiva:** con una variabile d'ambiente su Vercel, `AZURE_TRANSLATOR_KEY` (Microsoft) oppure `DEEPL_API_KEY` (DeepL); se ci sono tutte e due vale DeepL. Senza, la traduzione è spenta e tutto funziona in italiano. In Gestione → Messaggi → Automatici, in fondo, si legge quale servizio traduce.
+- **Microsoft Azure Translator (gratuito):** il piano **F0 (Free)** comprende 2 milioni di caratteri al mese (un messaggio ne ha di solito qualche centinaio). Microsoft dichiara che la traduzione di testi non conserva i testi e non li usa per addestrare i modelli. Il sito chiama l'indirizzo europeo (`api-eur.cognitive.microsofttranslator.com`): la traduzione avviene in Europa. Per attivarlo:
+  1. crea un account su portal.azure.com (chiede una carta per verificare l'identità; il piano F0 non addebita nulla: finiti i caratteri del mese, la traduzione si ferma fino al mese dopo e i messaggi si leggono in originale);
+  2. «Crea una risorsa» → **Translator**; area (*Region*) **West Europe** o **North Europe**; piano tariffario (*Pricing tier*) **F0**;
+  3. nella risorsa, «Chiavi ed endpoint» (*Keys and Endpoint*): copia **CHIAVE 1** in **`AZURE_TRANSLATOR_KEY`** e l'area così come è scritta lì (es. `westeurope`) in **`AZURE_TRANSLATOR_REGION`**; poi nuovo deploy;
+  4. prova come al paragrafo 9, punto 4. **Prima di usarla con gli ospiti veri** controlla i termini accettati con l'account Azure e aggiorna, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga Microsoft); l'informativa (`privacy.html`) nomina già DeepL e Microsoft.
+- **DeepL:** variabile **`DEEPL_API_KEY`**. Le chiavi che finiscono con `:fx` sono del piano gratuito (api-free.deepl.com), le altre del piano Pro (api.deepl.com); al 02/11/2026 il piano gratuito delle API di DeepL non è più offerto. Per i messaggi degli ospiti usare **DeepL API Pro**: per contratto DeepL non conserva i testi tradotti con il piano Pro. **Prima di attivarla verificare le condizioni del contratto** e aggiornare, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga DeepL).
 - **Cosa si traduce:**
-  - messaggio dell'ospite → italiano (DeepL riconosce la lingua);
+  - messaggio dell'ospite → italiano (il servizio riconosce la lingua);
   - risposta del titolare → lingua dell'area ospiti (inglese o tedesco), se è spuntato «Traduci»;
   - alla lettura, nella lingua che l'ospite ha scelto, ciò che manca.
   
   Ogni traduzione si fa una volta e resta salvata (`msg:tr:<codice>`).
-- **Messaggi automatici:** si traduce il **template** in inglese e tedesco, con le variabili protette (`<x>{nome}</x>`); le variabili si riempiono dopo. A DeepL non arrivano mai nome, codice, Wi-Fi o date della prenotazione (test M7). Le traduzioni dei template restano salvate 60 giorni.
-- **Se DeepL non risponde** (6 secondi) o dà errore: il messaggio parte comunque e si legge in originale; la traduzione mancante si completa alla lettura successiva (test M8).
+- **Messaggi automatici:** si traduce il **template** in inglese e tedesco, con le variabili protette (`<x>{nome}</x>`); le variabili si riempiono dopo. Al servizio di traduzione non arrivano mai nome, codice, Wi-Fi o date della prenotazione (test M7 e M16; a Microsoft le parti protette arrivano come `<span class="notranslate">…</span>`). Le traduzioni dei template restano salvate 60 giorni.
+- **Se il servizio non risponde** (6 secondi), dà errore o ha finito i caratteri gratuiti del mese: il messaggio parte comunque e si legge in originale; la traduzione mancante si completa alla lettura successiva (test M8 e M17). A Microsoft una conversazione lunga arriva a lotti (al massimo 100 messaggi e 10.000 caratteri per richiesta).
 
 ## 5. Avvisi email
 
@@ -125,7 +130,9 @@ L'elenco completo è in testa ad `api/_messaggi.js`.
 
 | Variabile | Obbligatoria | Cosa fa |
 |---|---|---|
-| `DEEPL_API_KEY` | No | Attiva la traduzione automatica (vedi paragrafo 4) |
+| `AZURE_TRANSLATOR_KEY` | No | Attiva la traduzione automatica con Microsoft, gratuita con il piano F0 (vedi paragrafo 4) |
+| `AZURE_TRANSLATOR_REGION` | Con `AZURE_TRANSLATOR_KEY`, se la risorsa Azure è in un'area (es. `westeurope`) | L'area della risorsa Translator, come in «Chiavi ed endpoint» |
+| `DEEPL_API_KEY` | No | Attiva la traduzione automatica con DeepL (vedi paragrafo 4); se c'è, vale al posto di Microsoft |
 
 Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi email, `OWNER_EMAIL` per il destinatario degli avvisi.
 
@@ -134,7 +141,7 @@ Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi ema
 1. Prenotazione di prova con Stripe in modalità test; apri l'area ospiti dal link della mail → scheda **Messaggi** → scrivi un messaggio.
 2. Deve arrivarti l'email «Nuovo messaggio da …» con il testo. Premi **Rispondi**: si apre la conversazione in Gestione (se il dispositivo non ha l'accesso, prima la password).
 3. Rispondi; all'ospite arriva l'email con la tua risposta: il suo **Rispondi** apre l'area ospiti già sulla scheda Messaggi, senza codice. In Gestione compare «✓✓ letto».
-4. Con `DEEPL_API_KEY`: area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
+4. Con `AZURE_TRANSLATOR_KEY` (o `DEEPL_API_KEY`): area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
 5. Template → «Benvenuto» → Invio automatico «Appena la prenotazione è confermata» → «Salva template» → nuova prenotazione di prova → dopo la sincronizzazione successiva il messaggio è nella conversazione. In Automatici la stessa regola compare attiva.
 6. Prenotazioni → una prenotazione del foglio (Booking o Airbnb) → «Messaggio da mandare»: «Per Booking.com e Airbnb» → «Prepara e copia» → incolla il testo nella chat della piattaforma (il link apre l'area ospiti).
 
