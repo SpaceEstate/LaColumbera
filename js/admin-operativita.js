@@ -73,6 +73,7 @@ const rep=(id,html)=>{const el=document.getElementById(id);if(el)el.outerHTML=ht
 // Cose da fare: registrare gli ospiti su Alloggiati Web a ogni arrivo (Torre e Corte), ISTAT negli ultimi 7 giorni del mese, e quelle scritte a mano.
 // Ogni voce ha la sua spunta: spuntata resta sbiadita per tutto il giorno, dal giorno dopo sparisce; non spuntata resta finché non la spunti.
 // Le spunte stanno sul server (todo_*): valgono su tutti i dispositivi. Contano gli arrivi dal giorno in cui la lista è partita (dal), al più 90 giorni fa.
+// Le stesse voci vanno anche all'app Promemoria (api/_dafare.js, a=dafare): chi cambia queste regole (o soggiorni e veri) cambia anche quelle (prova W15e).
 const MESI=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
 function todoAuto(t){const out=[],dal=t.dal>addDays(today,-90)?t.dal:addDays(today,-90);
   veri(soggiorni()).filter(x=>x.da>=dal&&x.da<=today&&A.aptById(x.id)).forEach(x=>out.push({id:'all:'+x.id+':'+x.da,apt:aptName(x.id),

@@ -600,6 +600,7 @@ test('U5d admin · Calendari iCal: il link per Booking e Airbnb è quello «solo
   assert.equal(r.doc.querySelector('[data-testid=admin-ical-export-site-torre]').value, 'https://www.lacolumbera.test/api/x?a=ical&id=torre&for=site');
   assert(!r.doc.querySelector('[data-testid=admin-ical-export-booking-torre]') && !r.doc.querySelector('[data-testid=admin-ical-export-airbnb-torre]'), 'niente link separati per piattaforma');
   assert.equal(r.doc.querySelector('[data-testid=admin-ical-personal]').value, 'https://www.lacolumbera.test/api/x?a=ical&for=all&id=all&k=LA_TUA_CHIAVE');
+  assert.equal(r.doc.querySelector('[data-testid=admin-dafare-link]').value, 'https://www.lacolumbera.test/api/x?a=dafare&k=LA_TUA_CHIAVE', 'link del Da fare per l\'app Promemoria, con la stessa chiave');
   const n = text(r.doc.querySelector('[data-testid=admin-ical-note]')); assert(/ICAL_PERSONAL_KEY/.test(n) && /non inserirlo su Booking o Airbnb/.test(n), n);
   const q = new URL(r.doc.querySelector('[data-testid=admin-ical-export-site-torre]').value).searchParams, ic = await H.api('ical', {}, { method: 'GET', query: { id: q.get('id'), for: q.get('for') } }); assert.equal(ic.status, 200);
 });
@@ -1509,6 +1510,49 @@ test('W15c Gestione · Da fare: i blocchi di Airbnb («Not available») e le dat
   assert.deepEqual(await giorno('2026-10-07'), ['all:corte:2026-10-05', 'all:torre:2026-10-02', 'all:torre:2026-10-07'], 'arrivi veri: Booking il 2, Airbnb il 5 e quello nuovo del 7');
   const r = await loadAdmin(), nuovo = () => r.doc.querySelector('[data-testid="admin-todo-all:torre:2026-10-07"]'); await waitFor(nuovo, 'arrivo Airbnb del 7');
   assert(/Entra oggi: Airbnb \(solo calendario\)/.test(text(nuovo())) && /Registra ospiti/.test(text(nuovo())), text(nuovo()));
+});
+test('W15e Da fare per l\'app Promemoria (a=dafare, comando rapido): le stesse voci aperte della pagina, giorno per giorno; le spuntate no; titoli stabili e senza nomi né codici degli ospiti', async () => {
+  await setup({ ICAL_PERSONAL_KEY: 'chiave-dafare' });
+  const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'], apt = { torre: 'Torre', corte: 'Corte' };
+  const feed = async () => { const x = await H.api('dafare', {}, { method: 'GET', query: { k: 'chiave-dafare' } }); assert.equal(x.status, 200, x.text); assert.equal(x.headers['cache-control'], 'private, no-store'); return x.body.voci; };
+  // le voci aperte (non spuntate) che mostra la pagina, scritte come i titoli dei promemoria
+  const titolo = id => { let m = /^all:(\w+):(\d{4})-(\d\d)-(\d\d)$/.exec(id); if (m) return 'Registra ospiti su Alloggiati Web · ' + apt[m[1]] + ', arrivo del ' + +m[4] + ' ' + MESI[+m[3] - 1];
+    m = /^istat:(\d{4})-(\d\d)$/.exec(id); if (m) return 'Registra ospiti ISTAT · movimento di ' + MESI[+m[2] - 1] + ' ' + m[1]; return null; };
+  const pagina = r => { const d = r.doc, out = [];
+    for (const li of d.querySelectorAll('[data-testid=admin-todo-auto] li:not(.todo-fatto)')) out.push(titolo(li.getAttribute('data-testid').replace('admin-todo-', '')));
+    for (const li of d.querySelectorAll('[data-testid=admin-oggi-ric] li')) out.push(ric[li.querySelector('a').getAttribute('href').replace('#prenotazioni/', '')]);
+    for (const li of d.querySelectorAll('[data-testid=admin-todo-manuali] li:not(.todo-fatto):not(.todo-vuota)')) out.push(text(li.querySelector('.todo-txt')));
+    return out; };
+  const ric = {};      // ricevute da mandare: codice → titolo (appartamento e arrivo, non il nome)
+  const uguali = async (r, msg) => { const p = pagina(r), f = await feed(); assert.deepEqual(f, p, msg + ': pagina ' + JSON.stringify(p) + ' · elenco ' + JSON.stringify(f)); return f; };
+  // 2 ottobre: entra Booking a Torre (i blocchi di Airbnb non contano)
+  let r = await giornoCal('2026-10-02'); const T1 = 'all:torre:2026-10-02', chk = id => r.doc.querySelector('[data-testid="admin-todo-chk-' + id + '"]');
+  await waitFor(() => r.doc.querySelector('[data-testid="admin-todo-' + T1 + '"]'), 'arrivo di oggi');
+  assert.deepEqual(await uguali(r, '2 ottobre'), ['Registra ospiti su Alloggiati Web · Torre, arrivo del 2 ottobre']);
+  // spuntata in Gestione: nella pagina resta sbiadita fino a sera, nell'elenco per Promemoria non c'è più
+  chk(T1).click(); await waitFor(() => JSON.parse(kv.exec(['GET', 'todo'])).fatti[T1] === '2026-10-02', 'spunta salvata');
+  assert.deepEqual(await feed(), [], 'spuntata: fuori dall\'elenco');
+  // cose scritte a mano (una poi spuntata) e una ricevuta chiesta da un ospite del sito
+  const add = async testo => { r.doc.querySelector('[data-testid=admin-todo-testo]').value = testo; r.doc.querySelector('#todo-f').requestSubmit(); await waitFor(() => text(r.doc.querySelector('[data-testid=admin-todo-manuali]')).includes(testo.replace(/\s+/g, ' ')), testo); };
+  await add('Comprare il caffè'); await add('Cambiare   la lampadina');
+  const caffe = JSON.parse(kv.exec(['GET', 'todo'])).manuali.find(x => x.testo.startsWith('Comprare')).id;
+  chk(caffe).click(); await waitFor(() => JSON.parse(kv.exec(['GET', 'todo'])).manuali.find(x => x.id === caffe).fatto === '2026-10-02', 'caffè spuntato');
+  const c = (await checkout({ da: '2026-11-10', a: '2026-11-13', email: 'anna@test.it', nome: 'Anna Bianchi' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  assert.equal((await H.api('ricevuta', { code: c.code, dati: { nome: 'Anna Bianchi', cf: 'MRTMTT25D09F205Z', indirizzo: 'Via Verdi 2', cap: '20121', citta: 'Milano' } })).status, 200);
+  ric[c.code] = 'Manda la ricevuta · Torre, arrivo del 10 novembre';
+  r = await loadAdmin(); await waitFor(() => r.doc.querySelector('[data-testid=admin-oggi-ric]'), 'ricevute in Oggi');
+  assert.deepEqual(await uguali(r, '2 ottobre, dopo'), ['Manda la ricevuta · Torre, arrivo del 10 novembre', 'Cambiare la lampadina']);
+  // 3 ottobre: Booking e Airbnb esportano da oggi, nessun arrivo nuovo; 7 ottobre: Corte (5, mai spuntato) e l'ospite Airbnb non ancora nel foglio
+  r = await giornoCal('2026-10-03'); await waitFor(() => r.doc.querySelector('[data-testid=admin-oggi-ric]'), 'ricevute');
+  assert.deepEqual(await uguali(r, '3 ottobre'), ['Manda la ricevuta · Torre, arrivo del 10 novembre', 'Cambiare la lampadina']);
+  r = await giornoCal('2026-10-07'); await waitFor(() => r.doc.querySelector('[data-testid=admin-oggi-ric]'), 'ricevute');
+  const v7 = await uguali(r, '7 ottobre');
+  assert.deepEqual(v7.slice(0, 2), ['Registra ospiti su Alloggiati Web · Corte, arrivo del 5 ottobre', 'Registra ospiti su Alloggiati Web · Torre, arrivo del 7 ottobre'], JSON.stringify(v7));
+  assert(!v7.some(v => /Airbnb|Booking|HMSEDESZCW|HMNUOVO123|6877180932|solo calendario|Anna|Bianchi|Mario|Rossi/.test(v) || v.includes(c.code)), 'né chi arriva né il numero o il codice (il titolo non cambia quando la prenotazione entra nel foglio, niente dati degli ospiti su iCloud)');
+  // 25 ottobre: ISTAT di ottobre
+  clock.set('2026-10-25T08:00:00Z'); r = await loadAdmin(); await waitFor(() => r.doc.querySelector('[data-testid="admin-todo-istat:2026-10"]'), 'ISTAT');
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-oggi-ric]'), 'ricevute');
+  assert((await uguali(r, '25 ottobre')).includes('Registra ospiti ISTAT · movimento di ottobre 2026'));
 });
 test('W15d Gestione · Oggi: arrivano, partono e in casa senza i blocchi di Airbnb né le date che i calendari accorciano a oggi; i prossimi 7 giorni mostrano ancora le notti chiuse', async () => {
   await setup();

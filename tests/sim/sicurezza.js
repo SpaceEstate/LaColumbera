@@ -468,6 +468,28 @@ test('S25 cache: configurazione pubblica ed eventi in cache 60 s sulla rete di V
   eq((await H.api('busy', {}, { method: 'GET', query: { id: 'torre' } })).headers['cache-control'], 'public, s-maxage=15, stale-while-revalidate=15');
 });
 
+test('S26 Da fare per l\'app Promemoria (a=dafare): solo con la chiave del calendario personale; senza chiave, con quella sbagliata o senza ICAL_PERSONAL_KEY su Vercel nessuna voce; sempre JSON, mai in cache; non cambia nulla', async () => {
+  await base();
+  const c = await confermata({ da: '2026-11-10', a: '2026-11-13', nome: 'Anna Bianchi' });
+  eq((await H.api('ricevuta', { code: c.code, dati: { nome: 'Anna Bianchi', cf: 'MRTMTT25D09F205Z', indirizzo: 'Via Verdi 2', cap: '20121', citta: 'Milano' } }, as(ip()))).status, 200);
+  const get = (query, o) => H.api('dafare', {}, Object.assign({ method: 'GET', query }, o));
+  for (const [q, msg] of [[{}, 'senza chiave'], [{ k: '' }, 'chiave vuota'], [{ k: 'chiave-ical-di-provA' }, 'chiave sbagliata'], [{ k: 'chiave-ical-di-prova ' }, 'chiave con uno spazio']]) {
+    const r = await get(q); eq([r.status, r.body, r.headers['cache-control']], [403, { err: 'forbidden' }, 'private, no-store'], msg);
+  }
+  const prima = kv.exec(['GET', 'todo']);
+  const r = await get({ k: 'chiave-ical-di-prova' });
+  eq(r.status, 200); eq(r.headers['cache-control'], 'private, no-store'); eq(r.body.oggi, '2026-10-02');
+  eq(r.body.voci, ['Registra ospiti su Alloggiati Web · Torre, arrivo del 2 ottobre', 'Manda la ricevuta · Torre, arrivo del 10 novembre'], 'chi entra oggi (Booking a Torre) e la ricevuta da mandare');
+  assert(!/Anna|Bianchi|6877180932/.test(r.text) && !r.text.includes(c.code), 'niente nomi, numeri o codici delle prenotazioni (finirebbero su iCloud)');
+  eq([prima, kv.exec(['GET', 'todo'])], [null, null], 'sola lettura: la lista di Gestione non viene creata né cambiata');
+  eq((await get({ k: 'chiave-ical-di-prova' }, { headers: { authorization: 'qualsiasi' } })).status, 200, 'la chiave basta, il login della Gestione non serve');
+  // la chiave non apre nient'altro: le azioni della Gestione restano dietro il login
+  for (const a of ['todo_get', 'todo_check', 'todo_add', 'ricevute']) eq((await H.api(a, { id: 'istat:2026-10', fatto: true, testo: 'x' }, { query: { k: 'chiave-ical-di-prova' } })).status, 401, a + ' con la sola chiave');
+  // senza la variabile su Vercel il link non funziona per nessuno (nemmeno con k vuoto)
+  await H.newEnv({ legacyRows: [HDR], env: { ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw-di-prova' } });
+  for (const q of [{}, { k: '' }, { k: 'chiave-ical-di-prova' }]) eq((await get(q)).status, 403, 'senza ICAL_PERSONAL_KEY: ' + JSON.stringify(q));
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

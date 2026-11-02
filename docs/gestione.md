@@ -92,6 +92,52 @@ Nelle caselle: il prezzo del 1° ospite (in oro se messo a mano), «bloccato», 
 - **Oggi → Da fare · Registra ospiti** (Alloggiati Web): una voce per ogni arrivo a Torre e Corte, con la spunta (spuntata resta sbiadita fino a sera, poi sparisce).
 - **Chi arriva, chi parte, chi è in casa** (Oggi: liste di oggi e domani, contatore «arrivi · partenze», e Da fare): contano le prenotazioni del sito e del foglio; un evento visto solo nel calendario iCal conta solo se è una prenotazione: non i blocchi di Airbnb («Airbnb (Not available)»: preavviso, tempo di preparazione, notti chiuse da altri calendari) e non un evento che si accavalla a una prenotazione già nota dello stesso appartamento. Airbnb esporta solo da oggi in poi (e un calendario può riportare la stessa prenotazione con date diverse), quindi un soggiorno o un blocco in corso nel calendario «comincia» ogni giorno: senza questa regola sembrerebbe ogni giorno un arrivo nuovo (e chiederebbe di registrare ospiti mai entrati). Una prenotazione Airbnb («Reserved») non ancora nel foglio compare come «Airbnb (solo calendario)». Prossimi 7 giorni e Calendario mostrano invece tutto quello che dicono i calendari: le notti chiuse su Airbnb restano occupate. In Pulizie non ci sono i blocchi di Airbnb, ma restano le sovrapposizioni con l'avviso (vedi §6).
 
+## 5 bis. Da fare nell'app Promemoria (iPhone e iPad)
+
+Le cose ancora aperte di **Oggi → Da fare** possono arrivare da sole nell'app **Promemoria**, in una lista «La Columbera», con un comando rapido che le legge dal sito ogni mattina.
+
+**Cosa arriva.** Le stesse voci di Da fare non ancora spuntate:
+- «Registra ospiti su Alloggiati Web · Torre, arrivo del 5 novembre»;
+- «Registra ospiti ISTAT · movimento di ottobre 2026»;
+- «Manda la ricevuta · Torre, arrivo del 10 novembre»;
+- le cose scritte a mano.
+
+Non arrivano le prenotazioni da gestire e i messaggi, per cui c'è già l'email. Nei titoli non ci sono nomi né codici delle prenotazioni, solo appartamento e giorno: il titolo resta uguale anche quando una prenotazione vista prima solo nel calendario di Airbnb entra nel foglio, e i dati degli ospiti non finiscono su iCloud. Le cose scritte a mano arrivano come le hai scritte.
+
+**In una sola direzione.** Il comando crea un promemoria solo se nella lista non ce n'è già uno con lo stesso titolo, spuntato o no:
+- spuntare in Gestione non spunta il promemoria; spuntare il promemoria non spunta la voce in Gestione;
+- una voce spuntata sul telefono non ricompare;
+- ogni lato si spunta per conto suo: le voci automatiche spariscono da Gestione da sole quando la cosa è fatta, oppure con la spunta.
+
+**Il link.** Gestione → Sito → Sistema → Calendari iCal → «Da fare per l'app Promemoria»: `https://<sito>/api/x?a=dafare&k=LA_TUA_CHIAVE`.
+- Al posto di `LA_TUA_CHIAVE` va il valore di **`ICAL_PERSONAL_KEY`** su Vercel, la stessa chiave del calendario personale.
+- Senza la chiave giusta il sito risponde «forbidden» e nessuna voce. Il comando quindi non crea promemoria sbagliati.
+- La risposta è JSON: `{"oggi":"2026-11-02","voci":["…","…"]}`. Il link si può aprire nel browser per controllarlo.
+- Sola lettura: non spunta e non cambia nulla in Gestione.
+- Non darlo a nessuno, come il calendario personale.
+
+**Creare il comando (una volta sola, sull'iPhone).**
+1. App **Promemoria** → «Aggiungi elenco» → nome **La Columbera**.
+2. App **Comandi** → «+» (nuovo comando) → nome **Da fare La Columbera**.
+3. Azione **«Ottieni contenuti dell'URL»** (in inglese «Get Contents of URL»): come URL incolla il link con la chiave. Metodo GET, come già impostato.
+4. Azione **«Ottieni valore dizionario»** («Get Dictionary Value»): «Ottieni **Valore** per **voci** in **Contenuti dell'URL**». Scrivi `voci` come chiave.
+5. Azione **«Ripeti con ognuno»** («Repeat with Each»), su **Valore dizionario**. Le azioni 6 e 7 vanno *dentro* la ripetizione, prima di «Fine ripetizione».
+6. Azione **«Trova promemoria»** («Find Reminders»):
+   - con «Aggiungi filtro»: **Elenco** è **La Columbera**;
+   - secondo filtro: **Titolo** è **Elemento ripetuto** (la variabile, non il testo scritto).
+7. Azione **«Se»** («If»): **Promemoria** «non ha alcun valore». Dentro il «Se», azione **«Aggiungi nuovo promemoria»** («Add New Reminder»): testo **Elemento ripetuto**, elenco **La Columbera**. Il ramo «Altrimenti» resta vuoto.
+8. Prova con ▶︎. La prima volta Comandi chiede il permesso di collegarsi al sito e di usare Promemoria: «Consenti sempre». Esegui di nuovo: non devono comparire doppioni. Spunta un promemoria ed esegui ancora: non deve ricomparire.
+
+**Farlo partire da solo.** Comandi → **Automazione** → «+» → **Ora del giorno** (per esempio 8:00, ogni giorno) → **Esegui immediatamente** → scegli «Da fare La Columbera».
+- Si può aggiungere una seconda automazione, per esempio alle 14.
+- L'automazione va creata **solo sull'iPhone**. I promemoria arrivano sull'iPad da iCloud.
+- Il comando c'è anche sull'iPad (Comandi si sincronizza) e si può eseguire a mano. Due automazioni alla stessa ora creerebbero doppioni prima che iCloud allinei i dispositivi.
+
+**Se qualcosa non va.**
+- Aprire il link nel browser: `{"err":"forbidden"}` vuol dire chiave sbagliata o assente su Vercel; `{"err":"Da fare temporaneamente non disponibile"}` vuol dire che il sito non legge i dati in quel momento, e il comando riprova alla volta dopo.
+- Un titolo cambiato crea un promemoria nuovo, perché il comando confronta i titoli. Succede, per esempio, con una cosa scritta a mano tolta e riscritta diversa: il vecchio promemoria si spunta o si cancella a mano.
+- Prove: W15e (stesse voci della pagina, giorno per giorno), S26 (solo con la chiave, sola lettura).
+
 ## 6. Pulizie
 
 1. Scegli il periodo (Dal / al, oppure «7 giorni», «14 giorni», «Un mese»; di partenza le prossime due settimane, al massimo tre mesi).

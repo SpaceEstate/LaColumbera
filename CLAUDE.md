@@ -41,11 +41,11 @@ Un test cambiato o tolto va dichiarato e motivato nel messaggio di commit; un te
 | Disponibilità e prenotazioni (iCal, hold atomici in Lua, coda di ripresa) | `api/_avail.js`, `api/x.js` | `tests/sim/scenarios.js`, `tests/sim/preavviso.js`, `tests/sim/lua51_check.py` | – |
 | Pagamenti Stripe, conferma, annullo e rimborso | `api/stripe-webhook.js`, `api/_pagato.js`, `api/_annulla.js` | `tests/sim/pagamenti.js` | `docs/pagamenti.md` |
 | Foglio Prenotazioni (script Apps Script, **non** nel repository) | – | `tests/sim/scenarios.js` con `LC_GAS_FILE` | `docs/foglio-prenotazioni.md` |
-| Accessi (area clienti, Guest Card, login della Gestione) | `api/_accesso.js`, `api/x.js` | `tests/sim/sicurezza.js` | `docs/gdpr/sicurezza-accessi.md` |
+| Accessi (area clienti, Guest Card, login della Gestione, link con la chiave personale) | `api/_accesso.js`, `api/x.js` | `tests/sim/sicurezza.js` | `docs/gdpr/sicurezza-accessi.md` |
 | Check-in online fatto (collegamento con Checkin) | `api/_checkin.js`, `api/stripe-webhook.js` | `tests/sim/pagamenti.js` (C1–C7), `tests/sim/ui.js` (U5e) | `docs/pagamenti.md` |
 | Messaggi, template, traduzione | `api/_messaggi.js`, `api/_traduci.js` | `tests/sim/messaggi.js` | `docs/messaggi.md` |
 | Alloggiati Web e ISTAT | `api/_alloggiati*.js`, `api/_istat*.js`, `api/adempimenti.js`, `api/istat.js` | `tests/sim/adempimenti.js`, `tests/sim/istat.js` | – |
-| Gestione e pagine del sito | `js/*.js`, `*.html` | `tests/sim/ui.js`, `tests/sim/sito.js`, `tests/sim/informativa.js` | `docs/gestione.md` |
+| Gestione e pagine del sito (anche il Da fare per l'app Promemoria) | `js/*.js`, `*.html`, `api/_dafare.js` | `tests/sim/ui.js` (W15e), `tests/sim/sito.js`, `tests/sim/informativa.js` | `docs/gestione.md` |
 
 ## Collegamenti con Checkin
 
@@ -82,20 +82,20 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (02/11/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +5 con P20, P21, P22, P23 e C7, ui +7 con W15c, W15d, W30b, W1v, W39, W14b e U5e, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23)
+## Baseline (02/11/2026; partenza commit `6336695`, sicurezza +2 con S25 e S26, pagamenti +5 con P20, P21, P22, P23 e C7, ui +8 con W15c, W15d, W30b, W1v, W39, W14b, U5e e W15e, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23)
 
 | Prova | Risultato |
 |---|---|
 | scenarios | 15 ok, 0 falliti, 23 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`, 22 fino a `a6d403b`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub, revisione 2026-11-02b) 38 ok, 0 falliti (37 fino a `a6d403b`) |
 | pagamenti | 40 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
 | preavviso | 12 ok |
-| sicurezza | 25 ok (24 fino a `6336695`) |
+| sicurezza | 26 ok (24 fino a `6336695`, 25 fino a `97368a3`) |
 | messaggi | 15 ok |
 | sito | 11 ok (9 fino a `930c8df`) |
 | istat | 30 ok |
 | adempimenti | 40 ok |
 | informativa | 5 ok |
-| ui | 108 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`) |
+| ui | 109 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.

@@ -282,7 +282,8 @@ const vIcal=()=>S().apts.map(p=>`<div class="admin-card" data-testid="admin-ical
   ${icalOut(icalUrl(p,'site'),'Calendario da inserire su <b>Booking.com</b> e su <b>Airbnb</b> (lo stesso link per entrambi): contiene solo le prenotazioni fatte dal sito','admin-ical-export-site-'+p.id)}</div>`).join('')
   +`<div class="admin-card"><h2>Calendario personale</h2><p class="book-note">Per te, non per Booking e Airbnb.</p>
   ${icalOut(location.origin+'/api/x?a=ical&for=all&id=all&k=LA_TUA_CHIAVE','Tutte le prenotazioni di Torre e Corte (sito, Booking, Airbnb e blocchi), con i nomi degli ospiti: da usare nello script del telefono o in un calendario tuo','admin-ical-personal')}
-  <p class="book-note" data-testid="admin-ical-note">Al posto di <b>LA_TUA_CHIAVE</b> metti il valore della variabile <b>ICAL_PERSONAL_KEY</b> su Vercel: senza la chiave il link non funziona. Contiene dati degli ospiti: non darlo a nessuno e non inserirlo su Booking o Airbnb.</p></div>`;
+  ${icalOut(location.origin+'/api/x?a=dafare&k=LA_TUA_CHIAVE','Da fare per l\'app <b>Promemoria</b> di iPhone e iPad: le cose ancora aperte di Oggi → Da fare, da usare nel comando rapido (istruzioni nella guida della Gestione)','admin-dafare-link')}
+  <p class="book-note" data-testid="admin-ical-note">Al posto di <b>LA_TUA_CHIAVE</b> metti il valore della variabile <b>ICAL_PERSONAL_KEY</b> su Vercel (la stessa per i due link): senza la chiave il link non funziona. Contiene dati degli ospiti: non darlo a nessuno e non inserirlo su Booking o Airbnb.</p></div>`;
 A.view.sistema=r=>`<div class="adm-tabs" data-testid="admin-sistema-tabs"><a href="#sistema" class="${r.sub==='ical'?'':'on'}">Stato</a><a href="#sistema/ical" class="${r.sub==='ical'?'on':''}">Calendari iCal</a></div>`+(r.sub==='ical'?vIcal():vSync());
 A.after.sistema=r=>{if(r.sub!=='ical')syncAfter()};
 

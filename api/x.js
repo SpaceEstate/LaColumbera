@@ -377,6 +377,15 @@ if(a==='ical'&&String(req.query.for||'').toLowerCase()==='all'){
   res.setHeader('Content-Type','text/calendar; charset=utf-8');res.setHeader('Cache-Control','private, no-store');
   return res.send(r.ics)}
  catch(e){console.error('ical-all:',e.message);res.setHeader('Retry-After','300');return res.status(503).send('Calendario temporaneamente non disponibile')}}
+if(a==='dafare'){
+ // «Da fare» per l'app Promemoria di iPhone e iPad (comando rapido, docs/gestione.md): le voci aperte di Gestione → Oggi → Da fare, solo lettura.
+ // Stessa chiave del calendario personale (ICAL_PERSONAL_KEY), passata come &k=. Sempre JSON: un errore ha {err} e nessuna voce,
+ // così il comando rapido non trasforma un messaggio d'errore in un promemoria.
+ const key=process.env.ICAL_PERSONAL_KEY||'';res.setHeader('Cache-Control','private, no-store');
+ if(!key||!eq(String(req.query.k||''),key))return res.status(403).json({err:'forbidden'});
+ try{const config=await cfg(req),[bk,sync,reg,todo,ricevute]=await Promise.all([E.bkAll(),E.syncState(config,{events:true}),E.registryRows(),jg('todo'),RIC.elenco()]),oggi=todayRome();
+  return res.json({oggi,voci:require('./_dafare.js').vociDaFare({oggi,apts:config.apts||[],bk,reg,feeds:sync.feeds,todo,ricevute})})}
+ catch(e){console.error('dafare:',e.message);res.setHeader('Retry-After','300');return res.status(503).json({err:'Da fare temporaneamente non disponibile'})}}
 if(a==='ical'){const id=String(req.query.id||'');
  // ?for=booking|airbnb esclude dal calendario gli eventi della piattaforma destinataria (evita l'eco/i blocchi "fantasma")
  const forSource={booking:'BOOKING',airbnb:'AIRBNB'}[String(req.query.for||'').toLowerCase()]||'';
