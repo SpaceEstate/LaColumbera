@@ -1,7 +1,8 @@
 # Prove automatiche: a ogni push e a ogni pull request esegue tutte le prove di tests/sim (vedi CLAUDE.md, «Come verificare»).
 # Nessuna rete verso servizi reali: Redis, Stripe, email, foglio e DeepL sono finti.
 # Unico segreto, facoltativo: GAS_SCRIPT = testo dello script Apps Script del foglio (il repository è pubblico, lo script no).
-# Se c'è, girano anche le prove che lo richiedono (scenarios); se manca, si saltano come prima.
+# Se c'è, girano anche le prove di scenarios che lo richiedono; se manca, si saltano come prima. Le altre prove (ui compresa)
+# usano sempre lo stub del foglio, per cui sono state scritte: ui.js inserisce da sé le righe del registro e lo vuole vuoto.
 # Non tocca il sito né Vercel: serve solo a vedere subito, con la spunta verde o rossa, se una modifica ha rotto qualcosa.
 name: Prove
 
@@ -37,7 +38,7 @@ jobs:
             H4sI*) printf '%s' "$GAS_SCRIPT" | base64 -d | gunzip > "$RUNNER_TEMP/google-apps-script.gs" ;;
             *) printf '%s\n' "$GAS_SCRIPT" > "$RUNNER_TEMP/google-apps-script.gs" ;;
           esac
-          echo "LC_GAS_FILE=$RUNNER_TEMP/google-apps-script.gs" >> "$GITHUB_ENV"
+          echo "GAS_VERO=$RUNNER_TEMP/google-apps-script.gs" >> "$GITHUB_ENV"
           echo "Script del foglio pronto ($(wc -l < "$RUNNER_TEMP/google-apps-script.gs") righe): le prove che lo richiedono girano."
 
       - name: Prove tests/sim
@@ -46,7 +47,8 @@ jobs:
           esito=0
           for f in scenarios pagamenti preavviso sicurezza messaggi sito istat adempimenti informativa ui; do
             echo "::group::$f"
-            NODE_PATH=/tmp/testdeps/node_modules JSDOM_PATH=/tmp/testdeps/node_modules/jsdom node "tests/sim/$f.js" | tee "/tmp/prova-$f.txt" || esito=1
+            gas=""; [ "$f" = scenarios ] && gas="${GAS_VERO:-}"
+            LC_GAS_FILE="$gas" NODE_PATH=/tmp/testdeps/node_modules JSDOM_PATH=/tmp/testdeps/node_modules/jsdom node "tests/sim/$f.js" | tee "/tmp/prova-$f.txt" || esito=1
             echo "::endgroup::"
           done
           echo "Riepilogo:"

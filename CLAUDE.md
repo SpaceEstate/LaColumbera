@@ -72,7 +72,7 @@ done
 
 Ogni riga deve riportare gli stessi numeri della baseline. Per i dettagli di una prova fallita, rieseguire il singolo file senza filtri: le righe di errore come «KV giù», «smtp giù» o «api_connection_error» sono guasti simulati di proposito dalle prove, non problemi.
 
-Attenzione: senza jsdom `tests/sim/ui.js` esce con successo saltando tutte le prove dell'interfaccia; controllare che il numero sia quello della baseline. Le 22 prove dello script del foglio richiedono `LC_GAS_FILE=/percorso/google-apps-script.gs`.
+Attenzione: senza jsdom `tests/sim/ui.js` esce con successo saltando tutte le prove dell'interfaccia; controllare che il numero sia quello della baseline. Le 22 prove dello script del foglio richiedono `LC_GAS_FILE=/percorso/google-apps-script.gs`, da impostare solo per `scenarios`: `ui.js` è scritto per lo stub del foglio (registro vuoto) e con lo script vero dà 5 falsi errori.
 
 Controllo degli script Lua sulla versione di Redis (Lua 5.1), in un ambiente Python separato:
 
