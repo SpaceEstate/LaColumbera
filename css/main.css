@@ -1443,7 +1443,7 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 /* Pannello delle notti selezionate (js/admin-calendario.js): da 1240 px sta accanto al calendario, sempre in vista; sotto, su telefono e tablet,
    quando ci sono notti selezionate (classe «on») compare fisso in basso e la barra «Salva modifiche» si fa da parte finché la selezione resta aperta
    (torna da sola dopo «Applica» o «Deseleziona»). Fino a 900 px le tre azioni stanno in schede, per lasciare in vista il calendario.
-   Le notti bloccate mostrano il prezzo che avranno quando le sblocchi (in grigio, in oro se messo a mano).
+   Le notti bloccate e quelle occupate mostrano il prezzo che avranno se si aprono (in grigio, in oro se messo a mano).
    1240 px: da lì in su la pagina della Gestione ha già la sua larghezza massima e le caselle del calendario restano larghe come prima. */
 .pcal-bar{display:flex;align-items:center;justify-content:space-between;gap:0 10px;flex-wrap:wrap}
 .pcal-all{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;margin:10px 0 2px;font:600 .85rem var(--sans);color:var(--wine);cursor:pointer}
@@ -1454,9 +1454,15 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
 .pcal-act-blk{color:var(--wine);font-weight:600}
 .pcal-wait{margin:0;color:var(--ink);font-weight:600}
 .pcal-link{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--wine);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
-.pcell.blk .pprice{color:var(--muted)}
-.pcell.blk.ov .pprice{color:#8a6c22}
-.pcell.sel.blk .pprice{color:#fff}
+.pcell.blk .pprice,.pcell.busy .pprice{color:var(--muted)}
+.pcell.blk.ov .pprice,.pcell.busy.ov .pprice{color:#8a6c22}
+.pcell.sel.blk .pprice,.pcell.sel.busy .pprice{color:#fff}
+/* le notti occupate si selezionano come le altre (prezzo e minimo per quando si liberano) */
+.pcell.busy:not(.past){cursor:pointer}
+.pcell.sel.busy{background:var(--wine);border-color:var(--wine);border-style:solid}
+.pcell.sel.busy .pday{color:#fff}
+.pcal-occ a{color:var(--wine);font-weight:700}
+.pcal-act .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 @keyframes pcal-up{from{transform:translateY(24px);opacity:0}}
 @media (min-width:1240px){
   .pcal-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;grid-template-areas:"bar act" "cal act" "dates act";grid-template-rows:auto auto 1fr;column-gap:22px;align-items:start}
