@@ -86,7 +86,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 
 | Prova | Risultato |
 |---|---|
-| scenarios | 15 ok, 0 falliti, 22 saltati (senza `LC_GAS_FILE`; 20 fino a `4b472a6`) |
+| scenarios | 15 ok, 0 falliti, 22 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub) 37 ok, 0 falliti |
 | pagamenti | 39 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`) |
 | preavviso | 12 ok |
 | sicurezza | 25 ok (24 fino a `6336695`) |

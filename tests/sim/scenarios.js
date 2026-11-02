@@ -55,7 +55,10 @@ test('T3  nuova prenotazione Airbnb Torre (codice, notti, ospiti dal corpo; even
 test('T4  prenotazione dal sito Torre: hold → Stripe → webhook → confermata → foglio → date occupate; webhook ripetuto non duplica', async () => {
   const { gas } = await base();
   const c = await checkout(); eq(c.status, 200); const code = c.body.code;
-  eq((await H.busyDates('torre')).filter(d => d >= '2026-10-20' && d < '2026-10-24'), ['2026-10-20', '2026-10-21', '2026-10-22'], 'hold deve bloccare subito le notti');
+  // dal 30/10/2026 (23ea7d5, come X2 e X3): il pagamento in corso trattiene le notti sul server ma non le segna nel calendario
+  assert(kv.exec(['HGETALL', 'holds:torre']).length > 0, 'hold: notti trattenute subito');
+  eq((await H.busyDates('torre')).filter(d => d >= '2026-10-20' && d < '2026-10-24'), [], 'un pagamento in corso non segna nulla nel calendario del sito');
+  eq((await checkout({ email: 'altro@t.it' })).status, 409, 'ma un altro ospite non può prenderle mentre si paga');
   eq(global.__stripeSessions.length, 1); assert(global.__stripeSessions[0].params.expires_at, 'sessione con scadenza');
   const w = await H.webhook('checkout.session.completed', H.paidSession(code)); eq(w.status, 200);
   const b = JSON.parse(kv.exec(['HGET', 'bkh', code])); eq(b.stato, 'confermata');
