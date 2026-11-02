@@ -1,6 +1,6 @@
 # Foglio «Prenotazioni»: prenotazioni manuali e pulizia notturna – La Columbera
 
-Ambito: lo script Apps Script del foglio Google **Prenotazioni** (registro di tutte le prenotazioni, sincronizzazione con il sito). Revisione **2026-10-29**: prenotazioni manuali senza numero e cancellazione delle righe 7 giorni dopo il check-out. Prove: `tests/sim/scenarios.js` (X19, X20 e le altre 18 prove dello script) e `tests/sim/ui.js` (W32).
+Ambito: lo script Apps Script del foglio Google **Prenotazioni** (registro di tutte le prenotazioni, sincronizzazione con il sito). Revisione **2026-10-29**: prenotazioni manuali senza numero e cancellazione delle righe 7 giorni dopo il check-out. Revisione **2026-11-02b**: colonna Appartamento con i nomi brevi «Torre» e «Corte» (sezione 4). Prove: `tests/sim/scenarios.js` (X19, X20 e le altre 18 prove dello script) e `tests/sim/ui.js` (W32).
 
 Lo script **non è nel repository**, che è pubblico: il titolare l'aveva tolto il 15/10/2026. La versione nuova si consegna come file (`google-apps-script.gs`) da incollare in Apps Script.
 
@@ -13,7 +13,7 @@ Lo script **non è nel repository**, che è pubblico: il titolare l'aveva tolto 
 3. Fine. **Non serve un nuovo deployment** e non serve rifare i trigger:
    - la web app (`doGet`/`doPost`, quella che usa il sito) non è cambiata;
    - i trigger già installati (sincronizzazione ogni 5 minuti, completa ogni ora, pulizia alle 3) usano da soli il codice salvato.
-4. Controllo: dopo 5 minuti, nella scheda **SyncStatus**, la riga **APPS SCRIPT** dice `v2 (2026-10-29)`. Se vuoi, esegui una volta `diagnostica`: nel registro compare la riga «pulizia notturna del registro: cancella le prenotazioni 7 giorni dopo il check-out».
+4. Controllo: dopo 5 minuti, nella scheda **SyncStatus**, la riga **APPS SCRIPT** dice `v2 (2026-11-02b)`. Se vuoi, esegui una volta `diagnostica`: nel registro compare la riga «pulizia notturna del registro: cancella le prenotazioni 7 giorni dopo il check-out».
 
 ## 2. Prenotazioni manuali (telefono, di persona)
 
@@ -72,15 +72,30 @@ Ogni notte, nel trigger `pulizia` delle 3, prima della pulizia delle email, lo s
 - Il registro dello script (Esecuzioni) dice ogni notte quali numeri ha cancellato.
 - La scheda `Prenotazioni_backup_20261015` non si tocca.
 
-## 4. Prove
+## 4. Colonna Appartamento: «Torre» o «Corte» (dal 02/11/2026)
 
-Il banco di prova usa lo script vero se lo trova nella radice del repository (`google-apps-script.gs`) oppure dove indica `LC_GAS_FILE`. Senza lo script le 22 prove che lo richiedono si saltano. Nelle prove automatiche su GitHub lo script si fornisce con il segreto `GAS_SCRIPT` (Settings → Secrets and variables → Actions): se manca, si saltano come in locale.
+Prima la colonna C conteneva il nome lungo tra virgolette (`"La Columbera - Torre, Appartamento con 2 camere da letto"`) e il menu a tendina era a scelta multipla: con la scelta multipla Google separa le voci con la virgola, quindi il nome si spezzava in due voci non valide e dal telefono non si riusciva a scegliere l'appartamento.
+
+Ora:
+
+- **Menu** (Dati → Convalida dei dati, intervallo `C2:C899`): solo `Torre` e `Corte`, una sola scelta, «Rifiuta l'inserimento» per tutto il resto. Dal telefono si tocca la cella e si sceglie.
+- **Righe esistenti**: il 02/11/2026 i nomi lunghi sono stati sostituiti con `Torre` / `Corte` (stesso appartamento, riga per riga).
+- **Script** (revisione 2026-11-02b): le righe che scrive lui (Booking, Airbnb, sito, appartamento risolto) hanno `Torre` / `Corte`. Fino a quando non incolli questa revisione, lo script vecchio scrive ancora il nome lungo nelle righe nuove: funziona lo stesso, la cella ha solo il segno rosso di valore fuori menu.
+- **Chi legge la colonna** riconosce l'appartamento dalla parola Torre o Corte, con il nome breve e con quello lungo, quindi non cambia nulla:
+  - lo script (`aptFromLabel_`);
+  - il sito, che riceve dall'export solo `torre` / `corte`;
+  - l'app Check-in (repository `SpaceEstate/Checkin`): verifica del numero (seleziona l'appartamento cercando «torre»/«corte» nel testo) e ricerca del numero per data e appartamento (`trovaPerDataEAppartamento`). Il valore inviato a Stripe e ad Alloggiati viene dalle caselle del modulo del check-in, non dal foglio.
+- **Prova**: X23 in `tests/sim/scenarios.js`.
+
+## 5. Prove
+
+Il banco di prova usa lo script vero se lo trova nella radice del repository (`google-apps-script.gs`) oppure dove indica `LC_GAS_FILE`. Senza lo script le 23 prove che lo richiedono si saltano. Nelle prove automatiche su GitHub lo script si fornisce con il segreto `GAS_SCRIPT` (Settings → Secrets and variables → Actions): se manca, si saltano come in locale.
 
 ```bash
 LC_GAS_FILE=/percorso/google-apps-script.gs node tests/sim/scenarios.js
 ```
 
-- Con lo script: **35 ok**.
+- Con lo script: **38 ok** (X21, X22 e X23 comprese).
 - X19 copre le prenotazioni manuali:
   - codice e colonne scritte dallo script;
   - righe incomplete o dubbie lasciate com'erano;
@@ -91,4 +106,4 @@ LC_GAS_FILE=/percorso/google-apps-script.gs node tests/sim/scenarios.js
   - proprietà a `0` e lock occupato;
   - l'ultima prenotazione che resta, con il sito che continua a fidarsi del registro.
 - Le altre 33 prove dello script passano uguali. X4 («il registro non cancella mai») vale ancora per la sincronizzazione: cancella solo la pulizia notturna.
-- La suite dell'interfaccia (`ui.js`) va lanciata senza `LC_GAS_FILE`. Quattro prove (W15, W17, W21, W30) scrivono una prenotazione Airbnb direttamente nella copia del registro, come farebbe la sincronizzazione con lo stub; con lo script vero la sincronizzazione la riscrive. Succede uguale con lo script originale: è un limite del banco di prova, non del codice.
+- La suite dell'interfaccia (`ui.js`) va lanciata senza `LC_GAS_FILE`. Cinque prove (W15, W17, W21, W30, W33) scrivono una prenotazione Airbnb direttamente nella copia del registro, come farebbe la sincronizzazione con lo stub; con lo script vero la sincronizzazione la riscrive. Succede uguale con lo script originale: è un limite del banco di prova, non del codice.

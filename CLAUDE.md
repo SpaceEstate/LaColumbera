@@ -72,7 +72,7 @@ done
 
 Ogni riga deve riportare gli stessi numeri della baseline. Per i dettagli di una prova fallita, rieseguire il singolo file senza filtri: le righe di errore come «KV giù», «smtp giù» o «api_connection_error» sono guasti simulati di proposito dalle prove, non problemi.
 
-Attenzione: senza jsdom `tests/sim/ui.js` esce con successo saltando tutte le prove dell'interfaccia; controllare che il numero sia quello della baseline. Le 22 prove dello script del foglio richiedono `LC_GAS_FILE=/percorso/google-apps-script.gs`, da impostare solo per `scenarios`: `ui.js` è scritto per lo stub del foglio (registro vuoto) e con lo script vero dà 5 falsi errori.
+Attenzione: senza jsdom `tests/sim/ui.js` esce con successo saltando tutte le prove dell'interfaccia; controllare che il numero sia quello della baseline. Le 23 prove dello script del foglio richiedono `LC_GAS_FILE=/percorso/google-apps-script.gs`, da impostare solo per `scenarios`: `ui.js` è scritto per lo stub del foglio (registro vuoto) e con lo script vero dà 5 falsi errori.
 
 Controllo degli script Lua sulla versione di Redis (Lua 5.1), in un ambiente Python separato:
 
@@ -86,7 +86,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 
 | Prova | Risultato |
 |---|---|
-| scenarios | 15 ok, 0 falliti, 22 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub) 37 ok, 0 falliti |
+| scenarios | 15 ok, 0 falliti, 23 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`, 22 fino a `a6d403b`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub, revisione 2026-11-02b) 38 ok, 0 falliti (37 fino a `a6d403b`) |
 | pagamenti | 39 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`) |
 | preavviso | 12 ok |
 | sicurezza | 25 ok (24 fino a `6336695`) |

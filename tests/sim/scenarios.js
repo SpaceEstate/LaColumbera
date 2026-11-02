@@ -541,9 +541,45 @@ test('X22 giorno d\'arrivo: Booking esporta solo le notti future (evento da doma
   r = row(gas, 'BOOKING|1111111111'); eq([r.STATO, r.MOTIVO], ['DA_VERIFICARE', 'ICAL_SPARITO']);
 });
 
+/* ===================== colonna Appartamento con i nomi brevi (menu del foglio «Torre» / «Corte», novembre 2026) ===================== */
+test('X23 colonna C con «Torre» e «Corte»: righe a mano col menu, scritte dello script e risoluzione a mano usano i nomi brevi; le righe vecchie (nome lungo) valgono come prima', async () => {
+  const { gas } = await base();                                                                          // righe storiche con il nome lungo tra virgolette
+  eq(gas.rows().map(r => /Torre/.test(r.Appartamento) ? 'torre' : 'corte'), ['corte', 'torre', 'torre']);
+  // prenotazioni manuali scelte dal menu del telefono: solo «Torre» / «Corte»
+  const nT = riga(gas, ['', '20/10/2026', 'Torre', 2, 3]), nC = riga(gas, ['', '24/10/2026', 'Corte', 2, 2]);
+  // Booking assegnata dall'iCal e Airbnb con l'appartamento nel testo dell'email: lo script scrive il nome breve
+  H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04'), H.bookingEv('b2', '2026-11-19', '2026-11-22'), H.bookingEv('n1', '2026-10-09', '2026-10-12')]);
+  mailBooking(gas, '1111111111', '9 ott 2026');
+  H.setFeed('airbnbCorte', [H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW'), H.airbnbEv('x9', '2026-10-28', '2026-10-31', 'HMABCDE123')]);
+  mailAirbnb(gas, 'HMABCDE123', '28 ott', 'Codice di conferma: HMABCDE123\nCheck-in: mer 28 ott 2026\n3 notti\n2 adulti\nLa Columbera - Corte, Appartamento con 1 camere da letto');
+  await rapida(gas);
+  const mT = aRiga(gas, nT), mC = aRiga(gas, nC);
+  assert(/^M/.test(mT['Numero Prenotazione']) && /^M/.test(mC['Numero Prenotazione']), 'codici delle manuali');
+  eq([mT.Appartamento, mT.STATO, mT.CHECK_OUT, mC.Appartamento, mC.STATO, mC.CHECK_OUT], ['Torre', 'CONFERMATA', '2026-10-23', 'Corte', 'CONFERMATA', '2026-10-26'], 'il valore del menu resta com\'è');
+  eq([row(gas, 'BOOKING|1111111111').Appartamento, row(gas, 'AIRBNB|HMABCDE123').Appartamento], ['Torre', 'Corte'], 'scritti dallo script: nome breve');
+  // prenotazione del sito: la riga scritta dalla web app ha il nome breve
+  const c = await checkout({ id: 'corte', da: '2026-12-01', a: '2026-12-03' }); await H.webhook('checkout.session.completed', H.paidSession(c.body.code));
+  eq(row(gas, 'SITO|' + c.body.code).Appartamento, 'Corte');
+  // il sito vede tutto con l'appartamento giusto: notti chiuse, Gestione, area clienti
+  await H.sync();
+  eq((await H.busyDates('torre')).filter(d => (d >= '2026-10-20' && d < '2026-10-24') || d === '2026-10-02'), ['2026-10-02', '2026-10-20', '2026-10-21', '2026-10-22'], 'riga vecchia (nome lungo) e manuale nuova');
+  eq((await H.busyDates('corte')).filter(d => d >= '2026-10-24' && d < '2026-10-27'), ['2026-10-24', '2026-10-25']);
+  const reg = (await H.adminApi('adm', {})).body.reg, apt = k => (reg.find(x => x.codice === k) || {}).apt;
+  eq([apt(mT['Numero Prenotazione']), apt(mC['Numero Prenotazione']), apt('1111111111'), apt('HMABCDE123'), apt('6877180932'), apt('HMSEDESZCW')], ['torre', 'corte', 'torre', 'corte', 'torre', 'corte']);
+  const m = await H.api('mie', { code: mC['Numero Prenotazione'] }, { headers: { 'x-real-ip': '198.51.100.23' } });
+  eq([m.status, m.body.soggiorno && m.body.soggiorno.id], [200, 'corte']);
+  // appartamento non deducibile dall'email: l'operatore sceglie «Torre» dal menu e la riga si risolve; l'altra prende «Corte»
+  H.setFeed('bookingTorre', [H.bookingEv('t1', '2026-11-03', '2026-11-05')]); H.setFeed('bookingCorte', [H.bookingEv('c1', '2026-11-03', '2026-11-06')]);
+  mailBooking(gas, '3333333333', '3 nov 2026'); mailBooking(gas, '4444444444', '3 nov 2026'); await rapida(gas);
+  eq([row(gas, 'BOOKING|3333333333').MOTIVO, row(gas, 'BOOKING|4444444444').MOTIVO], ['APT_AMBIGUO', 'APT_AMBIGUO']);
+  gas.ss.getSheetByName('Prenotazioni').rows[row(gas, 'BOOKING|3333333333')._row - 1][2] = 'Torre'; await rapida(gas);
+  const a = row(gas, 'BOOKING|3333333333'), b = row(gas, 'BOOKING|4444444444');
+  eq([a.STATO, a.Appartamento, a.CHECK_OUT, b.STATO, b.Appartamento, b.CHECK_OUT], ['CONFERMATA', 'Torre', '2026-11-05', 'CONFERMATA', 'Corte', '2026-11-06']);
+});
+
 /* ===================== esecuzione ===================== */
 // Test che dipendono dal comportamento REALE dello script Apps Script (lettura Gmail, righe del foglio, trigger): saltati se nel repo c'è solo lo stub
-const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16', 'X19', 'X20', 'X21', 'X22']);
+const NEEDS_GAS = new Set(['T1', 'T2', 'T3', 'T4', 'T6', 'T10', 'T11', 'T12', 'X4', 'X5', 'X6', 'X7', 'X8', 'X9', 'X10', 'X11', 'X13', 'X16', 'X19', 'X20', 'X21', 'X22', 'X23']);
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0, skip = 0; const t0 = process.hrtime.bigint();      // cronometro reale: Date.now() è l'orologio simulato
   if (!H.GAS_REAL) console.log('ATTENZIONE: google-apps-script.gs non è nel repo: uso lo stub minimo e SALTO i test che richiedono lo script vero (rimettilo nella radice per la suite completa).\n');
