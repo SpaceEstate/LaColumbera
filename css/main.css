@@ -1440,6 +1440,62 @@ table.mx-cal tr.mx-month th{text-align:left;background:var(--paper-2);color:var(
   .pcal-act{padding:12px}
   .pcal-act-r .btn{flex:1 1 auto;justify-content:center}
 }
+/* Pannello delle notti selezionate (js/admin-calendario.js): da 1240 px sta accanto al calendario, sempre in vista; sotto, su telefono e tablet,
+   quando ci sono notti selezionate (classe «on») compare fisso in basso e la barra «Salva modifiche» si fa da parte finché la selezione resta aperta
+   (torna da sola dopo «Applica» o «Deseleziona»). Fino a 900 px le tre azioni stanno in schede, per lasciare in vista il calendario.
+   Le notti bloccate e quelle occupate mostrano il prezzo che avranno se si aprono (in grigio, in oro se messo a mano).
+   1240 px: da lì in su la pagina della Gestione ha già la sua larghezza massima e le caselle del calendario restano larghe come prima. */
+.pcal-bar{display:flex;align-items:center;justify-content:space-between;gap:0 10px;flex-wrap:wrap}
+.pcal-all{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;margin:10px 0 2px;font:600 .85rem var(--sans);color:var(--wine);cursor:pointer}
+.pcal-all:hover,.pcal-mode button:hover{border-color:var(--wine)}
+.pcal-hint{margin:0}
+.pcal-tabs{display:none}
+.pcal-act-n{margin:8px 0 0;font-size:.82rem;line-height:1.45;color:var(--muted)}
+.pcal-act-blk{color:var(--wine);font-weight:600}
+.pcal-wait{margin:0;color:var(--ink);font-weight:600}
+.pcal-link{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--wine);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.pcell.blk .pprice,.pcell.busy .pprice{color:var(--muted)}
+.pcell.blk.ov .pprice,.pcell.busy.ov .pprice{color:#8a6c22}
+.pcell.sel.blk .pprice,.pcell.sel.busy .pprice{color:#fff}
+/* le notti occupate si selezionano come le altre (prezzo e minimo per quando si liberano) */
+.pcell.busy:not(.past){cursor:pointer}
+.pcell.sel.busy{background:var(--wine);border-color:var(--wine);border-style:solid}
+.pcell.sel.busy .pday{color:#fff}
+.pcal-occ a{color:var(--wine);font-weight:700}
+.pcal-act .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+@keyframes pcal-up{from{transform:translateY(24px);opacity:0}}
+@media (min-width:1240px){
+  .pcal-layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;grid-template-areas:"bar act" "cal act" "dates act";grid-template-rows:auto auto 1fr;column-gap:22px;align-items:start}
+  .pcal-bar{grid-area:bar}
+  .pcal-cal{grid-area:cal}
+  .pcal-dates{grid-area:dates}
+  .pcal-act{grid-area:act;position:sticky;top:92px;margin:10px 0 0;max-height:calc(100vh - 112px);overflow-y:auto}
+  .pcal-act-h b{flex-basis:100%}
+  .pcal-act-h .btn{padding:6px 12px;font-size:.8rem}
+  .pcell .pstate.blk-l{letter-spacing:0;font-size:.6rem}
+}
+@media (max-width:1239px){
+  .pcal-act.on{position:fixed;left:0;right:0;bottom:max(12px,env(safe-area-inset-bottom));z-index:42;width:calc(100% - 24px);max-width:1000px;max-height:min(70vh,560px);margin:0 auto;overflow-y:auto;overscroll-behavior:contain;background:#fff;border-color:rgba(122,46,57,.2);box-shadow:0 18px 50px -12px rgba(30,25,23,.45);animation:pcal-up .22s ease}
+  .pcal-act.on .pcal-act-b{background:var(--paper)}
+  body:has(.pcal-act.on) .save-bar{opacity:0;visibility:hidden;transform:translateY(calc(100% + 40px));pointer-events:none}
+  body:has(.pcal-act.on) .admin-main{padding-bottom:340px}
+}
+@media (max-width:900px){
+  .pcal-act.on{padding:12px 14px 14px}
+  .pcal-act.on .pcal-tabs{display:flex;gap:4px;padding:3px;margin:0 0 10px;background:var(--paper-2);border-radius:999px}
+  .pcal-tabs button{flex:1 1 0;min-width:0;border:0;background:none;border-radius:999px;padding:8px 4px;font:700 .78rem var(--sans);color:var(--ink);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pcal-tabs button.on{background:#fff;color:var(--wine);box-shadow:0 1px 4px rgba(30,25,23,.15)}
+  .pcal-act[data-tab=prezzo] .pcal-act-b:not([data-k=prezzo]),.pcal-act[data-tab=blocco] .pcal-act-b:not([data-k=blocco]),.pcal-act[data-tab=min] .pcal-act-b:not([data-k=min]){display:none}
+  .pcal-act.on .pcal-act-b{border:0;padding:0;background:none}
+  .pcal-act.on .pcal-act-h{margin-bottom:8px}
+  .pcal-act.on .pcal-act-h small{flex-basis:100%;order:3}
+  .pcal-act.on .pcal-act-h .btn{margin-left:auto;padding:6px 12px;font-size:.8rem}
+}
+@media (max-width:760px){
+  .pcell .pstate.blk-l{font-size:0}
+  .pcell .pstate.blk-l::after{content:attr(data-s);font-size:.56rem}
+}
+@media (prefers-reduced-motion:reduce){.pcal-act.on{animation:none}}
 
 /* ===== Gestione · Pulizie ===== */
 .pul-per{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}

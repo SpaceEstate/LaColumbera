@@ -1634,7 +1634,8 @@ test('W16 Gestione · Calendario e prezzi: prezzo, blocco e minimo di notti sull
   assert.equal((await checkout({ da: '2026-10-25', a: '2026-10-28', email: 'q@t.it' })).status, 409, 'notti bloccate');
   const corta = await checkout({ da: '2026-10-10', a: '2026-10-13', email: 'm@t.it' }); assert.equal(corta.status, 400, JSON.stringify(corta.body)); assert(/5 notti/.test(corta.body.err), corta.body.err);
   assert.equal((await checkout({ da: '2026-10-12', a: '2026-10-14', email: 'n@t.it' })).status, 200, 'il 12 basta il minimo generale (2 notti)');
-  r.doc.querySelector('.pcell[data-day="2026-10-14"]').click(); await waitFor(() => r.w.location.hash === '#prenotazioni/' + c1, 'dalla notte occupata alla prenotazione');
+  // la notte occupata si seleziona come le altre (W16c); la prenotazione si apre dal link nel pannello (prima: toccando la casella)
+  r.doc.querySelector('.pcell[data-day="2026-10-14"]').click(); r.doc.querySelector('[data-testid=admin-cal-occ-' + c1 + ']').click(); await waitFor(() => r.w.location.hash === '#prenotazioni/' + c1, 'dalla notte occupata alla prenotazione');
   // vista Entrambi: una riga per notte, una colonna per appartamento
   await goto(r, '#calendario/tutti', '[data-testid=admin-cal-matrice]');
   const row = [...r.doc.querySelectorAll('[data-testid=admin-cal-matrice] tbody tr')].find(x => /ven 2/i.test(text(x.firstElementChild)));
@@ -1645,6 +1646,89 @@ test('W16 Gestione · Calendario e prezzi: prezzo, blocco e minimo di notti sull
   const cl = $('[data-testid=admin-closed-corte]'); cl.checked = true; cl.dispatchEvent(new r.w.Event('input', { bubbles: true }));
   assert(!$('#closed-note-0').hidden && /Corte è chiuso/.test(text($('#closed-note-0'))));
   await salva(r); assert.equal(JSON.parse(kv.exec(['GET', 'cfg'])).closed.corte, true);
+});
+test('W16b Gestione · Calendario e prezzi: il prezzo si mette anche sulle notti bloccate (restano bloccate; sbloccate hanno già quel prezzo, anche per il server); pannello delle notti scelte sempre a portata («dal… al…» resta basso finché manca l\'ultima notte), il prezzo scritto resta cambiando la selezione, Invio = Applica', async () => {
+  await setup();
+  const r = await loadAdmin('#calendario/torre'), $ = s => r.doc.querySelector(s), cell = d => $('.pcell[data-day="' + d + '"]'), act = () => $('[data-testid=admin-cal-act-torre]'), aperto = () => act().classList.contains('on');
+  await waitFor(() => cell('2026-10-20'), 'calendario');
+  assert(!aperto() && /anche sulle notti bloccate/.test(text(act())), 'senza notti scelte il pannello non è aperto e spiega: ' + text(act()));
+  // giorno per giorno: blocco il 26 e il 27; la casella bloccata mostra il prezzo che avrebbe
+  cell('2026-10-26').click(); assert(aperto(), 'una notte scelta: il pannello si apre');
+  cell('2026-10-27').click(); $('[data-testid=admin-cal-block-torre]').click();
+  assert(!aperto(), 'dopo «Blocca» la selezione si chiude e torna la barra «Salva modifiche»');
+  assert.deepEqual(['2026-10-26', '2026-10-27'].map(d => [cell(d).classList.contains('blk'), text(cell(d).querySelector('.pprice')), text(cell(d).querySelector('.blk-l'))]), [[true, '€180', 'bloccato'], [true, '€180', 'bloccato']]);
+  // «dal… al…»: dopo il primo tocco solo «tocca l'ultima notte» (pannello basso, il calendario resta in vista)
+  $('[data-testid=admin-cal-mode-range]').click(); cell('2026-10-25').click();
+  assert(aperto() && $('[data-testid=admin-cal-wait-torre]') && !$('[data-testid=admin-cal-apply-torre]'), 'a metà intervallo nessuna azione: ' + text(act()));
+  cell('2026-10-28').click();
+  assert.equal(text($('[data-testid=admin-cal-sel-torre]')), '4 notti selezionate', 'le notti bloccate in mezzo si selezionano');
+  assert(/2 sono bloccate: prendono il prezzo e restano bloccate/.test(text($('[data-testid=admin-cal-blknote-torre]'))) && /2 bloccate, 2 aperte/.test(text(act())), text(act()));
+  // il prezzo scritto resta mentre allarghi la selezione (anche a metà di un nuovo intervallo); Invio = Applica
+  $('[data-testid=admin-cal-price-torre]').value = '240';
+  cell('2026-10-29').click(); assert($('[data-testid=admin-cal-wait-torre]'), 'nuovo intervallo a metà');
+  cell('2026-10-29').click(); assert.equal(text($('[data-testid=admin-cal-sel-torre]')), '5 notti selezionate');
+  const pv = $('[data-testid=admin-cal-price-torre]'); assert.equal(pv.value, '240', 'il prezzo scritto è ancora lì');
+  pv.dispatchEvent(new r.w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  assert(!aperto(), 'Invio applica e chiude la selezione');
+  const notti = ['2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29'];
+  assert.deepEqual(notti.map(d => text(cell(d).querySelector('.pprice'))), Array(5).fill('€240'));
+  assert(['2026-10-26', '2026-10-27'].every(d => cell(d).classList.contains('blk') && cell(d).classList.contains('ov')) && !cell('2026-10-25').classList.contains('blk'), 'il prezzo non sblocca');
+  // su telefono le azioni stanno in schede: cambia solo cosa si vede
+  cell('2026-10-30').click(); cell('2026-10-30').click(); r.doc.querySelector('[data-act=actTab][data-t=blocco]').click();
+  assert.equal(act().dataset.tab, 'blocco'); assert($('[data-act=actTab][data-t=blocco]').getAttribute('aria-pressed') === 'true' && $('[data-testid=admin-cal-block-torre]'));
+  $('[data-act=actTab][data-t=prezzo]').click(); r.doc.querySelector('[data-act=selClear]').click(); assert(!aperto());
+  // vista Entrambi: anche lì la notte bloccata ha il suo prezzo
+  await goto(r, '#calendario/tutti', '[data-testid=admin-cal-matrice]');
+  const riga = [...r.doc.querySelectorAll('[data-testid=admin-cal-matrice] tbody tr')].find(x => /lun 26/i.test(text(x.firstElementChild)));
+  assert(riga && text(riga.children[2]) === 'bloccata · €240' && riga.children[2].classList.contains('mx-blk'), riga && text(riga));
+  await salva(r);
+  let t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre');
+  assert.deepEqual(t.blocked, { '2026-10-26': true, '2026-10-27': true }, 'salvate ancora bloccate');
+  assert.deepEqual(t.prices, Object.fromEntries(notti.map(d => [d, 240])), 'con il prezzo, anche quelle bloccate');
+  assert.equal((await checkout({ da: '2026-10-25', a: '2026-10-28', email: 'b@t.it' })).status, 409, 'bloccate: dal sito non si prenotano');
+  // sbloccate: il prezzo è già quello giusto, anche per il server
+  await goto(r, '#calendario/torre', '[data-testid=admin-cal-act-torre]');
+  cell('2026-10-26').click(); cell('2026-10-27').click(); $('[data-testid=admin-cal-unblock-torre]').click();
+  assert(!cell('2026-10-26').classList.contains('blk') && text(cell('2026-10-26').querySelector('.pprice')) === '€240' && !cell('2026-10-26').querySelector('.blk-l'));
+  await salva(r);
+  t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre'); assert.deepEqual(t.blocked, {}); assert.equal(t.prices['2026-10-26'], 240);
+  const before = global.__stripeSessions.length, ok = await checkout({ da: '2026-10-25', a: '2026-10-28', email: 'c@t.it' }); assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(global.__stripeSessions[before].params.line_items[0].price_data.unit_amount, 240 * 3 * 100, 'tre notti a €240, comprese le due appena sbloccate');
+});
+test('W16c Gestione · Calendario e prezzi: le notti occupate (prenotazioni, Booking, Airbnb) si selezionano come le altre e prendono prezzo e minimo di notti; restano occupate, Blocca e Sblocca non le toccano; se la prenotazione si annulla hanno già quel prezzo, anche per il server', async () => {
+  await setup();
+  const c1 = (await checkout({ da: '2026-10-14', a: '2026-10-17', nome: 'Luca Neri' })).body.code; await H.webhook('checkout.session.completed', H.paidSession(c1));
+  const r = await loadAdmin('#calendario/torre'), $ = s => r.doc.querySelector(s), cell = d => $('.pcell[data-day="' + d + '"]');
+  await waitFor(() => cell('2026-10-14'), 'calendario');
+  assert(cell('2026-10-14').classList.contains('busy') && text(cell('2026-10-14').querySelector('.pstate')) === 'Luca' && text(cell('2026-10-14').querySelector('.pprice')) === '€180', 'la notte occupata mostra chi c\'è e il prezzo che avrebbe');
+  // «dal… al…» dal 12 al 18: le tre notti di Luca sono dentro la selezione
+  $('[data-testid=admin-cal-mode-range]').click(); cell('2026-10-12').click(); cell('2026-10-18').click();
+  assert.equal(text($('[data-testid=admin-cal-sel-torre]')), '7 notti selezionate');
+  assert(['2026-10-14', '2026-10-15', '2026-10-16'].every(d => cell(d).classList.contains('sel') && cell(d).classList.contains('busy')), 'occupate e selezionate');
+  assert(/3 sono occupate: prendono il prezzo; se si liberano, hanno già questo prezzo/.test(text($('[data-testid=admin-cal-occnote-torre]'))), text($('[data-testid=admin-cal-act-torre]')));
+  const link = $('[data-testid=admin-cal-occ-' + c1 + ']'); assert(link && link.getAttribute('href') === '#prenotazioni/' + c1 && /Luca Neri/.test(text(link)), 'la prenotazione si apre dal pannello');
+  assert(/4 aperte, 3 occupate \(restano come sono\)/.test(text($('[data-testid=admin-cal-blkstato-torre]'))), text($('[data-testid=admin-cal-blkstato-torre]')));
+  $('[data-testid=admin-cal-price-torre]').value = '260'; $('[data-testid=admin-cal-apply-torre]').click();
+  assert.deepEqual(['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'].map(d => text(cell(d).querySelector('.pprice'))), Array(7).fill('€260'));
+  assert(cell('2026-10-15').classList.contains('busy') && cell('2026-10-15').classList.contains('ov') && text(cell('2026-10-15').querySelector('.pstate')) === 'Luca', 'resta occupata, con il prezzo messo a mano');
+  // Blocca vale solo per le notti libere della selezione
+  cell('2026-10-13').click(); cell('2026-10-17').click(); $('[data-testid=admin-cal-block-torre]').click();
+  assert(cell('2026-10-13').classList.contains('blk') && cell('2026-10-17').classList.contains('blk') && !['2026-10-14', '2026-10-15', '2026-10-16'].some(d => cell(d).classList.contains('blk')), 'le occupate non si bloccano');
+  // solo notti occupate: Blocca e Sblocca spenti, il minimo di notti sì
+  cell('2026-10-14').click(); cell('2026-10-15').click();
+  assert($('[data-testid=admin-cal-block-torre]').disabled && $('[data-testid=admin-cal-unblock-torre]').disabled && /Sono tutte occupate/.test(text($('[data-testid=admin-cal-blkstato-torre]'))));
+  $('[data-testid=admin-cal-min-torre]').value = '3'; $('[data-testid=admin-cal-minapply-torre]').click();
+  assert.equal(text(cell('2026-10-14').querySelector('.pmin')), 'min 3', 'il minimo si vede anche sulla notte occupata');
+  await salva(r);
+  const t = JSON.parse(kv.exec(['GET', 'cfg'])).apts.find(a => a.id === 'torre');
+  assert.deepEqual(t.prices, { '2026-10-12': 260, '2026-10-13': 260, '2026-10-14': 260, '2026-10-15': 260, '2026-10-16': 260, '2026-10-17': 260, '2026-10-18': 260 });
+  assert.deepEqual(t.blocked, { '2026-10-13': true, '2026-10-17': true }); assert.deepEqual(t.minPeriodi, [{ da: '2026-10-14', a: '2026-10-15', min: 3 }]);
+  assert.equal((await checkout({ da: '2026-10-14', a: '2026-10-17', email: 'b@t.it' })).status, 409, 'occupate: dal sito non si prenotano');
+  // la prenotazione si annulla: le notti si liberano con il prezzo e il minimo dati prima
+  assert.equal((await H.adminApi('stato', { code: c1, stato: 'annullata' })).status, 200);
+  const corta = await checkout({ da: '2026-10-14', a: '2026-10-16', email: 'c@t.it' }); assert.equal(corta.status, 400, JSON.stringify(corta.body)); assert(/3 notti/.test(corta.body.err), corta.body.err);
+  const before = global.__stripeSessions.length, ok = await checkout({ da: '2026-10-14', a: '2026-10-17', email: 'd@t.it' }); assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(global.__stripeSessions[before].params.line_items[0].price_data.unit_amount, 260 * 3 * 100, 'tre notti a €260, il prezzo dato quando erano occupate');
 });
 test('W17 Gestione · Prenotazioni: sito e portali in un solo elenco, ricerca e filtri; dettaglio con pagamento, codice e messaggio pronto da copiare; per Airbnb niente nome né conto', async () => {
   await setup(); regAirbnb();
