@@ -74,7 +74,7 @@ Ogni notte, nel trigger `pulizia` delle 3, prima della pulizia delle email, lo s
 
 ## 4. Prove
 
-Il banco di prova usa lo script vero se lo trova nella radice del repository (`google-apps-script.gs`) oppure dove indica `LC_GAS_FILE`. Senza lo script le 20 prove che lo richiedono si saltano.
+Il banco di prova usa lo script vero se lo trova nella radice del repository (`google-apps-script.gs`) oppure dove indica `LC_GAS_FILE`. Senza lo script le 22 prove che lo richiedono si saltano. Nelle prove automatiche su GitHub lo script si fornisce con il segreto `GAS_SCRIPT` (Settings → Secrets and variables → Actions): se manca, si saltano come in locale.
 
 ```bash
 LC_GAS_FILE=/percorso/google-apps-script.gs node tests/sim/scenarios.js
