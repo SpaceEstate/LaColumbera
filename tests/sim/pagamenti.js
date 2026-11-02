@@ -741,6 +741,42 @@ test('C6 check-in segnato a mano dal titolare (ospite registrato di persona o ch
   eq((await ospite('mie', { code: 'HMSEDESZCW' })).body.soggiorno.checkin.fatto, true);
 });
 
+test('C7 check-in incassato su un ALTRO account Stripe (app Check-in, il sito anche in prova): il suo webhook (STRIPE_CHECKIN_WEBHOOK_SECRET) registra solo il check-in, mai conferme o scadenze di prenotazioni del sito; la rete di sicurezza legge quell\'account (STRIPE_CHECKIN_SECRET_KEY); la Gestione lo mostra senza valori segreti', async () => {
+  const CKS = 'whsec_checkin_prova', CKK = 'rk_live_checkin_prova';
+  // com'era (nessuna configurazione): un evento dell'altro account ha una firma che il sito non conosce → rifiutato, niente registrato
+  await base(); let code = await pagata();
+  eq((await H.webhook('checkout.session.completed', ckSess(code), { secret: CKS })).status, 400);
+  eq(ckKey(code), null); eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: false });
+  eq((await H.adminApi('health', {})).body.checkin, { webhook: false, chiave: false, ultimo: null });
+  // configurato: il check-in pagato sull'altro account arriva e l'area clienti lo sa subito
+  await base({ STRIPE_CHECKIN_WEBHOOK_SECRET: CKS, STRIPE_CHECKIN_SECRET_KEY: CKK }); code = await pagata();
+  const ultimoSito = kv.exec(['GET', 'stripe:ultimo']); global.__mails = [];
+  eq((await H.webhook('checkout.session.completed', ckSess(code), { secret: CKS })).status, 200);
+  assert(ckKey(code), 'check-in registrato'); eq((await ospite('mie', { code })).body.soggiorno.checkin, { fatto: true, il: '2026-10-02' });
+  eq([kv.exec(['GET', 'stripe:ultimo']), global.__mails.length], [ultimoSito, 0], 'l\'ultimo avviso del sito non cambia e non parte nessuna email');
+  let h = (await H.adminApi('health', {})).body;
+  eq([h.checkin.webhook, h.checkin.chiave, h.checkin.ultimo.tipo], [true, true, 'checkout.session.completed']);
+  assert(![CKS, CKK].some(v => JSON.stringify(h).includes(v)), 'mai i valori');
+  // dall'altro account non si conferma né si fa scadere una prenotazione del sito, nemmeno con il metadato code
+  const c2 = (await checkout({ da: '2026-12-10', a: '2026-12-12', email: 'b@t.it' })).body.code; paid(c2);
+  eq((await H.webhook('checkout.session.completed', H.paidSession(c2, { id: bk(c2).sessione }), { secret: CKS })).status, 200);
+  eq([bk(c2).stato, global.__mails.length, ckKey(c2)], ['in_attesa', 0, null], 'resta in attesa: nessuna conferma, nessuna email, nessun check-in');
+  eq((await H.webhook('checkout.session.expired', H.paidSession(c2, { id: bk(c2).sessione, payment_status: 'unpaid' }), { secret: CKS })).status, 200);
+  eq(bk(c2).stato, 'in_attesa', 'né scade');
+  eq((await wh(c2)).status, 200); eq(bk(c2).stato, 'confermata', 'il webhook del sito conferma come prima');
+  eq((await H.webhook('checkout.session.completed', ckSess(code), { secret: 'whsec_sconosciuto' })).status, 400, 'firma di nessuno dei due: rifiutata');
+  // rete di sicurezza (webhook dell'altro account perso): rilegge le sessioni con la chiave dell'account del Check-in, non con quella del sito
+  const code3 = await pagata({ da: '2027-01-10', a: '2027-01-12', email: 'c@t.it' }), t = Math.floor(clock.now() / 1000);
+  global.__stripeList = [ckSess(code3, { created: t - 3600, metadata: { dataCheckin: '2027-01-10', appartamento: 'Torre', numeroNotti: '2', numeroPrenotazione: code3 } })];
+  kv.exec(['DEL', 'checkin:ric']); global.__stripeListKeys = [];
+  eq((await H.sync()).body.checkin, { controllate: 1, recuperati: 1, abbinati: 0, errore: false });
+  eq(global.__stripeListKeys, [CKK], 'letto l\'account del Check-in'); assert(ckKey(code3), 'registrato dalla rete di sicurezza');
+  // senza la chiave dell'altro account la rete di sicurezza legge quello del sito (stesso account, come prima)
+  delete process.env.STRIPE_CHECKIN_SECRET_KEY; clock.advance(11 * MIN); global.__stripeListKeys = [];
+  await H.sync(); eq(global.__stripeListKeys, ['sk_test']);
+  h = (await H.adminApi('health', {})).body; eq([h.checkin.webhook, h.checkin.chiave], [true, false]);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

@@ -5,7 +5,8 @@
 // come Stripe); global.__stripeRefundFail = Stripe non raggiungibile; global.__stripeRefunded[pi] = già rimborsato (es. dalla dashboard);
 // global.__stripeRefundStatus = stato restituito (predefinito 'succeeded').
 // Elenco delle sessioni (checkout.sessions.list, rete di sicurezza del check-in online): global.__stripeList = sessioni come le dà Stripe (con created
-// in secondi), filtrate per created.gte / created.lte; global.__stripeListCalls conta le chiamate; global.__stripeSessionsListFail = Stripe non raggiungibile.
+// in secondi), filtrate per created.gte / created.lte; global.__stripeListCalls conta le chiamate; global.__stripeSessionsListFail = Stripe non raggiungibile;
+// global.__stripeListKeys = chiavi con cui si è letto l'elenco (account del sito o dell'app Check-in).
 // Modalità di pagamento (versione delle API 2026-08-26.dahlia della libreria in uso): ui_mode assente o 'hosted_page' = pagina di Stripe (url),
 // 'elements' = campi della carta nella pagina del sito (client_secret, url null). Come Stripe, rifiuta i parametri non ammessi in modalità elements.
 const NO_ELEMENTS = ['success_url', 'cancel_url', 'after_expiration', 'branding_settings', 'origin_context', 'submit_type', 'custom_fields', 'custom_text'];
@@ -43,7 +44,7 @@ module.exports = key => ({
       return { id, status: 'expired' };
     },
     list: async p => {
-      global.__stripeListCalls = (global.__stripeListCalls || 0) + 1;
+      global.__stripeListCalls = (global.__stripeListCalls || 0) + 1; (global.__stripeListKeys = global.__stripeListKeys || []).push(key);
       if (global.__stripeSessionsListFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
       const c = (p && p.created) || {};
       return { data: (global.__stripeList || []).filter(s => !(c.gte != null && s.created < c.gte) && !(c.lte != null && s.created > c.lte)).slice(0, (p && p.limit) || 10), has_more: false };

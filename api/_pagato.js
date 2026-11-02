@@ -147,6 +147,9 @@ async function salute(req, config) {
     ultimoWebhook: null, recuperate: { n: 0, ultima: null }, coda: null, incompleti: [], inAttesaVecchie: 0, daVerificare: 0
   };
   try { out.ultimoWebhook = JSON.parse((await kv('GET', 'stripe:ultimo')) || 'null'); } catch (e) { /* assente */ }
+  // check-in online dall'account Stripe dell'app Check-in, se è un altro (stripe-webhook.js): configurato sì/no e ultimo evento ricevuto da lì
+  out.checkin = { webhook: !!env.STRIPE_CHECKIN_WEBHOOK_SECRET, chiave: !!env.STRIPE_CHECKIN_SECRET_KEY, ultimo: null };
+  try { out.checkin.ultimo = JSON.parse((await kv('GET', 'stripe:ultimo:checkin')) || 'null'); } catch (e) { /* assente */ }
   try { out.recuperate = { n: +(await kv('GET', 'stripe:recuperate')) || 0, ultima: JSON.parse((await kv('GET', 'stripe:recuperata')) || 'null') }; } catch (e) { /* assente */ }
   try { const st = await E.syncState(config, {}); out.coda = { inAttesa: (st.outbox && st.outbox.pending) || 0, piuVecchia: st.outbox && st.outbox.oldest || null }; } catch (e) { /* assente */ }
   // prenotazioni confermate negli ultimi 14 giorni con un passo non completato (foglio, email al titolare, email all'ospite): è il "non mi è arrivata"

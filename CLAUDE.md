@@ -1,6 +1,6 @@
 # Regole di lavoro – La Columbera
 
-Questo file vale per chiunque modifichi il repository (persone e assistenti). Il progetto gemello è **Checkin** (`SpaceEstate/Checkin`): stesso account Stripe, stesso foglio Prenotazioni; ha un file con le stesse regole.
+Questo file vale per chiunque modifichi il repository (persone e assistenti). Il progetto gemello è **Checkin** (`SpaceEstate/Checkin`): stesso foglio Prenotazioni, account Stripe **diverso** (vedi «Collegamenti con Checkin»); ha un file con le stesse regole.
 
 ## 9. Preservare il codice e non introdurre regressioni
 
@@ -42,7 +42,7 @@ Un test cambiato o tolto va dichiarato e motivato nel messaggio di commit; un te
 | Pagamenti Stripe, conferma, annullo e rimborso | `api/stripe-webhook.js`, `api/_pagato.js`, `api/_annulla.js` | `tests/sim/pagamenti.js` | `docs/pagamenti.md` |
 | Foglio Prenotazioni (script Apps Script, **non** nel repository) | – | `tests/sim/scenarios.js` con `LC_GAS_FILE` | `docs/foglio-prenotazioni.md` |
 | Accessi (area clienti, Guest Card, login della Gestione) | `api/_accesso.js`, `api/x.js` | `tests/sim/sicurezza.js` | `docs/gdpr/sicurezza-accessi.md` |
-| Check-in online fatto (collegamento con Checkin) | `api/_checkin.js` | `tests/sim/pagamenti.js` (C1–C6) | `docs/pagamenti.md` |
+| Check-in online fatto (collegamento con Checkin) | `api/_checkin.js`, `api/stripe-webhook.js` | `tests/sim/pagamenti.js` (C1–C7), `tests/sim/ui.js` (U5e) | `docs/pagamenti.md` |
 | Messaggi, template, traduzione | `api/_messaggi.js`, `api/_traduci.js` | `tests/sim/messaggi.js` | `docs/messaggi.md` |
 | Alloggiati Web e ISTAT | `api/_alloggiati*.js`, `api/_istat*.js`, `api/adempimenti.js`, `api/istat.js` | `tests/sim/adempimenti.js`, `tests/sim/istat.js` | – |
 | Gestione e pagine del sito | `js/*.js`, `*.html` | `tests/sim/ui.js`, `tests/sim/sito.js`, `tests/sim/informativa.js` | `docs/gestione.md` |
@@ -51,7 +51,7 @@ Un test cambiato o tolto va dichiarato e motivato nel messaggio di commit; un te
 
 Una modifica a uno di questi punti va verificata anche nel repository Checkin.
 
-- **Stesso account Stripe.** Il webhook di questo sito riceve anche i pagamenti del check-in: si riconoscono dai metadati `dataCheckin` e `numeroPrenotazione` (letti in `api/_checkin.js`). Il webhook di Checkin ignora i pagamenti di questo sito. Nomi e significato dei metadati non vanno cambiati da una parte sola.
+- **Pagamenti del check-in (Stripe).** Il sito e Checkin hanno account Stripe **diversi** (02/11/2026: il sito ancora con le chiavi di prova, Checkin con quelle reali). I pagamenti del check-in arrivano al sito da un secondo webhook registrato sull'account di Checkin verso `api/stripe-webhook.js` (segreto `STRIPE_CHECKIN_WEBHOOK_SECRET`; da lì si registra solo il check-in fatto) e la rete di sicurezza legge quell'account con `STRIPE_CHECKIN_SECRET_KEY`; senza le due variabili il codice funziona anche con un account solo, come prima. I pagamenti del check-in si riconoscono dai metadati `dataCheckin` e `numeroPrenotazione` (letti in `api/_checkin.js`). Il webhook di Checkin ignora i pagamenti di questo sito. Nomi e significato dei metadati non vanno cambiati da una parte sola.
 - **Foglio Prenotazioni.** Checkin lo legge (verifica del numero, abbinamento per data e appartamento): colonne e formato dei numeri vanno mantenuti.
 - **Alloggiati Web.** Il modulo del tracciato in Checkin è un porting di `api/_alloggiati.js`; il test di Checkin lo confronta con questo file se si imposta `LACOLUMBERA_DIR`.
 
@@ -82,12 +82,12 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (01/11/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +4 con P20, P21, P22 e P23, ui +6 con W15c, W15d, W30b, W1v, W39 e W14b, sito +2 con S10 e S11)
+## Baseline (02/11/2026; partenza commit `6336695`, sicurezza +1 con S25, pagamenti +5 con P20, P21, P22, P23 e C7, ui +7 con W15c, W15d, W30b, W1v, W39, W14b e U5e, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23)
 
 | Prova | Risultato |
 |---|---|
 | scenarios | 15 ok, 0 falliti, 23 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`, 22 fino a `a6d403b`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub, revisione 2026-11-02b) 38 ok, 0 falliti (37 fino a `a6d403b`) |
-| pagamenti | 39 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`) |
+| pagamenti | 40 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
 | preavviso | 12 ok |
 | sicurezza | 25 ok (24 fino a `6336695`) |
 | messaggi | 15 ok |
@@ -95,7 +95,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 | istat | 30 ok |
 | adempimenti | 40 ok |
 | informativa | 5 ok |
-| ui | 107 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`) |
+| ui | 108 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.

@@ -217,7 +217,9 @@ const ANN=require('./_annulla.js').makeAnnulla({kv,E,stripe:()=>require('stripe'
 const RIC=require('./_ricevute.js').makeRicevute({kv,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,mail:()=>require('./_mail.js'),maskEmail,log:e=>E.log(e)});
 // ---- Check-in online fatto (api/_checkin.js): dal webhook di Stripe (stripe-webhook.js) e, come rete di sicurezza, dalla sincronizzazione ----
 // prenotazioni per abbinare i check-in pagati senza numero (data di arrivo + appartamento): sito confermate e registro del foglio (Booking, Airbnb, manuali) non annullate
-const CK=require('./_checkin.js').makeCheckin({kv,stripe:()=>require('stripe')(process.env.STRIPE_SECRET_KEY),log:e=>E.log(e),
+// Stripe da cui leggere i check-in: l'account dell'app Check-in se è un altro (STRIPE_CHECKIN_SECRET_KEY: chiave limitata, lettura delle Checkout
+// Sessions), altrimenti quello del sito (stesso account). Il webhook dell'altro account: STRIPE_CHECKIN_WEBHOOK_SECRET (stripe-webhook.js).
+const CK=require('./_checkin.js').makeCheckin({kv,stripe:()=>require('stripe')(process.env.STRIPE_CHECKIN_SECRET_KEY||process.env.STRIPE_SECRET_KEY),log:e=>E.log(e),
  prenotazioni:async()=>[...(await E.bkAll()).filter(b=>b.stato==='confermata').map(b=>({code:b.code,apt:b.id,da:b.da,notti:b.notti})),
   ...(await E.registryRows()).filter(r=>r.stato!=='ANNULLATA'&&r.apt).map(r=>({code:r.codice,apt:r.apt,da:r.checkin,notti:r.notti}))]});
 const errOut=(res,e)=>{if(e&&e.status)return res.status(e.status).json(Object.assign({err:e.message},e.code?{code:e.code}:{}));throw e};
@@ -590,7 +592,7 @@ if(a==='sync'||a==='reconcile'||a==='sync_status'){
   // rete di sicurezza dei pagamenti: prenotazioni rimaste "in attesa" con una sessione Stripe già pagata (webhook perso) vengono confermate qui
   out.pagamenti=await require('./_pagato.js').riconciliaInAttesa(req).catch(e=>({controllate:0,recuperate:0,errori:[String(e&&e.message||e).slice(0,80)]}));
   // check-in online pagati con il numero di prenotazione ma senza webhook arrivato (non lancia; al più ogni 10 minuti)
-  if(process.env.STRIPE_SECRET_KEY)out.checkin=await CK.riconcilia();
+  if(process.env.STRIPE_CHECKIN_SECRET_KEY||process.env.STRIPE_SECRET_KEY)out.checkin=await CK.riconcilia();
   // messaggi automatici e conservazione delle conversazioni: confinati (non lanciano, al massimo ~6 secondi), la sincronizzazione delle date non ne dipende
   let bks=null;try{bks=await E.bkAll()}catch(e){bks=null}      // senza l'elenco delle prenotazioni non si manda né si cancella nulla
   out.messaggi=bks?await MSG.esegui(config,bks,siteOf(req)).catch(()=>({errori:1})):{errori:1};

@@ -575,6 +575,25 @@ test('U5c admin · email non configurata: lo dice chiaramente, anche con l\'emai
   r.doc.querySelector('[data-testid=admin-pay-mail]').click();
   await waitFor(() => /Email non configurata/.test(text(r.doc.querySelector('[data-testid=admin-pay-msg]'))), 'esito'); assert.equal(global.__mails.length, 0);
 });
+test('U5e admin · check-in online dall\'app Check-in su un altro account Stripe: la riga dice come collegarlo, cosa manca e, collegato, quando è arrivato l\'ultimo pagamento del check-in; mai i valori; non cambia il semaforo', async () => {
+  await setup();
+  let r = await loadAdmin('#sync'); const card = () => text(r.doc.querySelector('[data-testid=admin-pay]')), riga = () => [...r.doc.querySelectorAll('[data-testid=admin-pay-rows] .pay-row')].find(x => /Check-in online \(app Check-in\)/.test(text(x)));
+  await waitFor(() => r.doc.querySelector('[data-testid=admin-pay-rows]'), 'scheda pagamenti');
+  assert(riga() && riga().dataset.lv === 'info' && /STRIPE_CHECKIN_WEBHOOK_SECRET/.test(text(riga())) && /puoi segnarlo tu/.test(text(riga())), 'non collegato: come collegarlo → ' + card());
+  await setup({ STRIPE_CHECKIN_WEBHOOK_SECRET: 'whsec_checkin_ui' });
+  r = await loadAdmin('#sync'); await waitFor(() => riga(), 'riga del check-in');
+  assert(riga().dataset.lv === 'warn' && /Manca STRIPE_CHECKIN_SECRET_KEY/.test(text(riga())), text(riga()));
+  await setup({ STRIPE_CHECKIN_WEBHOOK_SECRET: 'whsec_checkin_ui', STRIPE_CHECKIN_SECRET_KEY: 'rk_live_checkin_ui' });
+  global.__stripeWebhooks = [{ url: 'https://www.lacolumbera.test/api/stripe-webhook', status: 'enabled', enabled_events: ['checkout.session.completed', 'checkout.session.expired'] }];
+  r = await loadAdmin('#sync'); await waitFor(() => riga(), 'riga del check-in');
+  assert(riga().dataset.lv === 'info' && /Collegato all'account Stripe del Check-in/.test(text(riga())), text(riga()));
+  assert(/Tutto a posto/.test(text(r.doc.querySelector('[data-testid=admin-pay-summary]'))), 'una riga informativa non cambia il semaforo');
+  const sess = { id: 'cs_ck_ui', object: 'checkout.session', payment_status: 'paid', status: 'complete', created: Math.floor(Date.now() / 1000), metadata: { dataCheckin: '2026-10-20', appartamento: 'La Columbera - Torre', numeroNotti: '2', numeroPrenotazione: 'ABC123' } };
+  assert.equal((await H.webhook('checkout.session.completed', sess, { secret: 'whsec_checkin_ui' })).status, 200);
+  r.doc.querySelector('[data-testid=admin-pay-check]').click();
+  await waitFor(() => riga() && /Ultimo pagamento del check-in ricevuto/.test(text(riga())), 'ultimo pagamento del check-in');
+  assert.equal(riga().dataset.lv, 'ok'); assert(!/whsec_checkin_ui|rk_live_checkin_ui/.test(card()), 'nessun valore segreto in pagina');
+});
 test('U5d admin · Calendari iCal: il link per Booking e Airbnb è quello «solo sito»; il calendario personale è separato e chiede la chiave', async () => {
   await setup();
   const r = await loadAdmin('#torre/calendari'); await waitFor(() => r.doc.querySelector('[data-testid=admin-ical-export-site-torre]'), 'link per Booking e Airbnb');
