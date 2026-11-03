@@ -82,7 +82,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (02/11/2026; partenza commit `6336695`, sicurezza +2 con S25 e S26, pagamenti +5 con P20, P21, P22, P23 e C7, ui +10 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b e W16c, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23)
+## Baseline (02/11/2026; partenza commit `6336695`, sicurezza +2 con S25 e S26, pagamenti +5 con P20, P21, P22, P23 e C7, ui +11 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c e W40, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +3 con M16, M17 e M18)
 
 | Prova | Risultato |
 |---|---|
@@ -90,12 +90,12 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 | pagamenti | 40 ok (35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
 | preavviso | 12 ok |
 | sicurezza | 26 ok (24 fino a `6336695`, 25 fino a `97368a3`) |
-| messaggi | 15 ok |
+| messaggi | 18 ok (15 fino a `ab429ea`) |
 | sito | 11 ok (9 fino a `930c8df`) |
 | istat | 30 ok |
 | adempimenti | 40 ok |
 | informativa | 5 ok |
-| ui | 111 ok (101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
+| ui | 112 ok (111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.

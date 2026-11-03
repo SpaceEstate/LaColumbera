@@ -2633,6 +2633,25 @@ test('W38 Gestione · Messaggi: foto e link nella risposta e nei template; l\'os
   assert.equal($('[data-testid=admin-book-text]').value, 'Ciao! Mappa: https://maps.example/p\n\nFoto: ' + tf.foto[0]);
 });
 
+test('W40 Gestione · Messaggi: dice quale servizio traduce (Cloudflare, oppure DeepL se ci sono tutte e due) e, a traduzione spenta, quali variabili servono', async () => {
+  const CFV = { CLOUDFLARE_ACCOUNT_ID: 'c0ffee00c0ffee00c0ffee00c0ffee00', CLOUDFLARE_API_TOKEN: 'tok' };
+  const note = async env => {
+    await setup(env);
+    const r = await loadAdmin('#messaggi'), $ = s => r.doc.querySelector(s);
+    await waitFor(() => $('[data-testid=msg-list]'), 'casella');
+    const casella = text($('[data-testid=msg-inbox]'));
+    await goto(r, '#messaggi/automatici', '[data-testid=msg-auto]');
+    return [casella, text($('[data-testid=msg-auto]'))];
+  };
+  let [casella, auto] = await note(CFV);
+  assert(/Traduzione automatica: attiva \(Cloudflare\)\./.test(auto) && !/traduzione automatica non attiva/.test(casella), auto);
+  [casella, auto] = await note(Object.assign({ DEEPL_API_KEY: 'chiave-prova' }, CFV));
+  assert(/Traduzione automatica: attiva \(DeepL\)\./.test(auto), 'con DeepL e Cloudflare vale DeepL: ' + auto);
+  [casella, auto] = await note();
+  assert(/Traduzione automatica: non attiva: per attivarla imposta su Vercel le variabili CLOUDFLARE_ACCOUNT_ID e CLOUDFLARE_API_TOKEN \(Cloudflare, gratuito\) oppure DEEPL_API_KEY/.test(auto), auto);
+  assert(/traduzione automatica non attiva: vedi Automatici/.test(casella), casella);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

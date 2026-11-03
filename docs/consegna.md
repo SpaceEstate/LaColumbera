@@ -44,6 +44,7 @@ Pagamento con Stripe e webhook, motore delle disponibilità (iCal, foglio, coda 
 
 | Variabile | Serve | Note |
 |---|---|---|
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | **Nuove, facoltative**: traduzione automatica dei messaggi con Cloudflare, gratuita e senza carta (`CLOUDFLARE_AI_MODEL` facoltativa per cambiare modello) | Come si crea il token: `docs/messaggi.md`, paragrafo 4. Se c'è anche `DEEPL_API_KEY` vale DeepL |
 | `DEEPL_API_KEY` | **Nuova, facoltativa**: traduzione automatica dei messaggi | Per i messaggi degli ospiti usa il piano **Pro** (i testi non vengono conservati da DeepL); le chiavi che finiscono con `:fx` sono del piano gratuito. Senza la variabile tutto funziona in italiano |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Email (come prima), anche gli avvisi dei messaggi | – |
 | `OWNER_EMAIL` | Dove ricevi avvisi e messaggi (come prima) | – |
