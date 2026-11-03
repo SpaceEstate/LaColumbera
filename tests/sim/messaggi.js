@@ -630,6 +630,60 @@ test('M18 traduzione con Cloudflare, prove sul modulo: forme della risposta, get
   x = mk(() => ({ status: 429, body: {} }), {}, () => Promise.reject(new Error('registro giù'))); eq((await x.t.traduci(['uno'], 'en')).http, 429, 'registro che rifiuta');
 });
 
+test('M19 messaggi automatici senza traduzione (servizio giù o spento quando sono partiti): alla lettura dell\'ospite si rifanno dal template con le variabili protette, mai dal testo con nome, codice e Wi-Fi; se il template è cambiato o la regola è tolta restano in italiano', async () => {
+  const fmt = c => c.slice(0, 4) + ' ' + c.slice(4, 8) + ' ' + c.slice(8);
+  const tplW = 'Ciao {nome}, il codice è {codice} & il Wi-Fi è {wifi}.', tplV = 'Benvenuto {nome}, la tua casa è {appartamento}. Arrivo: {checkin}.';
+  const giorno = lg => new Date(Date.UTC(2027, 1, 10, 12)).toLocaleDateString({ it: 'it-IT', en: 'en-GB', de: 'de-DE' }[lg], { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const tpls = (w) => [{ id: 'w', nome: 'Wi-Fi', testo: w || tplW }, { id: 'v', nome: 'Visita', testo: tplV }];
+  const regole = [{ id: 'r1', nome: 'Wi-Fi', attiva: true, tpl: 'w', base: 'conferma' }, { id: 'r2', nome: 'Visita', attiva: true, tpl: 'v', base: 'conferma' }];
+  // due template e due regole «alla conferma»; la prenotazione parte con il servizio spento o giù, quindi i due messaggi partono solo in italiano
+  const parti = async (env, giu) => {
+    await base(env); if (giu) giu();
+    await H.adminApi('msg_tpl_save', { templates: tpls() });
+    const cf = (await H.adminApi('cfg_admin', {})).body; cf.apts.find(p => p.id === 'torre').infoRiservate = 'Password: SEGRETA'; await H.adminApi('save', cf);
+    await H.adminApi('msg_auto_save', { regole });
+    const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' }); await sync();
+    const salvate = kv.exec(['HGETALL', 'msg:tr:' + d.code]); assert(!salvate || !(Array.isArray(salvate) ? salvate.length : Object.keys(salvate).length), 'partito senza traduzioni');
+    eq((await thread(d.code)).messaggi.map(m => m.testo.split(' ')[0]), ['Ciao', 'Benvenuto'], 'i due messaggi sono partiti, in italiano');
+    return d;
+  };
+  const leggi = async (d, lingua) => (await ospite('msg_list', { code: d.code, t: d.t, lingua })).body.messaggi;
+  const privati = (d, x) => { const s = JSON.stringify(x); return !/Mario|SEGRETA|nuovo@|Prova/.test(s) && !s.includes(d.code) && !s.includes(fmt(d.code)); };
+  try {
+    // Cloudflare: giù quando sono partiti, giù anche alla prima lettura (un solo tentativo, non uno per messaggio), poi torna
+    let d = await parti(CF, () => { global.__cf.mode = 'down'; }); const cf = global.__cf;
+    cf.calls.length = 0; let l = await leggi(d, 'en');
+    eq([cf.calls.length, l.map(m => m.testo.split(' ')[0]), l.map(m => m.originale)], [1, ['Ciao', 'Benvenuto'], [undefined, undefined]], 'ancora giù: un tentativo, restano in italiano');
+    cf.mode = 'ok'; cf.calls.length = 0; l = await leggi(d, 'en');
+    eq(cf.calls.map(x => x.usr), [['Ciao [[1]], il codice è [[2]] & il Wi-Fi è [[3]].'], ['Benvenuto [[1]], la tua casa è [[2]]. Arrivo: [[3]].']], 'al servizio vanno i template con i gettoni al posto delle variabili');
+    assert(cf.calls.every(x => /^SOURCE: Italian \(it\)$/m.test(x.sys) && /^TARGET: British English \(en\)$/m.test(x.sys)) && privati(d, cf.calls.map(x => x.usr)), 'nessun dato della prenotazione al servizio');
+    eq(l[0].testo, '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', 'variabili inserite dopo la traduzione');
+    const casa = /è (.+)\. Arrivo/.exec(l[1].originale)[1];
+    eq([l[0].originale.startsWith('Ciao Mario'), l[1].originale, l[1].testo], [true, 'Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('it') + '.', '[EN] Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('en') + '.'], 'date nella lingua del testo');
+    assert(JSON.stringify(kv.exec(['HGETALL', 'msg:tr:' + d.code])).includes('[EN] Ciao Mario, il codice è '), 'la traduzione compilata resta salvata con la conversazione');
+    cf.calls.length = 0; l = await leggi(d, 'en'); eq(cf.calls.length, 0, 'già tradotti e salvati: nessuna nuova chiamata');
+    l = await leggi(d, 'de'); eq([cf.calls.length, l[0].testo.startsWith('[DE] Ciao Mario, il codice è '), l[1].testo], [2, true, '[DE] Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('de') + '.'], 'un\'altra lingua: di nuovo dal template, date comprese');
+    assert(privati(d, cf.calls.map(x => x.usr)));
+    // DeepL: lo stesso, con le variabili tra <x>…</x>
+    d = await parti({ DEEPL_API_KEY: 'chiave-pro' }, () => { global.__deepl.mode = 'down'; });
+    global.__deepl.mode = 'ok'; global.__deepl.calls.length = 0; l = await leggi(d, 'en');
+    eq(global.__deepl.calls.map(x => x.body.text), [['Ciao <x>{nome}</x>, il codice è <x>{codice}</x> &amp; il Wi-Fi è <x>{wifi}</x>.'], ['Benvenuto <x>{nome}</x>, la tua casa è <x>{appartamento}</x>. Arrivo: <x>{checkin}</x>.']], 'DeepL: i template con le variabili protette');
+    assert(privati(d, global.__deepl.calls.map(x => x.body.text)) && l[0].testo === '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', 'DeepL: nessun dato della prenotazione, variabili inserite dopo');
+    // il template è cambiato dopo l'invio: quel messaggio resta in italiano (non si sa più cosa dicesse), l'altro si traduce; con la regola tolta, anche
+    d = await parti(CF, () => { global.__cf.mode = 'down'; });
+    global.__cf.mode = 'ok'; global.__cf.calls.length = 0;
+    await H.adminApi('msg_tpl_save', { templates: tpls('Ciao {nome}! Il codice è {codice}.') });
+    l = await leggi(d, 'en');
+    eq([global.__cf.calls.map(x => x.usr), l.map(m => m.originale !== undefined)], [[['Benvenuto [[1]], la tua casa è [[2]]. Arrivo: [[3]].']], [false, true]], 'template cambiato: solo l\'altro messaggio si traduce');
+    await H.adminApi('msg_auto_save', { regole: regole.slice(0, 1) }); global.__cf.calls.length = 0;
+    l = await leggi(d, 'de'); eq([global.__cf.calls.length, l.map(m => m.originale !== undefined)], [0, [false, false]], 'template cambiato e regola tolta: restano in italiano, nessuna chiamata');
+    // il servizio era spento quando sono partiti ed è stato attivato dopo (il caso di chi lo attiva ora): i messaggi già nelle conversazioni si completano dal template
+    d = await parti({});
+    Object.assign(process.env, CF); global.__cf.calls.length = 0; l = await leggi(d, 'en');
+    eq([global.__cf.calls.length, l[0].testo, privati(d, global.__cf.calls.map(x => x.usr))], [2, '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', true], 'attivato dopo: si completano dal template');
+  } finally { for (const k of Object.keys(CF)) delete process.env[k]; }
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

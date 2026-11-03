@@ -24,7 +24,8 @@
 //   msg:avv:h:<codice> · msg:avv:o:<codice>           ultimo avviso email al titolare / all'ospite (15 minuti: dopo il primo non letto, al massimo uno ogni 15 minuti)
 //   tr:tpl:<impronta>:<lingua>                        traduzione di un template (senza i dati della prenotazione)
 // Traduzione (api/_traduci.js, DeepL o Cloudflare): i messaggi automatici si traducono dal template, con le variabili protette: al servizio
-// di traduzione non arrivano mai nomi, codici o Wi-Fi della prenotazione. I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono; in quelli
+// di traduzione non arrivano mai nomi, codici o Wi-Fi della prenotazione: neppure quando la traduzione manca alla partenza e si completa alla
+// lettura dell'ospite (completaAuto: si rifà dal template, non dal testo compilato). I messaggi scritti a mano (dall'ospite o dal titolare) si traducono così come sono; in quelli
 // del titolare gli indirizzi dei link restano fuori dalla traduzione (come le variabili).
 // Foto: le foto di un messaggio (foto/msg/) si cancellano da Vercel Blob insieme alla conversazione, o quando un messaggio programmato non parte;
 // quelle dei template (foto/msgtpl/) restano, come le altre foto del sito (le usano anche i messaggi già mandati).
@@ -139,18 +140,42 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     msgs.forEach((m, i) => { tr[m.id + ':' + verso] = r.testi[i]; });
     return tr;
   }
+  // Messaggi automatici senza traduzione (il servizio non rispondeva quando sono partiti, o era spento): si rifanno dal TEMPLATE, con le
+  // variabili protette, mai dal testo già compilato: nome, codice e Wi-Fi non vanno al servizio di traduzione. Il template si ritrova dalla
+  // regola e deve rifare esattamente il testo partito; se non torna (template cambiato, regola tolta, dati della prenotazione cambiati) il
+  // messaggio resta in italiano. ctx = { booking, getConfig, site } di chi legge; senza, non si traduce nulla.
+  async function completaAuto(code, msgs, tr, verso, ctx) {
+    msgs = msgs.filter(m => m.testo && m.regola);
+    if (!T.attiva() || !msgs.length || !ctx || !ctx.booking) return tr;
+    let config;
+    try { config = ctx.getConfig ? await ctx.getConfig() : ctx.config; } catch (e) { return tr; }
+    const rs = await regole(), ts = await templates(), cmds = [];
+    for (const m of msgs) {
+      const r = rs.find(x => x.id === m.regola), tpl = r && ts.find(x => x.id === r.tpl);
+      if (!tpl || pulisci(riempi(tpl.testo, ctx.booking, config, ctx.site, 'it')) !== m.testo) continue;
+      const t = await templateIn(tpl.testo, verso);
+      if (!t) break;      // il servizio non risponde: si riprova alla lettura successiva, senza aspettare una volta per ogni messaggio
+      const f = pulisci(riempi(t, ctx.booking, config, ctx.site, verso));
+      if (!f) continue;
+      cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + verso, f]); tr[m.id + ':' + verso] = f;
+    }
+    if (cmds.length) await kvp(cmds).catch(() => {});
+    return tr;
+  }
   const linguaDi = async code => { const l = await kv('HGET', 'msg:lingua', code).catch(() => null); return LINGUE_AREA.includes(l) ? l : null; };
 
   // Vista dell'ospite (area clienti). v = versione che la pagina ha già: se non è cambiato nulla basta dirlo.
   // I messaggi del titolare si mostrano nella lingua dell'ospite (traduzione salvata, o fatta ora); leggerli li segna come letti.
-  async function perOspite(code, lingua, v) {
+  async function perOspite(code, lingua, v, ctx) {
     lingua = LINGUE_AREA.includes(lingua) ? lingua : 'it';
     const [cur, nl, lg] = await kvp([['GET', 'msg:v:' + code], ['HGET', 'msg:no', code], ['HGET', 'msg:lingua', code]]);
     if (lg !== lingua) await kv('HSET', 'msg:lingua', code, lingua);
     if (v != null && v !== '' && +v === (+cur || 0) && !(+nl > 0)) return { v: +cur || 0, invariato: true };
     const msgs = await lista(code);
     let tr = hashObj(await kv('HGETALL', 'msg:tr:' + code));
-    tr = await completa(code, msgs.filter(m => m.da !== 'ospite' && (m.lingua || 'it') !== lingua && tr[m.id + ':' + lingua] == null), tr, lingua, { da: 'it' });
+    const mancanti = msgs.filter(m => m.da !== 'ospite' && (m.lingua || 'it') !== lingua && tr[m.id + ':' + lingua] == null);
+    tr = await completa(code, mancanti.filter(m => m.da !== 'auto'), tr, lingua, { da: 'it' });
+    tr = await completaAuto(code, mancanti.filter(m => m.da === 'auto'), tr, lingua, ctx);      // gli automatici mai dal testo già compilato
     await kvp([['HDEL', 'msg:no', code], ['HSET', 'msg:lo', code, String(now())]]);
     return {
       v: +cur || 0, messaggi: msgs.map(m => {

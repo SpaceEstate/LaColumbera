@@ -525,7 +525,7 @@ if(a==='msg_v'){const lim=await ACC.limitIp(req,'mv',{max:240,win:600});if(lim)r
 if(a==='msg_list'||a==='msg_send'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(!chatOk(x))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
  const lg=['it','en','de'].includes(b.lingua)?b.lingua:'it';
- if(a==='msg_list')return res.json(Object.assign({t:r.token||undefined},await MSG.perOspite(x.code,lg,b.v)));
+ if(a==='msg_list')return res.json(Object.assign({t:r.token||undefined},await MSG.perOspite(x.code,lg,b.v,{booking:x,getConfig:async()=>cfgG||(cfgG=await cfg(req)),site:siteOf(req)})));
  if(typeof b.testo!=='string'||!b.testo.trim())return res.status(400).json({err:'Scrivi un messaggio'});
  if(b.testo.length>require('./_messaggi.js').MAX_TESTO)return res.status(400).json({err:'Messaggio troppo lungo: al massimo 2000 caratteri'});
  const lim=await ACC.limitKey('ms',x.code,{max:20,win:3600},'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto. Per le urgenze chiamaci al +39 351 704 3594.');if(lim)return deny(res,lim);
