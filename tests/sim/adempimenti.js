@@ -4,7 +4,7 @@
 //   node tests/sim/adempimenti.js [filtro]
 const assert = require('assert'), fs = require('fs'), path = require('path');
 const AL = require('../../api/_alloggiati.js'), WS = require('../../api/_alloggiati_ws.js'), ADP = require('../../api/adempimenti.js');
-const { makeSoapMock, TABELLE } = require('./soap-mock.js');
+const { makeSoapMock, TABELLE, LUOGHI_UFFICIALI } = require('./soap-mock.js');
 const eq = (a, b, m) => assert.deepStrictEqual(a, b, m);
 const fx = n => fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'alloggiati', n), 'utf8');
 const NOW = Date.parse('2026-10-14T08:00:00Z');
@@ -87,6 +87,23 @@ test('L6  stato, cittadinanza, comune e provincia: tabella Luoghi, nato in Itali
   const s = val([it({})]).records[0].dec; eq([s.stato, s.cittad, s.comune, s.tipodoc, s.tipo], ['ITALIA', 'ITALIA', 'COMUNE DI PROVA', 'CARTA DI IDENTITA', 'OSPITE SINGOLO'], 'nomi decodificati dalle tabelle');
   // senza tabelle: nessun controllo sui codici ma avviso esplicito, e ancora inviabile (il verdetto spetta al Test del servizio)
   const nt = val([mk({})], { tables: null }); assert(nt.globali.some(g => g.code === 'TABELLE' && g.sev === 'avviso')); eq([nt.riepilogo.inviabile, nt.records[0].dec.stato], [true, null]);
+});
+test('L6b nato in Serbia (codice ufficiale 100001000), cittadino e documento serbi: schedina valida; vale per ogni stato con codice fuori dalla forma 100000xxx', () => {
+  const T = { luoghi: WS.buildTable('Luoghi', LUOGHI_UFFICIALI), documenti: WS.buildTable('Tipi_Documento', TABELLE.Tipi_Documento), tipi: WS.buildTable('Tipi_Alloggiato', TABELLE.Tipi_Alloggiato) };
+  const rs = over => mk(Object.assign({ stato: '100001000', cittad: '100001000', comune: '', prov: '', tipodoc: 'PASOR', luogo: '100001000' }, over));
+  const v = val([rs({})], { tables: T });
+  eq([v.riepilogo.errori, v.riepilogo.inviabile], [0, true], JSON.stringify(codes(v.records[0])));
+  eq([v.records[0].dec.stato, v.records[0].dec.cittad, v.records[0].dec.luogo], ['SERBIA', 'SERBIA', 'SERBIA'], 'nomi decodificati dalla tabella');
+  eq([v.lines[0].slice(105, 116), v.lines[0].slice(116, 125), v.lines[0].slice(125, 134), v.lines[0].slice(159, 168)], [' '.repeat(11), '100001000', '100001000', '100001000'], 'nel TXT: comune e provincia vuoti, stato, cittadinanza e luogo di rilascio');
+  for (const c of ['100001001', '100001002', '110000001', '110000003', '110000005', '110000014', '110000022', '100000997', '100000999']) {
+    const x = val([rs({ stato: c, cittad: c, luogo: c })], { tables: T }); eq(x.riepilogo.inviabile, true, c + ' → ' + codes(x.records[0]));
+  }
+  // le regole dei nati all'estero restano: comune e provincia vuoti; e un comune non vale come stato (né uno stato come comune)
+  for (const [over, exp] of [[{ comune: '405028001', prov: 'PD' }, 'ESTERO_COMUNE:comune'], [{ prov: 'PD' }, 'ESTERO_PROVINCIA:prov'], [{ stato: '405028001' }, 'CODICE_TIPO:stato'],
+    [{ cittad: '404022227' }, 'CODICE_TIPO:cittad'], [{ stato: '100000100', comune: '100001000', prov: 'PD' }, 'CODICE_TIPO:comune']]) {
+    const x = val([rs(over)], { tables: T }); assert(has(x.records[0], exp), JSON.stringify(over) + ' → ' + codes(x.records[0]));
+  }
+  eq(val([rs({ stato: '100000100', comune: '405028001', prov: 'PD' })], { tables: T }).riepilogo.inviabile, true, 'nato in Italia: comune e provincia dalla tabella');
 });
 test('L7  documento: obbligatorio per 16/17/18, vuoto per 19/20; codice in tabella; numero ammesso solo lettere, cifre . - /', () => {
   const doc = { tipodoc: 'IDENT', numdoc: 'AB1', luogo: '100000248' };
@@ -205,6 +222,16 @@ test('W6  tabelle CSV: parser, intestazione riconosciuta o assente, Luoghi (stat
   eq([WS.buildTable('Luoghi', '').ok, WS.buildTable('Luoghi', 'Codice;Descrizione\n').ok], [false, false], 'tabella vuota = non utilizzabile');
   eq(WS.search(t, 'ital')[0].nome, 'ITALIA'); eq(WS.search(t, 'borgo d').map(x => x.codice), ['400000002']); eq(WS.search(t, 'comune', { kind: 'stato' }), []);
   eq(WS.search(t, 'x'), [], 'un solo carattere non basta'); eq(WS.search(t, '4000000').length, 3, 'per inizio del codice'); eq(WS.search(t, 'SAN MARTINO')[0].prov, 'MI'); eq(WS.search(null, 'ital'), []);
+});
+test('W6b tabella Luoghi con i codici ufficiali: è uno stato ogni codice che inizia per 1 (anche Serbia 100001000, Kosovo, Palestina, Hong Kong…), un comune ogni codice che inizia per 4', () => {
+  const t = WS.buildTable('Luoghi', LUOGHI_UFFICIALI); eq([t.ok, t.size, t.italia, t.diag.scartate], [true, 15, '100000100', 0]);
+  for (const e of t.list()) eq(e.kind, e.codice[0] === '1' ? 'stato' : 'comune', e.codice + ' ' + e.nome);
+  eq(WS.search(t, 'serbia', { kind: 'stato' }), [{ codice: '100001000', nome: 'SERBIA', prov: 'ES', kind: 'stato' }], 'la Serbia è tra gli stati');
+  eq([WS.search(t, 'serb', { kind: 'comune' }), WS.search(t, 'abano', { kind: 'stato' })], [[], []], 'gli stati non sono comuni e viceversa');
+  for (const [q, c] of [['montenegro', '100001001'], ['kosovo', '100001002'], ['palestina', '110000001'], ['macao', '110000003'], ['hong kong', '110000005'], ['guernsey', '110000014'],
+    ['georgia sud', '110000022'], ['macedonia', '100000997'], ['apolide', '100000999'], ['germania', '100000216'], ['ital', '100000100']]) eq(WS.search(t, q, { kind: 'stato' }).map(x => x.codice), [c], q);
+  eq(WS.search(t, '1000010', { kind: 'stato' }).map(x => x.codice).sort(), ['100001000', '100001001', '100001002'], 'per inizio del codice');
+  eq(WS.search(t, 'abano', { kind: 'comune' }), [{ codice: '405028001', nome: 'ABANO TERME', prov: 'PD', kind: 'comune' }]);
 });
 test('W7  configurazione: variabili obbligatorie, invio reale solo con "true" E Production, utente mascherato', () => {
   const full = { ALLOGGIATI_UTENTE: 'XX002458', ALLOGGIATI_PASSWORD: 'p', ALLOGGIATI_WSKEY: 'k' };

@@ -9,6 +9,14 @@ const TABELLE = {
   Tipi_Alloggiato: 'Codice;Descrizione\n16;OSPITE SINGOLO\n17;CAPO FAMIGLIA\n18;CAPO GRUPPO\n19;FAMILIARE\n20;MEMBRO GRUPPO\n',
   TipoErrore: 'Codice;Descrizione\n11;SCHEDINA_FORMATO_NON_CORRETTO\n12;SCHEDINA_CAMPO_NON_CORRETTO\n'
 };
+// Estratto della tabella Luoghi con i codici VERI (copia della tabella Stati del portale Alloggiati Web, controllata il 03/11/2026).
+// Non tutti gli stati hanno la forma 100000xxx: Serbia, Montenegro e Kosovo sono 1000010xx, Palestina, Macao, Hong Kong… 11000xxxx.
+// Per gli stati la provincia è "ES"; i comuni sono 4 + regione + provincia + comune.
+const LUOGHI_UFFICIALI = 'Codice;Descrizione;Provincia;DataFineVal\n' + [
+  '100000100;ITALIA;ES;', '100000216;GERMANIA;ES;', '100000997;MACEDONIA DEL NORD;ES;', '100000999;APOLIDE;ES;',
+  '100001000;SERBIA;ES;', '100001001;MONTENEGRO;ES;', '100001002;KOSOVO;ES;',
+  '110000001;PALESTINA;ES;', '110000003;MACAO;ES;', '110000005;HONG KONG;ES;', '110000014;GUERNSEY;ES;', '110000022;GEORGIA SUD E ISOLE SANDWICH AUSTRALI;ES;',
+  '405028001;ABANO TERME;PD;', '404022227;ZUCLO;TN;', '407010067;ZOAGLI;GE;'].join('\n') + '\n';
 const SOAP_ENV = inner => '<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><soap:Body>' + inner + '</soap:Body></soap:Envelope>';
 const ESITO = (ok, cod, des, dett) => '<esito>' + ok + '</esito>' + (cod ? '<ErroreCod>' + cod + '</ErroreCod>' : '<ErroreCod/>') + (des ? '<ErroreDes>' + WS.esc(des) + '</ErroreDes>' : '<ErroreDes/>') + (dett ? '<ErroreDettaglio>' + WS.esc(dett) + '</ErroreDettaglio>' : '<ErroreDettaglio/>');
 const resp = (status, text) => ({ ok: status >= 200 && status < 300, status, text: async () => text });
@@ -66,4 +74,4 @@ function makeSoapMock(opts) {
   m.count = op => m.calls.filter(c => c.op === op).length;
   return m;
 }
-module.exports = { makeSoapMock, TABELLE, defaultRowCheck };
+module.exports = { makeSoapMock, TABELLE, LUOGHI_UFFICIALI, defaultRowCheck };

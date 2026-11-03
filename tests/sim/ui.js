@@ -2354,6 +2354,17 @@ test('U16 Adempimenti: inserimento a mano con menu a ricerca (stato, comune, doc
   setv(f2.querySelector('#f-stato'), 'terz'); const li = await waitFor(() => f2.querySelector('#lb-stato li[data-code]'), 'stati'); li.click(); assert(f2.querySelector('[data-fld=comune]').hidden && f2.querySelector('#f-comune').value === '', 'estero: comune e provincia spariscono');
   r.doc.querySelector('[data-testid=adp-cancel]').click(); assert(!r.doc.querySelector('[data-testid=adp-modal]'), 'annulla chiude senza salvare'); assert(/BORGO D'ESEMPIO/.test(text(r.doc.querySelector('[data-testid=adp-row-0]'))), 'scheda invariata');
 });
+test('U16b Adempimenti: ospite serbo inserito a mano con la tabella Luoghi ufficiale — la Serbia (100001000) compare tra gli stati, la schedina passa i controlli', async () => {
+  const { TABELLE, LUOGHI_UFFICIALI } = require('./soap-mock.js');
+  const r = await openAdp({ soapOpts: { tabelle: Object.assign({}, TABELLE, { Luoghi: LUOGHI_UFFICIALI }) } }); r.doc.querySelector('[data-testid=adp-add]').click();
+  const form = await waitFor(() => r.doc.querySelector('[data-testid=adp-form]'), 'finestra'), f = id => form.querySelector('#' + id), list = k => form.querySelector('#lb-' + k);
+  setv(f('f-stato'), 'serb'); (await waitFor(() => list('stato').querySelector('li[data-code="100001000"]'), 'la Serbia tra gli stati')).click();
+  assert.equal(f('f-stato').value, 'SERBIA'); assert.equal(f('f-cittad').value, 'SERBIA', 'cittadinanza proposta'); assert(form.querySelector('[data-fld=comune]').hidden && form.querySelector('[data-fld=prov]').hidden, 'nato all\'estero: niente comune né provincia');
+  setv(f('f-giorni'), '3'); setv(f('f-arrivo'), '2026-10-20'); setv(f('f-cognome'), 'Provic'); setv(f('f-nome'), 'Jovana'); setv(f('f-sesso'), '2', 'change'); setv(f('f-nascita'), '1985-05-12'); setv(f('f-tipodoc'), 'PASOR', 'change'); setv(f('f-numdoc'), 'P1234567');
+  setv(f('f-luogo'), 'serbia'); (await waitFor(() => list('luogo').querySelector('li[data-code="100001000"]'), 'la Serbia come luogo di rilascio')).click(); form.requestSubmit();
+  await waitFor(() => !r.doc.querySelector('[data-testid=adp-modal]'), 'finestra chiusa'); await waitFor(() => r.doc.querySelector('[data-testid=adp-ready]'), 'controlli superati');
+  const row = text(r.doc.querySelector('[data-testid=adp-row-0]')); assert(/Provic Jovana/.test(row) && /SERBIA/.test(row) && /PASSAPORTO ORDINARIO P1234567/.test(row) && !/errore/.test(row), row);
+});
 test('U17 Adempimenti: percorso completo (verifica → conferma → invio): nessun Send prima della conferma, un solo Send anche con doppio clic, elenco bloccato dopo, stesso file rifiutato', async () => {
   const r = await openAdp(); await goCheck(r);
   const ok = text(r.doc.querySelector('[data-testid=adp-check-ok]')); assert(/accettato tutte le 4 schedine/.test(ok) && /Nulla è stato inviato/.test(ok) && /valida fino alle/.test(ok), ok);
