@@ -442,32 +442,59 @@ test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; B
   assert(!r.doc.querySelector('#login').hidden && !r.doc.querySelector('[data-testid=guest-app]') && !r.w.sessionStorage.getItem('lc_acc'), 'uscita: sessione cancellata');
 });
 
-test('W26 area ospiti · annullamento: fino a 7 giorni prima dell\'arrivo il pulsante, poi la conferma con l\'importo («No» la tiene); «Sì» rimborsa, chiude la sessione e dice quanto torna sulla carta; dopo la scadenza solo la regola; per Airbnb la piattaforma', async () => {
+test('W26 area ospiti · annullamento: fino a 7 giorni prima dell\'arrivo il pulsante, poi la conferma con l\'importo dato dal server («No» la tiene; senza importo niente «Sì»); con la commissione di Stripe l\'importo pagato meno i costi trattenuti; «Sì» rimborsa, chiude la sessione e dice quanto torna sulla carta; dopo la scadenza solo la regola; per Airbnb la piattaforma', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
   const r = await load('area-clienti.html', { hash: '#k=' + c.code, scripts: AREA }), $ = s => r.doc.querySelector(s), stato = () => JSON.parse(kv.exec(['HGET', 'bkh', c.code])).stato;
   await waitFor(() => $('[data-testid=guest-app]'), 'area ospiti');
   const box = $('[data-testid=ga-annullo]');
-  assert(box && /Puoi annullare gratis fino a gio 3 dic 2026 \(7 giorni prima dell'arrivo\): ti rimborsiamo €\s?540 sulla carta/.test(text(box)), text(box));
+  assert(box && /Puoi annullare fino a gio 3 dic 2026 \(7 giorni prima dell'arrivo\) e ricevi il rimborso sulla carta con cui hai pagato; prima di confermare vedi l'importo esatto/.test(text(box)) && !/gratis/.test(text(box)), text(box));
   $('[data-testid=ga-annulla]').click();
-  assert(/Vuoi davvero annullare\? .*Ti rimborsiamo €\s?540/.test(text(box)) && r.doc.activeElement === $('[data-testid=ga-annulla-no]'), 'conferma con l\'importo, il focus sul «No»: ' + text(box));
+  await waitFor(() => $('[data-testid=ga-annulla-si]'), 'conferma');
+  assert(/Vuoi davvero annullare\? .*Ti rimborsiamo €\s?540\./.test(text(box)) && !/Stripe/.test(text(box)) && r.doc.activeElement === $('[data-testid=ga-annulla-no]'), 'conferma con l\'importo (senza commissione: il totale), il focus sul «No»: ' + text(box));
   $('[data-testid=ga-annulla-no]').click(); assert($('[data-testid=ga-annulla]') && !$('[data-testid=ga-annulla-si]'), '«No» torna indietro'); assert.equal(stato(), 'confermata');
   global.__stripeRefundFail = true;      // Stripe giù: il messaggio, nulla cambia, si riprova
-  $('[data-testid=ga-annulla]').click(); $('[data-testid=ga-annulla-si]').click();
+  $('[data-testid=ga-annulla]').click(); await waitFor(() => $('[data-testid=ga-annulla-si]'), 'conferma'); $('[data-testid=ga-annulla-si]').click();
   await waitFor(() => /Stripe non risponde/.test(text($('[data-testid=ga-annulla-err]'))), 'errore'); assert.equal(stato(), 'confermata');
   global.__stripeRefundFail = false; $('[data-testid=ga-annulla-si]').click();
   const done = await waitFor(() => $('[data-testid=ga-annullata]'), 'annullata');
   assert(/Prenotazione annullata/.test(text(done)) && /Il rimborso di €\s?540 è partito/.test(text(done)) && /ma\*\*\*@test\.it/.test(text(done)), text(done));
   assert(r.w.sessionStorage.getItem('lc_acc') === null && r.doc.activeElement === done, 'sessione chiusa, il focus sulla conferma');
   assert.deepEqual([stato(), global.__stripeRefunds.length], ['annullata', 1]);
+  // con la commissione di Stripe (10,55 €): la conferma dice quanto torna e perché; se l'importo non arriva, il messaggio e nessun «Sì»
+  global.__stripeFee = 1055;
+  const k = (await checkout({ da: '2026-11-02', a: '2026-11-05', email: 'k@t.it' })).body; await H.webhook('checkout.session.completed', H.paidSession(k.code));
+  const rk = await load('area-clienti.html', { hash: '#k=' + k.code, scripts: AREA }), $k = s => rk.doc.querySelector(s), bk = () => JSON.parse(kv.exec(['HGET', 'bkh', k.code]));
+  await waitFor(() => $k('[data-testid=guest-app]'), 'area ospiti (commissione)');
+  global.__stripePiFail = true;
+  $k('[data-testid=ga-annulla]').click();
+  await waitFor(() => /Non riesco a leggere da Stripe i costi del pagamento per calcolare il rimborso/.test(text($k('[data-testid=ga-annulla-err]'))), 'errore del preventivo');
+  assert(!$k('[data-testid=ga-annulla-si]') && $k('[data-testid=ga-annulla]') && rk.doc.activeElement === $k('[data-testid=ga-annulla]'), 'senza importo niente «Sì»: di nuovo il pulsante');
+  assert.deepEqual([bk().stato, global.__stripeRefunds.length], ['confermata', 1]);
+  global.__stripePiFail = false;
+  $k('[data-testid=ga-annulla]').click(); await waitFor(() => $k('[data-testid=ga-annulla-si]'), 'conferma (commissione)');
+  const kb = $k('[data-testid=ga-annullo]');
+  assert(/Ti rimborsiamo €\s?529,45 \(€\s?540 pagati meno €\s?10,55 di costi del pagamento trattenuti da Stripe\)\./.test(text(kb)) && !$k('[data-testid=ga-annulla-err]').textContent, text(kb));
+  $k('[data-testid=ga-annulla-si]').click();
+  const kd = await waitFor(() => $k('[data-testid=ga-annullata]'), 'annullata (commissione)');
+  assert(/Il rimborso di €\s?529,45 è partito/.test(text(kd)), text(kd));
+  assert.deepEqual([bk().stato, bk().rimborso.importo, bk().rimborso.commissione, global.__stripeRefunds.length, global.__stripeRefunds[1].params.amount], ['annullata', 529.45, 10.55, 2, 52945]);
+  // in inglese, la conferma con la commissione
+  const e = (await checkout({ da: '2026-12-01', a: '2026-12-04', email: 'e@t.it' })).body; await H.webhook('checkout.session.completed', H.paidSession(e.code));
+  const re = await load('area-clienti.html', { hash: '#k=' + e.code, lang: 'en-GB', scripts: AREA }), $e = s => re.doc.querySelector(s);
+  await waitFor(() => $e('[data-testid=guest-app]'), 'area EN (commissione)');
+  assert(/You can cancel until .* and get a refund to the card you paid with; before confirming you will see the exact amount/.test(text($e('[data-testid=ga-annullo]'))) && !/free/i.test(text($e('[data-testid=ga-annullo]'))));
+  $e('[data-testid=ga-annulla]').click(); await waitFor(() => $e('[data-testid=ga-annulla-si]'), 'conferma EN');
+  assert(/We will refund €\s?529\.45 \(€\s?540 paid minus €\s?10\.55 in payment costs kept by Stripe\)\./.test(text($e('[data-testid=ga-annullo]'))), text($e('[data-testid=ga-annullo]')));
+  global.__stripeFee = 0;
   // arrivo tra 6 giorni: non rimborsabile, solo la regola
   const c2 = (await checkout({ da: '2026-10-08', a: '2026-10-11', email: 'b@t.it' })).body; await H.webhook('checkout.session.completed', H.paidSession(c2.code));
   const r2 = await load('area-clienti.html', { hash: '#k=' + c2.code, scripts: AREA }); await waitFor(() => r2.doc.querySelector('[data-testid=guest-app]'), 'area');
-  assert(/fino a 7 giorni prima dell'arrivo \(fino a gio 1 ott 2026\): ora la prenotazione non è più rimborsabile/.test(text(r2.doc.querySelector('[data-testid=ga-annullo]'))) && !r2.doc.querySelector('[data-testid=ga-annulla]'), text(r2.doc.querySelector('[data-testid=ga-annullo]')));
+  assert(/Si annulla online fino a 7 giorni prima dell'arrivo \(fino a gio 1 ott 2026\): ora la prenotazione non è più rimborsabile/.test(text(r2.doc.querySelector('[data-testid=ga-annullo]'))) && !r2.doc.querySelector('[data-testid=ga-annulla]'), text(r2.doc.querySelector('[data-testid=ga-annullo]')));
   regAirbnb(); const r3 = await load('area-clienti.html', { hash: '#k=HMSEDESZCW', scripts: AREA }); await waitFor(() => r3.doc.querySelector('[data-testid=guest-app]'), 'area Airbnb');
   assert(/Hai prenotato tramite Airbnb: per annullare usa la piattaforma/.test(text(r3.doc.querySelector('[data-testid=ga-annullo]'))) && !r3.doc.querySelector('[data-testid=ga-annulla]'));
   const r4 = await load('area-clienti.html', { hash: '#k=' + c2.code, lang: 'en-GB', scripts: AREA }); await waitFor(() => r4.doc.querySelector('[data-testid=guest-app]'), 'area EN');
-  assert(/Free cancellation is possible up to 7 days before arrival/.test(text(r4.doc.querySelector('[data-testid=ga-annullo]'))));
+  assert(/Online cancellation is possible up to 7 days before arrival/.test(text(r4.doc.querySelector('[data-testid=ga-annullo]'))) && !/free/i.test(text(r4.doc.querySelector('[data-testid=ga-annullo]'))));
 });
 test('W27 area ospiti · ricevuta: si chiede con i dati (campi obbligatori controllati nella pagina, codice fiscale dal server), poi resta solo lo stato; quando il titolare la manda, «inviata»; per Airbnb, in tedesco, serve l\'email', async () => {
   await setup();
@@ -799,7 +826,7 @@ test('W1p pagina di prenotazione: riepilogo con il conto, poi i dati, poi i camp
   const conto = text($('[data-testid=prenota-conto]'));
   assert(/3 notti × €180 ?€540/.test(conto) && /Bambino sotto i 4 anni ?gratis/.test(conto) && !/Ospiti in più/.test(conto), conto);
   assert.equal(text($('[data-testid=booking-total]')), '€540');
-  assert.equal(text($('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.');
+  assert.equal(text($('[data-testid=booking-recap-policy]')), 'Annullamento dall’area clienti fino a martedì 13 ottobre 2026, con il rimborso dell’importo pagato meno i costi del pagamento trattenuti da Stripe.');
   assert.equal($('[data-testid=booking-back]').getAttribute('href'), 'torre.html#prenota', 'si torna alla scheda per cambiare date e ospiti');
   assert($('.pr-steps li[data-s="1"]').classList.contains('done') && $('.pr-steps li[data-s="2"]').classList.contains('on'), 'passi: date fatte, ora i dati');
   assert($('[data-testid=prenota-pagamento]').hidden && !w.__stripeJs.init.length, 'i campi della carta compaiono dopo i dati');
@@ -1115,15 +1142,15 @@ test('W23 foto dell\'appartamento a tutto schermo: si apre toccando la foto o �
   const one = r.doc.querySelector('[data-testid=lightbox]'); assert(one && !one.querySelector('[data-testid=lightbox-next]') && text(one.querySelector('[data-testid=lightbox-count]')) === '1 / 1', 'una foto: niente frecce');
   r.doc.dispatchEvent(new r.w.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); assert.equal(text(one.querySelector('[data-testid=lightbox-count]')), '1 / 1');
 });
-test('W29 prenotazione: prima di pagare si legge fino a quando si annulla gratis (7 giorni prima dell\'arrivo) oppure che non è rimborsabile', async () => {
+test('W29 prenotazione: prima di pagare si legge fino a quando si annulla (7 giorni prima dell\'arrivo) e con quale rimborso, oppure che non è rimborsabile', async () => {
   await setup();
   const { doc } = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }), $ = s => doc.querySelector(s);
   await waitFor(() => $('#cal .d'), 'calendario');
   assert($('[data-testid=booking-cancel-policy]').hidden, 'senza date la regola non c\'è ancora');
   pickDates(doc, '2026-10-20', '2026-10-23');
-  assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.');
+  assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Annullamento dall’area clienti fino a martedì 13 ottobre 2026, con il rimborso dell’importo pagato meno i costi del pagamento trattenuti da Stripe.');
   const p = await loadPren({ da: '2026-10-20', a: '2026-10-23' }); await waitFor(() => p.doc.querySelector('[data-testid=booking-recap-policy]'), 'riepilogo');
-  assert.equal(text(p.doc.querySelector('[data-testid=booking-recap-policy]')), 'Annullamento gratuito fino a martedì 13 ottobre 2026, con il rimborso totale dall’area clienti.', 'anche nel riepilogo della pagina di prenotazione, accanto al pagamento');
+  assert.equal(text(p.doc.querySelector('[data-testid=booking-recap-policy]')), 'Annullamento dall’area clienti fino a martedì 13 ottobre 2026, con il rimborso dell’importo pagato meno i costi del pagamento trattenuti da Stripe.', 'anche nel riepilogo della pagina di prenotazione, accanto al pagamento');
   doc.querySelector('#cal .d[data-d="2026-10-05"]').click(); doc.querySelector('#cal .d[data-d="2026-10-08"]').click();
   assert.equal(text($('[data-testid=booking-cancel-policy]')), 'Non rimborsabile: l’arrivo è tra meno di 7 giorni.');
   const q = await loadPren({ da: '2026-10-05', a: '2026-10-08' }); await waitFor(() => q.doc.querySelector('[data-testid=booking-recap-policy]'), 'riepilogo');

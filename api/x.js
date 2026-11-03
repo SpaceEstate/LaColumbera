@@ -424,7 +424,8 @@ if(a==='checkout'){const lim=await ACC.limitIp(req,'co',ACC.RL.checkoutIp);if(li
  // conto: come si arriva al totale, per il riepilogo dell'area clienti (le notti consecutive con lo stesso prezzo stanno in una riga). Si salva adesso:
  // se poi il titolare cambia i prezzi, l'ospite vede comunque quelli che ha pagato.
  const righe=[];for(const d of g){const pz=np(p,d),l=righe[righe.length-1];if(l&&l.prezzo===pz)l.notti++;else righe.push({dal:d,notti:1,prezzo:pz})}
- const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,adulti:os.adulti,bambini:os.bambini,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,os.adulti)},stato:'in_attesa',creato:new Date().toISOString()};
+ const r={code,id:p.id,da:b.da,a:b.a,notti:g.length,ospiti:n,adulti:os.adulti,bambini:os.bambini,nome:String(b.nome).trim().slice(0,80),email:String(b.email).trim().toLowerCase().slice(0,120),tel:String(b.tel||'').slice(0,30),totale,conto:{righe,supplemento:sup(p,os.adulti)},stato:'in_attesa',creato:new Date().toISOString(),
+  rimborso_netto:1};      // se l'ospite annulla dall'area clienti riceve il pagato meno la commissione di Stripe (api/_annulla.js); non va sul foglio
  // Dove si paga: dalla pagina prenota.html (b.ui) nella pagina stessa, con i campi della carta di Stripe (ui_mode «elements») e lo stile del sito,
  // se c'è la chiave pubblicabile; altrimenti sulla pagina di Stripe, come prima. Si torna sempre alla pagina da cui si è partiti
  // (prenota.html con le stesse date e gli stessi ospiti; per le pagine di prima quella dell'appartamento).
@@ -553,11 +554,14 @@ if(a==='gc_issue'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x
  const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString()};
  await kv('SET',GCK(x.code),JSON.stringify(card));
  return res.json(cardOut(card))}
-// Annullamento dall'area clienti (prenotazioni del sito pagate): fino a 7 giorni prima dell'arrivo, con il rimborso totale sulla carta (api/_annulla.js)
-if(a==='annulla'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
+// Annullamento dall'area clienti (prenotazioni del sito pagate): fino a 7 giorni prima dell'arrivo, con il rimborso sulla carta dell'importo pagato
+// meno la commissione che Stripe ha trattenuto (prenotazioni con rimborso_netto; quelle di prima: rimborso totale) (api/_annulla.js)
+// annullo_importo: quanto torna sulla carta, da mostrare nella conferma prima del «Sì» (non cambia nulla)
+if(a==='annullo_importo'||a==='annulla'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(x.fonte!=='sito')return res.status(409).json({err:'Hai prenotato tramite '+(PORTALI[x.origine]||'un portale')+': per annullare usa la piattaforma.',code:'PORTALE'});
+ if(a==='annullo_importo'){try{return res.json(Object.assign({t:r.token||undefined},await ANN.preventivo(x.code)))}catch(e){return errOut(res,e)}}
  try{const o=await ANN.annulla(x.code,{da:'ospite',lingua:['it','en','de'].includes(b.lingua)?b.lingua:'it',site:siteOf(req)}),rb=o.booking.rimborso||null;
-  return res.json({ok:1,gia:!!o.gia,rimborso:rb?{importo:rb.importo,stato:rb.stato}:null,email:o.booking.email?maskEmail(o.booking.email):''})}
+  return res.json({ok:1,gia:!!o.gia,rimborso:rb?Object.assign({importo:rb.importo,stato:rb.stato},rb.commissione?{pagato:rb.pagato,commissione:rb.commissione}:{}):null,email:o.booking.email?maskEmail(o.booking.email):''})}
  catch(e){return errOut(res,e)}}
 // Richiesta della ricevuta (sito, Booking e Airbnb): i dati vanno al titolare, che la emette e la manda dalla Gestione (api/_ricevute.js)
 if(a==='ricevuta'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;

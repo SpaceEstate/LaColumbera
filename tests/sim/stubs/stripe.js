@@ -3,7 +3,10 @@
 // global.__stripeWebhooks = elenco degli endpoint registrati (webhookEndpoints.list); global.__stripeFailedDeliveries = numero di consegne fallite (events.list).
 // Rimborsi: global.__stripeRefunds = rimborsi creati ({ key, params, res }); stessa chiave di idempotenza = stesso rimborso (parametri diversi: errore,
 // come Stripe); global.__stripeRefundFail = Stripe non raggiungibile; global.__stripeRefunded[pi] = già rimborsato (es. dalla dashboard);
-// global.__stripeRefundStatus = stato restituito (predefinito 'succeeded').
+// global.__stripeRefundStatus = stato restituito (predefinito 'succeeded'). Un rimborso con amount (rimborso netto) restituisce quell'importo.
+// Costi del pagamento (paymentIntents.retrieve con expand latest_charge.balance_transaction, rimborso netto dell'ospite): global.__stripeFee =
+// commissione di Stripe in centesimi (predefinita 0: rimborso totale); global.__stripePiFail = true Stripe non raggiungibile, 'senza_commissione'
+// addebito senza balance transaction; global.__stripePiCalls = payment intent letti.
 // Elenco delle sessioni (checkout.sessions.list, rete di sicurezza del check-in online): global.__stripeList = sessioni come le dà Stripe (con created
 // in secondi), filtrate per created.gte / created.lte; global.__stripeListCalls conta le chiamate; global.__stripeSessionsListFail = Stripe non raggiungibile;
 // global.__stripeListKeys = chiavi con cui si è letto l'elenco (account del sito o dell'app Check-in).
@@ -49,13 +52,23 @@ module.exports = key => ({
       const c = (p && p.created) || {};
       return { data: (global.__stripeList || []).filter(s => !(c.gte != null && s.created < c.gte) && !(c.lte != null && s.created > c.lte)).slice(0, (p && p.limit) || 10), has_more: false };
     } } },
+  paymentIntents: { retrieve: async (id, o) => {
+    (global.__stripePiCalls = global.__stripePiCalls || []).push({ id, expand: o && o.expand });
+    if (global.__stripePiFail === true) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
+    const s = (global.__stripeSessions || []).find(x => id === 'pi_' + x.id || id === 'pi_' + (x.params.metadata || {}).code);
+    if (!s) { const e = new Error('No such payment_intent: ' + id); e.code = 'resource_missing'; e.type = 'StripeInvalidRequestError'; throw e; }
+    const amount = s.params.line_items[0].price_data.unit_amount, espanso = !!(o && (o.expand || []).includes('latest_charge.balance_transaction'));
+    const bt = global.__stripePiFail === 'senza_commissione' ? null : { id: 'txn_' + id, object: 'balance_transaction', amount, fee: +global.__stripeFee || 0, currency: 'eur' };
+    return { id, object: 'payment_intent', amount, currency: 'eur', status: 'succeeded',
+      latest_charge: espanso ? { id: 'ch_' + id, object: 'charge', amount, currency: 'eur', balance_transaction: bt } : 'ch_' + id };
+  } },
   refunds: { create: async (p, o) => {
     if (global.__stripeRefundFail) { const e = new Error('Stripe non raggiungibile'); e.code = 'api_connection_error'; throw e; }
     const R = global.__stripeRefunds = global.__stripeRefunds || [], key = o && o.idempotencyKey, same = key && R.find(r => r.key === key);
     if (same) { if (JSON.stringify(same.params) !== JSON.stringify(p)) { const e = new Error('Keys for idempotent requests can only be used with the same parameters they were first used with.'); e.type = 'idempotency_error'; throw e; } return same.res; }
     if (global.__stripeRefunded && global.__stripeRefunded[p.payment_intent]) { const e = new Error('Charge has already been refunded.'); e.code = 'charge_already_refunded'; throw e; }
     const s = (global.__stripeSessions || []).find(x => p.payment_intent === 'pi_' + x.id || p.payment_intent === 'pi_' + (x.params.metadata || {}).code);
-    const res = { id: 're_test_' + (R.length + 1), object: 'refund', amount: s ? s.params.line_items[0].price_data.unit_amount : 0, currency: 'eur', status: global.__stripeRefundStatus || 'succeeded', payment_intent: p.payment_intent, metadata: p.metadata };
+    const res = { id: 're_test_' + (R.length + 1), object: 'refund', amount: p.amount != null ? p.amount : s ? s.params.line_items[0].price_data.unit_amount : 0, currency: 'eur', status: global.__stripeRefundStatus || 'succeeded', payment_intent: p.payment_intent, metadata: p.metadata };
     R.push({ key, params: p, res }); return res;
   } },
   webhooks: { constructEvent: (buf, sig, secret) => { if (sig !== 'valid-' + secret) throw new Error('firma non valida'); return JSON.parse(buf.toString()); } },

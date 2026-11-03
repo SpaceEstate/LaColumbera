@@ -81,11 +81,12 @@ function lightbox(foto,start,nome,trigger,onClose){
   // il focus va sulla finestra (non sulla X, che al tocco resterebbe evidenziata): Tab porta ai pulsanti
   document.body.appendChild(m);document.body.classList.add('modal-open');show(start);m.focus({preventScroll:true});
   return close}
-// Regola di annullamento (api/_annulla.js), da leggere prima di pagare: gratis dall'area clienti fino a 7 giorni prima dell'arrivo (ora di Roma),
-// con il rimborso totale; chi prenota a meno di 7 giorni dall'arrivo non è rimborsabile. Decide il server: qui la si mostra soltanto.
+// Regola di annullamento (api/_annulla.js), da leggere prima di pagare: dall'area clienti fino a 7 giorni prima dell'arrivo (ora di Roma), con il
+// rimborso dell'importo pagato meno i costi del pagamento trattenuti da Stripe; chi prenota a meno di 7 giorni dall'arrivo non è rimborsabile.
+// Decide il server: qui la si mostra soltanto.
 const oggiRoma=()=>{try{const o={};for(const x of new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()))o[x.type]=x.value;return o.year+'-'+o.month+'-'+o.day}catch{return iso(new Date())}};
 const annullo=da=>{const d=new Date(da+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-7);const ug=iso(d);
-  return oggiRoma()<=ug?'Annullamento gratuito fino a '+fmtL(ug)+', con il rimborso totale dall’area clienti.':'Non rimborsabile: l’arrivo è tra meno di 7 giorni.'};
+  return oggiRoma()<=ug?'Annullamento dall’area clienti fino a '+fmtL(ug)+', con il rimborso dell’importo pagato meno i costi del pagamento trattenuti da Stripe.':'Non rimborsabile: l’arrivo è tra meno di 7 giorni.'};
 // Accesso alla prenotazione (api/_accesso.js): basta il codice di prenotazione; il server risponde con un token di sessione.
 // Il link della mail porta un token segreto ("#c=…&t=…"), i messaggi mandati da Booking/Airbnb il solo codice ("#k=…"): il frammento "#"
 // non va mai al server né ad altri siti, e viene tolto subito dall'indirizzo. Codice e token restano solo in sessionStorage (si cancella chiudendo la scheda).

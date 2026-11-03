@@ -41,9 +41,10 @@ const L={
   installa:'Aggiungi alla schermata Home',installaD:'Ritrovi l\'area clienti come un\'app: per entrare basta il codice.',installaIos:'Su iPhone o iPad tocca Condividi e poi «Aggiungi alla schermata Home».',installaBtn:'Installa',chiudi:'Chiudi',
   chatNota:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile. Per le urgenze chiamaci al +39 351 704 3594.',chatNotaEmail:'Scrivici qui per qualsiasi domanda sul soggiorno: ti rispondiamo appena possibile e la risposta ti arriva anche via email. Per le urgenze chiamaci al +39 351 704 3594.',chatVuota:'Nessun messaggio per ora: scrivici quando vuoi.',
   scrivi:'Il tuo messaggio',scriviPh:'Scrivi qui…',foto:'Foto',invia:'Invia',invio:'Invio…',tu:'Tu',noi:'La Columbera',originale:'Mostra originale',tradotto:'Tradotto automaticamente',errInvio:'Messaggio non inviato: controlla la connessione e riprova.',troppiMsg:'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto.',caratteri:n=>n+' caratteri rimasti',
-  annTit:'Annullamento',annOk:(d,i)=>'Puoi annullare gratis fino a '+d+' (7 giorni prima dell\'arrivo): ti rimborsiamo '+i+' sulla carta con cui hai pagato.',annBtn:'Annulla la prenotazione',
-  annConf:i=>'Vuoi davvero annullare? La prenotazione non si potrà recuperare e le notti tornano disponibili. Ti rimborsiamo '+i+'.',annSi:'Sì, annulla e rimborsa',annNo:'No, la tengo',annInCorso:'Annullo…',
-  annScaduto:d=>'Si annulla gratis fino a 7 giorni prima dell\'arrivo (fino a '+d+'): ora la prenotazione non è più rimborsabile. Per qualsiasi necessità scrivici.',annNonPagata:'Per annullare questa prenotazione scrivici.',
+  annTit:'Annullamento',annOk:d=>'Puoi annullare fino a '+d+' (7 giorni prima dell\'arrivo) e ricevi il rimborso sulla carta con cui hai pagato; prima di confermare vedi l\'importo esatto.',annBtn:'Annulla la prenotazione',
+  annConf:(i,p,c)=>'Vuoi davvero annullare? La prenotazione non si potrà recuperare e le notti tornano disponibili. Ti rimborsiamo '+i+(c?' ('+p+' pagati meno '+c+' di costi del pagamento trattenuti da Stripe)':'')+'.',annSi:'Sì, annulla e rimborsa',annNo:'No, la tengo',annInCorso:'Annullo…',
+  annCalc:'Calcolo il rimborso…',annImpErr:'Non riesco a calcolare l\'importo del rimborso: riprova tra qualche minuto. Nulla è cambiato.',
+  annScaduto:d=>'Si annulla online fino a 7 giorni prima dell\'arrivo (fino a '+d+'): ora la prenotazione non è più rimborsabile. Per qualsiasi necessità scrivici.',annNonPagata:'Per annullare questa prenotazione scrivici.',
   annPortale:p=>'Hai prenotato tramite '+p+': per annullare usa la piattaforma.',annFatto:'Prenotazione annullata',annFattoD:(i,e)=>'Il rimborso di '+i+' è partito: torna sulla carta con cui hai pagato, di solito in 5–10 giorni lavorativi.'+(e?' Ti abbiamo mandato un\'email a '+e+'.':''),
   annGia:'La prenotazione è annullata e il pagamento risulta già rimborsato.',annErr:'Annullamento non riuscito: controlla la connessione e riprova.',annHome:'Torna al sito',
   ricTit:'Ricevuta',ricD:'Ti serve la ricevuta del soggiorno? Chiedila qui: la prepariamo e te la mandiamo via email.',ricBtn:'Richiedi la ricevuta',ricNome:'Intestata a (nome e cognome o ragione sociale)',
@@ -72,9 +73,10 @@ const L={
   installa:'Add to Home Screen',installaD:'Find your guest area like an app: your code is all you need to open it.',installaIos:'On iPhone or iPad tap Share, then "Add to Home Screen".',installaBtn:'Install',chiudi:'Close',
   chatNota:'Write to us here with any question about your stay: we will reply as soon as possible. For anything urgent call +39 351 704 3594.',chatNotaEmail:'Write to us here with any question about your stay: we will reply as soon as possible and you will also get our answer by email. For anything urgent call +39 351 704 3594.',chatVuota:'No messages yet: write to us whenever you like.',
   scrivi:'Your message',scriviPh:'Write here…',foto:'Photo',invia:'Send',invio:'Sending…',tu:'You',noi:'La Columbera',originale:'Show original',tradotto:'Automatically translated',errInvio:'Message not sent: check your connection and try again.',troppiMsg:'You have sent many messages in a short time: please try again in a few minutes.',caratteri:n=>n+' characters left',
-  annTit:'Cancellation',annOk:(d,i)=>'You can cancel free of charge until '+d+' (7 days before arrival): we refund '+i+' to the card you paid with.',annBtn:'Cancel the booking',
-  annConf:i=>'Do you really want to cancel? The booking cannot be restored and the nights become available again. We will refund '+i+'.',annSi:'Yes, cancel and refund',annNo:'No, keep it',annInCorso:'Cancelling…',
-  annScaduto:d=>'Free cancellation is possible up to 7 days before arrival (until '+d+'): the booking is no longer refundable. If you need anything, write to us.',annNonPagata:'To cancel this booking, write to us.',
+  annTit:'Cancellation',annOk:d=>'You can cancel until '+d+' (7 days before arrival) and get a refund to the card you paid with; before confirming you will see the exact amount.',annBtn:'Cancel the booking',
+  annConf:(i,p,c)=>'Do you really want to cancel? The booking cannot be restored and the nights become available again. We will refund '+i+(c?' ('+p+' paid minus '+c+' in payment costs kept by Stripe)':'')+'.',annSi:'Yes, cancel and refund',annNo:'No, keep it',annInCorso:'Cancelling…',
+  annCalc:'Calculating the refund…',annImpErr:'We cannot calculate the refund amount right now: please try again in a few minutes. Nothing has changed.',
+  annScaduto:d=>'Online cancellation is possible up to 7 days before arrival (until '+d+'): the booking is no longer refundable. If you need anything, write to us.',annNonPagata:'To cancel this booking, write to us.',
   annPortale:p=>'You booked through '+p+': to cancel, use the platform.',annFatto:'Booking cancelled',annFattoD:(i,e)=>'The refund of '+i+' is on its way back to the card you paid with: it usually arrives within 5–10 business days.'+(e?' We have sent you an email at '+e+'.':''),
   annGia:'The booking is cancelled and the payment has already been refunded.',annErr:'Cancellation failed: check your connection and try again.',annHome:'Back to the website',
   ricTit:'Receipt',ricD:'Need a receipt for your stay? Request it here: we will prepare it and email it to you.',ricBtn:'Request a receipt',ricNome:'Issued to (full name or company name)',
@@ -103,9 +105,10 @@ const L={
   installa:'Zum Home-Bildschirm hinzufügen',installaD:'Ihr Gästebereich wie eine App: Zum Öffnen brauchen Sie nur Ihren Code.',installaIos:'Auf iPhone oder iPad auf Teilen tippen und dann „Zum Home-Bildschirm“.',installaBtn:'Installieren',chiudi:'Schließen',
   chatNota:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatNotaEmail:'Schreiben Sie uns hier zu allen Fragen rund um Ihren Aufenthalt: Wir antworten so schnell wie möglich, und unsere Antwort erhalten Sie auch per E-Mail. In dringenden Fällen rufen Sie +39 351 704 3594 an.',chatVuota:'Noch keine Nachrichten: Schreiben Sie uns, wann immer Sie möchten.',
   scrivi:'Ihre Nachricht',scriviPh:'Hier schreiben…',foto:'Foto',invia:'Senden',invio:'Wird gesendet…',tu:'Sie',noi:'La Columbera',originale:'Original anzeigen',tradotto:'Automatisch übersetzt',errInvio:'Nachricht nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',troppiMsg:'Sie haben in kurzer Zeit viele Nachrichten gesendet: Bitte versuchen Sie es in einigen Minuten erneut.',caratteri:n=>'noch '+n+' Zeichen',
-  annTit:'Stornierung',annOk:(d,i)=>'Sie können bis zum '+d+' (7 Tage vor der Anreise) kostenlos stornieren: Wir erstatten '+i+' auf die Karte, mit der Sie bezahlt haben.',annBtn:'Buchung stornieren',
-  annConf:i=>'Möchten Sie wirklich stornieren? Die Buchung kann nicht wiederhergestellt werden, und die Nächte werden wieder frei. Wir erstatten '+i+'.',annSi:'Ja, stornieren und erstatten',annNo:'Nein, behalten',annInCorso:'Wird storniert…',
-  annScaduto:d=>'Eine kostenlose Stornierung ist bis 7 Tage vor der Anreise möglich (bis zum '+d+'): Die Buchung ist nicht mehr erstattungsfähig. Wenn Sie etwas brauchen, schreiben Sie uns.',annNonPagata:'Um diese Buchung zu stornieren, schreiben Sie uns.',
+  annTit:'Stornierung',annOk:d=>'Sie können bis zum '+d+' (7 Tage vor der Anreise) stornieren und erhalten die Erstattung auf die Karte, mit der Sie bezahlt haben; vor der Bestätigung sehen Sie den genauen Betrag.',annBtn:'Buchung stornieren',
+  annConf:(i,p,c)=>'Möchten Sie wirklich stornieren? Die Buchung kann nicht wiederhergestellt werden, und die Nächte werden wieder frei. Wir erstatten '+i+(c?' ('+p+' bezahlt abzüglich '+c+' Zahlungskosten, die Stripe einbehält)':'')+'.',annSi:'Ja, stornieren und erstatten',annNo:'Nein, behalten',annInCorso:'Wird storniert…',
+  annCalc:'Erstattung wird berechnet…',annImpErr:'Der Erstattungsbetrag lässt sich gerade nicht berechnen: Bitte versuchen Sie es in einigen Minuten erneut. Es hat sich nichts geändert.',
+  annScaduto:d=>'Online stornieren ist bis 7 Tage vor der Anreise möglich (bis zum '+d+'): Die Buchung ist nicht mehr erstattungsfähig. Wenn Sie etwas brauchen, schreiben Sie uns.',annNonPagata:'Um diese Buchung zu stornieren, schreiben Sie uns.',
   annPortale:p=>'Sie haben über '+p+' gebucht: Zum Stornieren nutzen Sie die Plattform.',annFatto:'Buchung storniert',annFattoD:(i,e)=>'Die Erstattung von '+i+' geht auf die Karte zurück, mit der Sie bezahlt haben: in der Regel innerhalb von 5–10 Werktagen.'+(e?' Wir haben Ihnen eine E-Mail an '+e+' gesendet.':''),
   annGia:'Die Buchung ist storniert und die Zahlung wurde bereits erstattet.',annErr:'Stornierung fehlgeschlagen: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',annHome:'Zurück zur Website',
   ricTit:'Quittung',ricD:'Benötigen Sie eine Quittung für Ihren Aufenthalt? Fordern Sie sie hier an: Wir erstellen sie und senden sie Ihnen per E-Mail.',ricBtn:'Quittung anfordern',ricNome:'Ausgestellt auf (Vor- und Nachname oder Firmenname)',
@@ -233,19 +236,30 @@ function chiaviInfo(s){
  if(!(s.checkin&&s.checkin.fatto))return `<p class="book-note">${esc(t('chiavi'))}</p>`;
  if(c&&c.codice)return `<h4>${esc(t('cassTit'))}</h4><p class="ga-cass-code" data-testid="ga-arrivo-cassetta">${esc(c.codice)}</p>`;
  return `<p class="book-note">${esc(c&&c.dal?t('cassDal',dLong(c.dal)):t('cassEmail'))}</p>`}
-// Annullamento (solo prenotazioni del sito pagate online): fino a 7 giorni prima dell'arrivo, con il rimborso totale. Due passi: il pulsante,
-// poi la conferma con l'importo. La regola la decide il server (s.annullo): qui si mostra soltanto.
+// Annullamento (solo prenotazioni del sito pagate online): fino a 7 giorni prima dell'arrivo, con il rimborso dell'importo pagato meno i costi
+// del pagamento trattenuti da Stripe (le prenotazioni di prima: rimborso totale). Due passi: il pulsante, poi la conferma con l'importo esatto,
+// che dà il server (annullo_importo): senza importo non c'è il «Sì». La regola e l'importo li decide il server: qui si mostrano soltanto.
 function pAnnullo(s){
  const a=s.annullo||{},pay=s.pagamento;
  if(a.motivo==='portale')return `<section class="ga-card ga-ann" data-testid="ga-annullo"><h3>${esc(t('annTit'))}</h3><p class="book-note">${esc(t('annPortale',s.portale))}</p></section>`;
  if(!pay)return '';
- const body=a.possibile?`<p>${esc(t('annOk',dLong(a.entro),eur(pay.totale)))}</p><div id="ga-ann-box">${annBox(false)}</div>`
+ const body=a.possibile?`<p>${esc(t('annOk',dLong(a.entro)))}</p><div id="ga-ann-box">${annBox(false)}</div>`
   :`<p class="book-note" data-testid="ga-annullo-no">${esc(a.motivo==='scaduto'?t('annScaduto',dLong(a.entro)):t('annNonPagata'))}</p>`;
  return `<section class="ga-card ga-ann" data-testid="ga-annullo"><h3>${esc(t('annTit'))}</h3>${body}</section>`}
-const annBox=(conf,err)=>conf?`<div class="ga-ann-conf" role="group" aria-labelledby="ga-ann-q"><p id="ga-ann-q"><b>${esc(t('annConf',eur(sog().pagamento.totale)))}</b></p>
+let annImp=null;      // importo del rimborso dato dal server ({pagato, commissione, rimborso}), per la conferma
+const annTesto=()=>{const c=+annImp.commissione>0;return t('annConf',eur(annImp.rimborso),c?eur(annImp.pagato):'',c?eur(annImp.commissione):'')};
+const annBox=(conf,err)=>conf&&annImp?`<div class="ga-ann-conf" role="group" aria-labelledby="ga-ann-q"><p id="ga-ann-q"><b>${esc(annTesto())}</b></p>
   <div class="ga-btns"><button type="button" class="btn btn-wine" data-act="annSi" data-testid="ga-annulla-si">${esc(t('annSi'))}</button><button type="button" class="btn btn-line" data-act="annNo" data-testid="ga-annulla-no">${esc(t('annNo'))}</button></div>
   <p class="form-err" role="alert" data-testid="ga-annulla-err">${esc(err||'')}</p></div>`
- :`<button type="button" class="btn btn-line" data-act="annChiedi" data-testid="ga-annulla">${esc(t('annBtn'))}</button>`;
+ :`<button type="button" class="btn btn-line" data-act="annChiedi" data-testid="ga-annulla">${esc(t('annBtn'))}</button>${err?`<p class="form-err" role="alert" data-testid="ga-annulla-err">${esc(err)}</p>`:''}`;
+// «Annulla la prenotazione»: prima l'importo esatto dal server; se non arriva, il messaggio e di nuovo il pulsante (niente «Sì»)
+async function annChiedi(btn){
+ btn.disabled=true;btn.textContent=t('annCalc');annImp=null;
+ let m='';
+ try{const r=await callG('annullo_importo');if(isFinite(+r.rimborso)&&+r.rimborso>0)annImp=r;else m=t('annImpErr')}
+ catch(x){m=x.status&&lang==='it'?x.message:x.code==='NON_ANNULLABILE'?t('annScaduto',dLong(sog().annullo.entro)):t('annImpErr')}      // i messaggi del server sono in italiano
+ const box=$('#ga-ann-box');if(!box)return;
+ box.innerHTML=annBox(!!annImp,m);const x=$(annImp?'[data-testid=ga-annulla-no]':'[data-testid=ga-annulla]');if(x)x.focus()}
 async function annulla(btn){
  btn.disabled=true;btn.textContent=t('annInCorso');
  try{const r=await callG('annulla',{lingua:lang});paintAnnullata(r)}
@@ -459,7 +473,8 @@ function wire(){
   else if(k==='checkin')ckAperto=Date.now();      // il link si apre da sé (altra scheda)
   else if(k==='install'&&deferredInstall){deferredInstall.prompt();try{await deferredInstall.userChoice}catch{}deferredInstall=null;if(R)paint()}
   else if(k==='noinstall'){ss('lc_pwa_no','1');const c=a.closest('.ga-install');if(c)c.remove()}
-  else if(k==='annChiedi'||k==='annNo'){const box=$('#ga-ann-box');if(box){box.innerHTML=annBox(k==='annChiedi');const x=$(k==='annChiedi'?'[data-testid=ga-annulla-no]':'[data-testid=ga-annulla]');if(x)x.focus()}}
+  else if(k==='annChiedi')annChiedi(a);
+  else if(k==='annNo'){const box=$('#ga-ann-box');if(box){box.innerHTML=annBox(false);const x=$('[data-testid=ga-annulla]');if(x)x.focus()}}
   else if(k==='annSi')annulla(a);
   else if(k==='ricApri'||k==='ricChiudi'){ricForm=k==='ricApri';ricErr='';ricRepaint(ricForm?'#ric-nome':'#ga-ric h3')}});
  // frecce sinistra/destra tra le schede (come una barra di schede vera)
