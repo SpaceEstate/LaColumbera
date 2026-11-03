@@ -497,7 +497,8 @@ test('R2 dopo il settimo giorno prima dell\'arrivo (ora di Roma) l\'ospite non a
   eq((await ospite('mie', { code: c2 })).body.soggiorno.annullo.motivo, 'scaduto');
   assert(/non è rimborsabile/.test(mailsTo('tardi@test.it')[0].text), 'email di conferma: non rimborsabile');
   const c3 = await pagata({ da: '2026-12-10', a: '2026-12-13', email: 'presto@test.it' });
-  assert(/Puoi annullare gratis dall'area personale fino a giovedì 3 dicembre 2026/.test(mailsTo('presto@test.it')[0].text), 'email di conferma: fino a quando si annulla');
+  const cf = mailsTo('presto@test.it')[0].text;
+  assert(/Puoi annullare dall'area personale fino a giovedì 3 dicembre 2026, con il rimborso sulla carta dell'importo pagato meno i costi del pagamento trattenuti da Stripe/.test(cf) && !/gratis|rimborso totale/.test(cf), 'email di conferma: fino a quando si annulla e con quale rimborso');
   eq((await ospite('annulla', { code: c2 })).status, 409);
 });
 
@@ -542,6 +543,66 @@ test('R5 ospiti di Booking/Airbnb e prenotazioni senza pagamento online: dal sit
   await wh(code); eq(bk(code).stato, 'da_verificare');
   eq((await ospite('annulla', { code })).status, 409, 'l\'ospite no (prenotazione non confermata)');
   eq((await H.adminApi('rimborsa', { code })).status, 200); eq([bk(code).stato, rimborsi().length], ['annullata', 1]);
+});
+
+test('R6 rimborso meno la commissione di Stripe: l\'ospite vede prima l\'importo (pagato meno la commissione reale letta da Stripe) e riceve quello; se Stripe non dà la commissione nulla cambia; le prenotazioni di prima e gli annullamenti del titolare restano con il rimborso totale', async () => {
+  await base();
+  const corpi = [], f0 = globalThis.fetch;      // cosa arriva al foglio: il campo nuovo non ci va
+  globalThis.fetch = (u, o) => { if (String(u).startsWith('https://script.google.com/') && o && o.body) corpi.push(JSON.parse(o.body)); return f0(u, o); };
+  try {
+    global.__stripeFee = 1055;      // 10,55 € di commissione su 540 €
+    const code = await pagata(); global.__mails = [];
+    eq(bk(code).rimborso_netto, 1, 'le prenotazioni nuove hanno il rimborso netto');
+    assert(corpi.length && corpi.every(c => !('rimborso_netto' in c.booking) && !JSON.stringify(c).includes('rimborso_netto')), 'il campo non va sul foglio');
+    // il preventivo: legge la commissione reale da Stripe, non cambia nulla
+    const q = await ospite('annullo_importo', { code }); eq(q.status, 200, JSON.stringify(q.body));
+    eq([q.body.pagato, q.body.commissione, q.body.rimborso], [540, 10.55, 529.45]);
+    eq(global.__stripePiCalls.map(c => [c.id, c.expand]), [['pi_' + code, ['latest_charge.balance_transaction']]], 'commissione letta dalla balance transaction del pagamento');
+    eq([bk(code).stato, rimborsi().length, global.__mails.length], ['confermata', 0, 0]);
+    // Stripe non risponde o non dà la commissione: niente preventivo, niente rimborso, nulla cambia
+    for (const guasto of [true, 'senza_commissione']) {
+      global.__stripePiFail = guasto;
+      const p = await ospite('annullo_importo', { code }); eq(p.status, 502, 'preventivo ' + guasto);
+      const r = await ospite('annulla', { code }); eq([r.status, r.body.code], [502, 'COSTI_STRIPE'], 'annullo ' + guasto); assert(/nulla è cambiato/.test(r.body.err), r.body.err);
+      eq([bk(code).stato, bk(code).rimborso, rimborsi().length, global.__mails.length], ['confermata', undefined, 0, 0]);
+      eq(await libere('2026-10-19', '2026-10-25'), ['2026-10-20', '2026-10-21', '2026-10-22'], 'le notti restano chiuse');
+    }
+    global.__stripePiFail = false;
+    // l'annullamento: rimborso netto, con la sua chiave di idempotenza; risposta, record, note ed email con i tre importi
+    const r = await ospite('annulla', { code, lingua: 'it' }); eq(r.status, 200, JSON.stringify(r.body));
+    eq(r.body.rimborso, { importo: 529.45, stato: 'succeeded', pagato: 540, commissione: 10.55 });
+    eq(r.body.rimborso.importo, q.body.rimborso, 'il rimborso è quello mostrato nel preventivo');
+    eq(rimborsi().length, 1); const rf = rimborsi()[0];
+    eq([rf.key, rf.params.payment_intent, rf.params.amount, rf.params.reason, rf.params.metadata], ['lc-rimborso-' + code + '-netto', 'pi_' + code, 52945, 'requested_by_customer', { code, commissione: '10.55' }]);
+    const b = bk(code); eq([b.stato, b.annullata_da, b.rimborso.importo, b.rimborso.pagato, b.rimborso.commissione, b.rimborso.id], ['annullata', 'ospite', 529.45, 540, 10.55, 're_test_1']);
+    assert(/RIMBORSO 529,45 € \(re_test_1\) · PAGATI 540 €, TRATTENUTI 10,55 € DI COMMISSIONE STRIPE/.test(b.note), b.note);
+    const g = mailsTo('mario@test.it')[0], o = mailsTo('owner@test')[0];
+    assert(/Rimborso: € 529,45\nImporto pagato: € 540 · costi del pagamento trattenuti da Stripe: € 10,55\n/.test(g.text) && g.html.includes('€ 529,45') && g.html.includes('costi del pagamento trattenuti da Stripe: € 10,55'), g.text);
+    assert(/rimborso di € 529,45 avviato su Stripe \(re_test_1\), cioè € 540 pagati meno € 10,55 di commissione trattenuta da Stripe/.test(o.text) && o.html.includes('Commissione Stripe trattenuta') && o.html.includes('€ 10,55') && o.html.includes('€ 529,45'), o.text);
+    // doppio tentativo: stessa risposta, nessun rimborso in più
+    const r2 = await ospite('annulla', { code }); eq([r2.status, r2.body.gia, r2.body.rimborso.importo], [200, true, 529.45]); eq([rimborsi().length, global.__mails.length], [1, 2]);
+    // due tocchi insieme e un errore dopo il rimborso (KV giù alla rilettura): ripetendo, stessa chiave e stessi parametri → un solo rimborso
+    const c2 = await pagata({ da: '2026-11-02', a: '2026-11-05', email: 'anna@test.it' }); global.__mails = [];
+    let colpi = 0; kv.after = async cmd => { if (rimborsi().length === 2 && cmd[0] === 'HGET' && cmd[1] === 'bkh' && !colpi++) throw new Error('KV giù'); };
+    const st = (await Promise.all([ospite('annulla', { code: c2, lingua: 'en' }), ospite('annulla', { code: c2, lingua: 'en' })])).map(x => x.status); kv.after = null;
+    eq(rimborsi().length, 2, 'un rimborso partito'); eq(st.sort(), [409, 500], 'uno trova l\'annullamento in corso, l\'altro si ferma dopo il rimborso'); eq(bk(c2).stato, 'confermata');
+    eq((await ospite('annulla', { code: c2, lingua: 'en' })).status, 200);
+    eq([rimborsi().length, bk(c2).stato, bk(c2).rimborso.id, bk(c2).rimborso.importo], [2, 'annullata', 're_test_2', 529.45], 'stesso rimborso netto, nessun doppio rimborso');
+    assert(/Refund: € 529,45\nAmount paid: € 540 · payment costs kept by Stripe: € 10,55/.test(mailsTo('anna@test.it')[0].text), mailsTo('anna@test.it')[0].text);
+    // prenotazione di prima (senza rimborso_netto): preventivo e rimborso totali, Stripe non si interroga per la commissione
+    const c3 = await pagata({ da: '2026-12-10', a: '2026-12-13', email: 'vecchia@test.it' }), v = bk(c3); delete v.rimborso_netto; kv.exec(['HSET', 'bkh', c3, JSON.stringify(v)]);
+    const pi0 = global.__stripePiCalls.length; global.__mails = [];
+    const q3 = await ospite('annullo_importo', { code: c3 }); eq([q3.status, q3.body.pagato, q3.body.commissione, q3.body.rimborso], [200, 540, 0, 540]);
+    eq((await ospite('annulla', { code: c3 })).body.rimborso, { importo: 540, stato: 'succeeded' }); eq(global.__stripePiCalls.length, pi0, 'nessuna lettura della commissione');
+    const r3 = rimborsi()[2]; eq([r3.key, r3.params.amount, r3.params.metadata], ['lc-rimborso-' + c3, undefined, { code: c3 }], 'rimborso totale, come prima');
+    eq([bk(c3).rimborso.commissione, bk(c3).rimborso.pagato], [undefined, undefined]); assert(!/trattenut/.test(mailsTo('vecchia@test.it')[0].text) && /Rimborso: € 540\n/.test(mailsTo('vecchia@test.it')[0].text));
+    // il titolare annulla una prenotazione nuova: rimborso totale
+    const c4 = await pagata({ da: '2026-12-01', a: '2026-12-04', email: 'tit@test.it' }); global.__mails = [];
+    eq((await H.adminApi('rimborsa', { code: c4 })).status, 200);
+    const r4 = rimborsi()[3]; eq([r4.key, r4.params.amount, bk(c4).rimborso.importo, bk(c4).rimborso.commissione], ['lc-rimborso-' + c4, undefined, 540, undefined]);
+    assert(!/trattenut/.test(mailsTo('tit@test.it')[0].text) && /La Columbera ha annullato/.test(mailsTo('tit@test.it')[0].text));
+    eq((await ospite('annullo_importo', { code: c4 })).status, 409, 'annullata: niente preventivo');
+  } finally { globalThis.fetch = f0; kv.after = null; }
 });
 
 /* ===================== ricevuta su richiesta (api/_ricevute.js) ===================== */

@@ -70,7 +70,7 @@
    {"k": "book.title", "l": "Titolo", "max": 160},
    {"k": "book.text", "l": "Testo", "max": 400, "righe": 3},
    {"k": "book.cta", "l": "Pulsante delle due schede", "max": 40},
-   {"k": "book.terms", "l": "Pagamento e annullamento", "max": 300, "righe": 2, "nota": "L'annullamento gratuito fino a 7 giorni prima dell'arrivo è la regola applicata dal sito: il testo deve dire la stessa cosa."},
+   {"k": "book.terms", "l": "Pagamento e annullamento", "max": 300, "righe": 2, "nota": "L'annullamento dall'area clienti fino a 7 giorni prima dell'arrivo, con il rimborso dell'importo pagato meno i costi del pagamento trattenuti da Stripe, è la regola applicata dal sito: il testo deve dire la stessa cosa."},
    {"k": "book.contact", "l": "Contatti", "max": 300, "righe": 2, "ph": ["email", "telefono"]}
   ]}
  ]

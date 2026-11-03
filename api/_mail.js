@@ -65,9 +65,10 @@ ${body}
 
 const sec=(inner,pad)=>`<tr><td style="padding:${pad||'22px 32px 0'}">${inner}</td></tr>`;
 
-// Regola di annullamento (api/_annulla.js): fino a 7 giorni prima dell'arrivo si annulla gratis dall'area personale; dopo non è rimborsabile
+// Regola di annullamento (api/_annulla.js): fino a 7 giorni prima dell'arrivo si annulla dall'area personale, con il rimborso sulla carta
+// dell'importo pagato meno i costi del pagamento trattenuti da Stripe (prenotazioni con rimborso_netto); dopo non è rimborsabile
 const annulloRiga=b=>{const ug=require('./_annulla.js').ultimoGiorno(b.da);
-  return require('./_avail.js').todayRome()<=ug?'Puoi annullare gratis dall\'area personale fino a '+dLong(ug).replace(/^./,c=>c.toLowerCase())+', con il rimborso totale sulla carta.':'Mancano meno di 7 giorni all\'arrivo: questa prenotazione non è rimborsabile.'};
+  return require('./_avail.js').todayRome()<=ug?'Puoi annullare dall\'area personale fino a '+dLong(ug).replace(/^./,c=>c.toLowerCase())+(b.rimborso_netto?', con il rimborso sulla carta dell\'importo pagato meno i costi del pagamento trattenuti da Stripe.':', con il rimborso sulla carta.'):'Mancano meno di 7 giorni all\'arrivo: questa prenotazione non è rimborsabile.'};
 
 // ---------------- EMAIL OSPITE ----------------
 // token = chiave segreta di accesso (api/_accesso.js): va nel frammento "#", che il browser non invia mai al server né ad altri siti.
@@ -201,36 +202,42 @@ const ANN={
   it:{sub:c=>'Prenotazione annullata · La Columbera · '+c,eye:'Prenotazione annullata',tit:n=>'Ciao'+(n?' '+n:'')+',<br>la prenotazione è annullata',
     ospite:'Abbiamo annullato la prenotazione come ci hai chiesto.',titolare:'La Columbera ha annullato la tua prenotazione.',rimb:'Rimborso',
     carta:'Torna sulla carta con cui hai pagato: di solito arriva in 5–10 giorni lavorativi, dipende dalla tua banca.',gia:'Il pagamento ti è già stato rimborsato.',
+    pagato:'Importo pagato',comm:'costi del pagamento trattenuti da Stripe',
     checkin:'Check-in',checkout:'Check-out',codice:'Codice di prenotazione',domande:'Per qualsiasi domanda scrivici a',auto:'Questa è un\'email automatica: non rispondere a questo messaggio.',priv:'Informativa privacy'},
   en:{sub:c=>'Booking cancelled · La Columbera · '+c,eye:'Booking cancelled',tit:n=>'Hi'+(n?' '+n:'')+',<br>your booking is cancelled',
     ospite:'We have cancelled your booking as you asked.',titolare:'La Columbera has cancelled your booking.',rimb:'Refund',
     carta:'It goes back to the card you paid with: it usually arrives within 5–10 business days, depending on your bank.',gia:'Your payment has already been refunded.',
+    pagato:'Amount paid',comm:'payment costs kept by Stripe',
     checkin:'Check-in',checkout:'Check-out',codice:'Booking code',domande:'For any questions, write to',auto:'This is an automated email: please do not reply to this message.',priv:'Privacy notice'},
   de:{sub:c=>'Buchung storniert · La Columbera · '+c,eye:'Buchung storniert',tit:n=>'Hallo'+(n?' '+n:'')+',<br>Ihre Buchung ist storniert',
     ospite:'Wir haben Ihre Buchung wie gewünscht storniert.',titolare:'La Columbera hat Ihre Buchung storniert.',rimb:'Erstattung',
     carta:'Sie geht auf die Karte zurück, mit der Sie bezahlt haben: in der Regel innerhalb von 5–10 Werktagen, je nach Bank.',gia:'Ihre Zahlung wurde bereits erstattet.',
+    pagato:'Bezahlter Betrag',comm:'von Stripe einbehaltene Zahlungskosten',
     checkin:'Check-in',checkout:'Check-out',codice:'Buchungscode',domande:'Bei Fragen schreiben Sie an',auto:'Dies ist eine automatische E-Mail: Bitte antworten Sie nicht auf diese Nachricht.',priv:'Datenschutzhinweis'}};
 const annullataOspite=(b,site,lingua)=>{
   const lg=ANN[lingua]?lingua:'it',L=ANN[lg],r=b.rimborso||{},nome=String(b.nome||'').trim().split(/\s+/)[0],gia=r.stato==='gia_rimborsato';
   const intro=b.annullata_da==='titolare'?L.titolare:L.ospite;
+  // rimborso netto (annullamento dell'ospite): quanto ha pagato e quanto ha trattenuto Stripe
+  const dett=!gia&&+r.commissione>0?L.pagato+': '+eur(r.pagato)+' · '+L.comm+': '+eur(r.commissione):'';
   const html=shell({site,lang:lg,eyebrow:L.eye,preheader:intro+' '+(gia?L.gia:L.rimb+': '+eur(r.importo)),title:esc(L.tit(nome)),
     body:sec(pc(esc(intro)),'14px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};border:1px dashed ${C.gold};border-radius:10px"><tr><td align="center" style="padding:20px 16px">
 <div style="font-family:${SANS};font-size:11px;letter-spacing:2.2px;text-transform:uppercase;color:${C.muted};font-weight:700">${esc(L.rimb)}</div>
-${gia?`<div style="font-family:${SANS};font-size:15px;line-height:22px;color:${C.ink};padding-top:8px">${esc(L.gia)}</div>`:`<div style="font-family:${SERIF};font-size:30px;line-height:36px;color:${C.oro};padding-top:6px">${esc(eur(r.importo))}</div><div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:6px">${esc(L.carta)}</div>`}</td></tr></table>`,'22px 32px 0')+
+${gia?`<div style="font-family:${SANS};font-size:15px;line-height:22px;color:${C.ink};padding-top:8px">${esc(L.gia)}</div>`:`<div style="font-family:${SERIF};font-size:30px;line-height:36px;color:${C.oro};padding-top:6px">${esc(eur(r.importo))}</div>${dett?`<div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.ink};padding-top:6px">${esc(dett)}</div>`:''}<div style="font-family:${SANS};font-size:13.5px;line-height:20px;color:${C.muted};padding-top:6px">${esc(L.carta)}</div>`}</td></tr></table>`,'22px 32px 0')+
       sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row(esc(L.checkin),esc(dLg(b.da,lg)))}${row(esc(L.checkout),esc(dLg(b.a,lg)))}${row(esc(L.codice),`<span style="font-family:${MONO};letter-spacing:1px">${esc(fmtCode(b.code))}</span>`,true)}</table>`,'26px 32px 0')+
       sec(piede(`${esc(L.domande)} <a href="mailto:lacolumbera@gmail.com" style="color:${C.oro}">lacolumbera@gmail.com</a>.<br>${esc(L.auto)}<br><a href="${esc(site)}/privacy.html" target="_blank" style="color:${C.muted}">${esc(L.priv)}</a>`),'24px 32px 32px')});
-  const text=`${L.tit(nome).replace('<br>',' ')}\n\n${intro}\n\n${gia?L.gia:L.rimb+': '+eur(r.importo)+'\n'+L.carta}\n\n${aptName(b.id)}\n${L.checkin}: ${dLg(b.da,lg)}\n${L.checkout}: ${dLg(b.a,lg)}\n${L.codice}: ${fmtCode(b.code)}\n\n${L.domande} lacolumbera@gmail.com · +39 351 704 3594\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
+  const text=`${L.tit(nome).replace('<br>',' ')}\n\n${intro}\n\n${gia?L.gia:L.rimb+': '+eur(r.importo)+'\n'+(dett?dett+'\n':'')+L.carta}\n\n${aptName(b.id)}\n${L.checkin}: ${dLg(b.da,lg)}\n${L.checkout}: ${dLg(b.a,lg)}\n${L.codice}: ${fmtCode(b.code)}\n\n${L.domande} lacolumbera@gmail.com · +39 351 704 3594\n${L.auto}\n${L.priv}: ${site}/privacy.html`;
   return{subject:L.sub(b.code),html,text}};
 // Al titolare, quando annulla l'ospite: chi, quale soggiorno, quanto è stato rimborsato e che le notti sono di nuovo libere.
 const annullataTitolare=(b,site)=>{
   const r=b.rimborso||{},link=site+'/admin.html#prenotazioni/'+encodeURIComponent(b.code),gia=r.stato==='gia_rimborsato',chi=String(b.nome||'').trim()||'L\'ospite';
-  const rimb=gia?'il pagamento risultava già rimborsato su Stripe':'rimborso di '+eur(r.importo)+' avviato su Stripe'+(r.id?' ('+r.id+')':'');
+  const comm=!gia&&+r.commissione>0;      // rimborso netto: pagato meno la commissione che Stripe ha trattenuto
+  const rimb=gia?'il pagamento risultava già rimborsato su Stripe':'rimborso di '+eur(r.importo)+' avviato su Stripe'+(r.id?' ('+r.id+')':'')+(comm?', cioè '+eur(r.pagato)+' pagati meno '+eur(r.commissione)+' di commissione trattenuta da Stripe':'');
   const html=shell({site,eyebrow:'Prenotazione annullata',preheader:`${chi} ha annullato · ${aptName(b.id)} · ${dLong(b.da)} · ${eur(r.importo)}`,
     title:`Annullata da<br><span style="color:${C.oro}">${esc(chi)}</span>`,
     body:sec(pc(`${esc(chi)} ha annullato dall'area clienti (fino a 7 giorni prima dell'arrivo si può): ${esc(rimb)}.`),'14px 32px 0')+
       sec(codeBox(b.code),'22px 32px 0')+
-      sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Ospite',esc(b.nome||'—'))}${row('Email',esc(b.email||'—'))}${row('Rimborso',esc(gia?'già fatto su Stripe':eur(r.importo)),true)}</table>`,'26px 32px 0')+
+      sec(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td colspan="2" style="padding:0 0 10px"><div style="font-family:${SERIF};font-size:20px;line-height:26px;color:${C.ink}">${esc(aptName(b.id))}</div></td></tr>${row('Check-in',esc(dLong(b.da)))}${row('Check-out',esc(dLong(b.a)))}${row('Ospite',esc(b.nome||'—'))}${row('Email',esc(b.email||'—'))}${comm?row('Importo pagato',esc(eur(r.pagato)))+row('Commissione Stripe trattenuta',esc(eur(r.commissione))):''}${row('Rimborso',esc(gia?'già fatto su Stripe':eur(r.importo)),true)}</table>`,'26px 32px 0')+
       sec(button(link,'Apri in Gestione'),'24px 32px 0')+
       sec(piede('Le notti sono di nuovo libere sul sito; Booking e Airbnb le liberano quando rileggono il tuo calendario (di solito entro qualche ora). Sul foglio la riga è segnata ANNULLATA. All\'ospite è arrivata l\'email con il rimborso.'),'22px 32px 32px')});
   const text=`${chi} ha annullato la prenotazione ${b.code} dall'area clienti: ${rimb}.\n\n${aptName(b.id)}\nCheck-in:  ${dLong(b.da)}\nCheck-out: ${dLong(b.a)}\nOspite: ${b.nome||'—'} · ${b.email||'—'}\n\nLe notti sono di nuovo libere sul sito; Booking e Airbnb le liberano quando rileggono il calendario.\nGestione: ${link}`;
