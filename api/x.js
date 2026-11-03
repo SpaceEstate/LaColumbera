@@ -209,7 +209,7 @@ async function syncAlerts(config,req){
 }
 
 // ---- Messaggi (area clienti ↔ Gestione), template, invii automatici e traduzione: api/_messaggi.js e api/_traduci.js ----
-const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a)});
+const TR=require('./_traduci.js').makeTraduci({env:process.env,fetch:(...a)=>fetch(...a),log:e=>E.log(e)});
 const MSG=require('./_messaggi.js').makeMessaggi({kv,kvp,traduci:TR,sendMail,ownerEmail:OWNER_EMAIL,replyTo:REPLY_TO,issueToken:b=>ACC.issueForBooking(b,'mail'),mail:()=>require('./_mail.js'),log:e=>E.log(e),cancellaFoto:u=>del(u)});      // foto dei messaggi su Vercel Blob
 const siteOf=req=>process.env.SITE_URL||'https://'+req.headers.host;
 // ---- Annullamento con rimborso (api/_annulla.js) e ricevuta su richiesta (api/_ricevute.js) ----
@@ -525,7 +525,7 @@ if(a==='msg_v'){const lim=await ACC.limitIp(req,'mv',{max:240,win:600});if(lim)r
 if(a==='msg_list'||a==='msg_send'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(!chatOk(x))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);
  const lg=['it','en','de'].includes(b.lingua)?b.lingua:'it';
- if(a==='msg_list')return res.json(Object.assign({t:r.token||undefined},await MSG.perOspite(x.code,lg,b.v)));
+ if(a==='msg_list')return res.json(Object.assign({t:r.token||undefined},await MSG.perOspite(x.code,lg,b.v,{booking:x,getConfig:async()=>cfgG||(cfgG=await cfg(req)),site:siteOf(req)})));
  if(typeof b.testo!=='string'||!b.testo.trim())return res.status(400).json({err:'Scrivi un messaggio'});
  if(b.testo.length>require('./_messaggi.js').MAX_TESTO)return res.status(400).json({err:'Messaggio troppo lungo: al massimo 2000 caratteri'});
  const lim=await ACC.limitKey('ms',x.code,{max:20,win:3600},'Hai scritto molti messaggi in poco tempo: riprova tra qualche minuto. Per le urgenze chiamaci al +39 351 704 3594.');if(lim)return deny(res,lim);
@@ -681,7 +681,7 @@ if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet
 if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI,regole:await MSG.regole()});      // con le regole: l'invio automatico si sceglie anche nel template
 if(a==='msg_tpl_save')try{return res.json({templates:await MSG.salvaTemplates(b.templates)})}catch(e){return msgErr(res,e)}
 if(a==='msg_auto'){const bks=await E.bkAll(),by=new Map(bks.map(x=>[x.code,x]));
- return res.json({regole:await MSG.regole(),templates:await MSG.templates(),prossimi:await MSG.prossimi(bks,7),programmati:(await MSG.programmati()).map(p=>Object.assign({},p,{nome:(by.get(p.code)||{}).nome||'',apt:(by.get(p.code)||{}).id||''})),impostazioni:await MSG.impostazioni(),traduzione:TR.attiva()})}
+ return res.json({regole:await MSG.regole(),templates:await MSG.templates(),prossimi:await MSG.prossimi(bks,7),programmati:(await MSG.programmati()).map(p=>Object.assign({},p,{nome:(by.get(p.code)||{}).nome||'',apt:(by.get(p.code)||{}).id||''})),impostazioni:await MSG.impostazioni(),traduzione:TR.attiva(),traduttore:TR.nome()})}
 if(a==='msg_auto_save')try{return res.json({regole:await MSG.salvaRegole(b.regole,((await cfg(req)).apts||[]).map(p=>p.id))})}catch(e){return msgErr(res,e)}
 if(a==='msg_tpl_auto_save')try{return res.json(await MSG.salvaInsieme(b.templates,b.regole,((await cfg(req)).apts||[]).map(p=>p.id)))}catch(e){return msgErr(res,e)}      // template con i loro invii automatici
 if(a==='msg_salta')try{await MSG.salta(b.regola,b.code,b.salta!==false);return res.json({ok:1})}catch(e){return msgErr(res,e)}

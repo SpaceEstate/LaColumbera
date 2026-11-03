@@ -1,6 +1,6 @@
 'use strict';
 // La Columbera · prove dei MESSAGGI (area clienti ↔ Gestione), dei template, dei messaggi automatici e della traduzione.
-// Stesso banco di prova di sicurezza.js: codice REALE di Vercel, Redis finto, Stripe, SMTP e DeepL finti, orologio simulato. Dati di fantasia.
+// Stesso banco di prova di sicurezza.js: codice REALE di Vercel, Redis finto, Stripe, SMTP, DeepL e Cloudflare finti, orologio simulato. Dati di fantasia.
 //
 //   cd <repo> && node tests/sim/messaggi.js [filtro]      (serve wasmoon, come per scenarios.js)
 const assert = require('assert'), H = require('./harness'), { clock, kv, MIN } = H;
@@ -425,6 +425,263 @@ test('M11 controllo leggero (msg_v): solo con il token, pochissimi comandi, limi
   kv.exec(['DEL', 'msg:pulizia']); eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 0, 'orfana ma recente: resta');
   clock.advance(91 * 24 * 60 * MIN); kv.exec(['DEL', 'msg:pulizia']);
   eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 1, 'orfana e ferma da oltre il periodo di conservazione: cancellata');
+});
+
+/* ===================== traduzione gratuita con Cloudflare (Workers AI) ===================== */
+const CF = { CLOUDFLARE_ACCOUNT_ID: 'c0ffee00c0ffee00c0ffee00c0ffee00', CLOUDFLARE_API_TOKEN: 'token-di-prova' };
+const logTxt = () => (kv.exec(['LRANGE', 'sync:log', '0', '30']) || []).join('\n');
+const quante = (s, re) => (s.match(re) || []).length;
+
+test('M16 traduzione gratuita con Cloudflare (Workers AI): l\'ospite scrive in inglese → il titolare legge in italiano; la risposta arriva in inglese; template e indirizzi protetti; con DeepL resta DeepL', async () => {
+  await base(CF);
+  const c = await confermata(), a = global.__cf.calls;
+  await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });                     // l'ospite usa l'area in inglese
+  await ospite('msg_send', { code: c.code, t: c.t, testo: 'Thanks, we arrive at 6pm', lingua: 'en' });
+  let th = await thread(c.code);
+  eq([th.lingua, th.traduzione, th.messaggi[0].lingua, th.messaggi[0].tradotto], ['en', true, 'en', '[IT] Thanks, we arrive at 6pm']);
+  eq([(await H.adminApi('msg_inbox', {})).body.traduttore, (await H.adminApi('msg_auto', {})).body.traduttore], ['Cloudflare', 'Cloudflare'], 'la Gestione dice chi traduce');
+  eq(a[0].url, 'https://api.cloudflare.com/client/v4/accounts/' + CF.CLOUDFLARE_ACCOUNT_ID + '/ai/run/@cf/mistralai/mistral-small-3.1-24b-instruct', 'indirizzo e modello');
+  assert(a.every(x => x.auth === 'Bearer ' + CF.CLOUDFLARE_API_TOKEN && !x.url.includes(CF.CLOUDFLARE_API_TOKEN)), 'la chiave solo nell\'intestazione');
+  eq(a[0].usr, ['Thanks, we arrive at 6pm'], 'il testo va al modello come elenco JSON');
+  assert(/^TARGET: Italian \(it\)$/m.test(a[0].sys) && !/^SOURCE: .*\(/m.test(a[0].sys), 'verso l\'italiano, la lingua di partenza la riconosce il modello');
+  eq(global.__deepl.calls.length, 0, 'niente DeepL');
+  await H.adminApi('msg_reply', { code: c.code, testo: 'Perfetto, a presto' });
+  const rr = a[a.length - 1];
+  eq(rr.usr, ['Perfetto, a presto']); assert(/^SOURCE: Italian \(it\)$/m.test(rr.sys) && /^TARGET: British English \(en\)$/m.test(rr.sys), 'dall\'italiano all\'inglese');
+  let l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+  eq([l[1].testo, l[1].originale], ['[EN] Perfetto, a presto', 'Perfetto, a presto'], 'tradotta nella lingua dell\'ospite, con l\'originale');
+  l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' })).body.messaggi;
+  eq(l[1].testo, '[DE] Perfetto, a presto', 'cambia lingua: si traduce al volo (e resta salvata)');
+  const n = a.length; await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' }); eq(a.length, n, 'già tradotto: nessuna nuova chiamata');
+  // link: gli indirizzi non vanno al modello (al loro posto i gettoni) e tornano intatti
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example' })).status, 200);
+  eq(a[a.length - 1].usr, ['Prenota qui: [il ristorante]([[1]]) o [[2]]'], 'indirizzi protetti');
+  l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de' })).body.messaggi;
+  eq(l[2].testo, '[DE] Prenota qui: [il ristorante](https://r.example/x?a=1&b=2) o www.museo.example');
+  // messaggio automatico: al modello va il template con le variabili protette, mai i dati della prenotazione
+  await H.adminApi('msg_tpl_save', { templates: [{ id: 'w', nome: 'Wi-Fi', testo: 'Ciao {nome}, il codice è {codice} & il Wi-Fi è {wifi}.' }] });
+  const cf = (await H.adminApi('cfg_admin', {})).body; cf.apts.find(p => p.id === 'torre').infoRiservate = 'Password: SEGRETA'; await H.adminApi('save', cf);
+  await H.adminApi('msg_auto_save', { regole: [{ id: 'conf', nome: 'Alla conferma', attiva: true, tpl: 'w', base: 'conferma' }] });
+  const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' });
+  const k0 = a.length; await sync();
+  const inviati = a.slice(k0), sent = inviati.map(x => JSON.stringify(x.usr)).join('\n');
+  eq(inviati.map(x => x.n), [1, 1], 'il template va una volta in inglese e una in tedesco');
+  assert(sent.includes('Ciao [[1]], il codice è [[2]] & il Wi-Fi è [[3]].') && !/Mario|SEGRETA|nuovo@|Prova|\{nome\}|\{wifi\}/.test(sent) && !sent.includes(d.code), 'template protetto: ' + sent);
+  const ld = (await ospite('msg_list', { code: d.code, t: d.t, lingua: 'en' })).body.messaggi[0];
+  eq(ld.testo, '[EN] Ciao Mario, il codice è ' + d.code.slice(0, 4) + ' ' + d.code.slice(4, 8) + ' ' + d.code.slice(8) + ' & il Wi-Fi è Password: SEGRETA.', 'variabili inserite dopo la traduzione');
+  eq(ld.originale.startsWith('Ciao Mario'), true);
+  // con tutte e due le chiavi vale DeepL, come prima
+  await base(Object.assign({ DEEPL_API_KEY: 'chiave-pro' }, CF));
+  const e = await confermata();
+  await ospite('msg_send', { code: e.code, t: e.t, testo: 'Hello, is parking free?', lingua: 'en' });
+  eq([(await thread(e.code)).messaggi[0].tradotto, global.__deepl.calls.length, global.__cf.calls.length], ['[IT] Hello, is parking free?', 1, 0], 'con DeepL vale DeepL');
+  eq((await H.adminApi('msg_inbox', {})).body.traduttore, 'DeepL');
+});
+
+test('M17 Cloudflare giù, lento, con la quota finita o che sbaglia: il messaggio parte e si legge in originale, nel registro eventi resta il motivo (mai i testi); un gruppo sbagliato si rifà un testo alla volta; poi riprende da solo', async () => {
+  await base(Object.assign({ CLOUDFLARE_TIMEOUT_MS: '150' }, CF));
+  const c = await confermata(), cf = global.__cf;
+  await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });
+  // quota gratuita finita: errore 429
+  cf.mode = 'quota';
+  let r = await ospite('msg_send', { code: c.code, t: c.t, testo: 'Hello, is parking free?', lingua: 'en' }); eq(r.status, 200);
+  let th = await thread(c.code); eq([th.messaggi[0].testo, th.messaggi[0].tradotto], ['Hello, is parking free?', undefined], 'quota finita: si legge in originale');
+  eq(quante(logTxt(), /Traduzione automatica \(Cloudflare\): errore 429, quota gratuita/g), 1, 'una sola riga nel registro eventi, anche con più tentativi');
+  assert(!/parking/.test(logTxt()), 'mai i testi nel registro');
+  // lento: il tempo scade, si risponde lo stesso
+  cf.mode = 'slow';
+  r = await H.adminApi('msg_reply', { code: c.code, testo: 'Sì, gratuito' }); eq(r.status, 200, 'Cloudflare lento: si risponde lo stesso');
+  assert(/nessuna risposta \(rete o tempo scaduto\)/.test(logTxt()), 'motivo nel registro: ' + logTxt());
+  // giù (503) con altri tre messaggi dell'ospite; poi risponde a parole invece che con l'elenco chiesto
+  cf.mode = 'down';
+  for (const t of ['Is there a lift?', 'And a hairdryer?', 'Thanks, you are kind']) eq((await ospite('msg_send', { code: c.code, t: c.t, testo: t, lingua: 'en' })).status, 200);
+  cf.mode = 'garbage'; th = await thread(c.code);
+  eq(th.messaggi.filter(m => m.da === 'ospite').map(m => m.tradotto), [undefined, undefined, undefined, undefined], 'risposta a parole: nessuna traduzione');
+  assert(/il modello non ha risposto nella forma attesa/.test(logTxt()), 'motivo nel registro');
+  // il modello sbaglia il gruppo ma i testi singoli vanno: si rifà un testo alla volta
+  cf.mode = 'batch'; cf.calls.length = 0; th = await thread(c.code);
+  eq(th.messaggi.filter(m => m.da === 'ospite').map(m => m.tradotto), ['[IT] Hello, is parking free?', '[IT] Is there a lift?', '[IT] And a hairdryer?', '[IT] Thanks, you are kind']);
+  eq(cf.calls.map(x => x.n), [4, 1, 1, 1, 1], 'un gruppo da quattro, poi quattro testi singoli');
+  // il modello tocca i gettoni delle variabili: la traduzione del template si scarta, il messaggio parte in italiano e non resta salvato niente
+  await H.adminApi('msg_tpl_save', { templates: [{ id: 'w', nome: 'Benvenuto', testo: 'Ciao {nome}, il codice è {codice}.' }] });
+  await H.adminApi('msg_auto_save', { regole: [{ id: 'conf', nome: 'Alla conferma', attiva: true, tpl: 'w', base: 'conferma' }] });
+  cf.mode = 'mangle'; const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' });
+  cf.calls.length = 0; await sync();
+  eq(cf.calls.map(x => x.n), [1, 1], 'un tentativo per lingua (inglese e tedesco)');
+  const salvate = kv.exec(['HGETALL', 'msg:tr:' + d.code]); assert(!salvate || !(Array.isArray(salvate) ? salvate.length : Object.keys(salvate).length), 'nessuna traduzione salvata');
+  eq((await thread(d.code)).messaggi.map(m => m.testo.startsWith('Ciao Mario, il codice è ')), [true], 'il messaggio è partito, in italiano');
+  // tornato a posto: niente era stato salvato, quindi si traduce
+  cf.mode = 'ok'; const e = await confermata({ da: '2027-03-10', a: '2027-03-12', email: 'terzo@esempio.it' });
+  cf.calls.length = 0; await sync(); eq(cf.calls.map(x => x.n), [1, 1], 'si traduce di nuovo');
+  eq((await ospite('msg_list', { code: e.code, t: e.t, lingua: 'en' })).body.messaggi[0].testo, '[EN] Ciao Mario, il codice è ' + e.code.slice(0, 4) + ' ' + e.code.slice(4, 8) + ' ' + e.code.slice(8) + '.');
+  // Account ID non valido: la traduzione resta spenta, nessuna chiamata
+  await base({ CLOUDFLARE_ACCOUNT_ID: 'non-valido', CLOUDFLARE_API_TOKEN: 'x' });
+  const f = await confermata(); eq((await ospite('msg_send', { code: f.code, t: f.t, testo: 'Hello', lingua: 'en' })).status, 200);
+  eq([(await thread(f.code)).traduzione, (await H.adminApi('msg_inbox', {})).body.traduttore, global.__cf.calls.length], [false, '', 0], 'Account ID non valido: traduzione spenta');
+  await base(); eq([(await H.adminApi('msg_inbox', {})).body.traduttore, global.__cf.calls.length], ['', 0], 'senza chiavi: spenta');
+});
+
+test('M18 traduzione con Cloudflare, prove sul modulo: forme della risposta, gettoni delle parti protette, gruppi, lunghezze, lingue, variabili d\'ambiente, tempo, registro', async () => {
+  const { makeTraduci } = require('../../api/_traduci.js');
+  const mk = (risp, env, log) => {      // risp(arr, n) → il JSON della risposta, oppure { status, body } per un errore HTTP
+    const calls = [];
+    const t = makeTraduci({ env: Object.assign({}, CF, env), log, fetch: async (url, o) => {
+      const body = JSON.parse(o.body), arr = JSON.parse(body.messages[1].content);
+      calls.push({ url, o, body, arr, sys: body.messages[0].content });
+      const x = await risp(arr, calls.length);
+      return x && x.status ? { ok: x.status < 300, status: x.status, json: async () => x.body } : { ok: true, status: 200, json: async () => x };
+    } });
+    return { t, calls };
+  };
+  const voci = (arr, f) => arr.map(s => ({ lang: 'en', text: (f || (x => '[X] ' + x))(s) }));
+  const ok = (arr, f) => ({ result: { response: JSON.stringify(voci(arr, f)) }, success: true });
+  // le forme della risposta che si accettano, e quelle che no
+  const forme = {
+    'JSON in una stringa': arr => ({ result: { response: JSON.stringify(voci(arr)) } }),
+    'JSON tra ```': arr => ({ result: { response: '```json\n' + JSON.stringify(voci(arr)) + '\n```' } }),
+    'JSON con parole intorno': arr => ({ result: { response: 'Ecco: ' + JSON.stringify(voci(arr)) + ' Fatto.' } }),
+    'già un elenco': arr => ({ result: { response: voci(arr) } }),
+    'forma choices': arr => ({ result: { choices: [{ message: { content: JSON.stringify(voci(arr)) } }] } }),
+    'oggetto con translations': arr => ({ result: { response: { translations: voci(arr) } } }),
+    'senza result': arr => ({ response: JSON.stringify(voci(arr)) }),
+    'un solo oggetto': arr => ({ result: { response: JSON.stringify(voci(arr)[0]) } })
+  };
+  for (const [nome, f] of Object.entries(forme)) eq(await mk(f).t.traduci(['uno'], 'en'), { ok: true, testi: ['[X] uno'], lingue: ['en'] }, nome);
+  eq(await mk(arr => ({ result: { response: JSON.stringify(arr.map(s => '[X] ' + s)) } })).t.traduci(['uno'], 'en'), { ok: true, testi: ['[X] uno'], lingue: [''] }, 'un elenco di sole stringhe: senza la lingua riconosciuta');
+  const male = {
+    'a parole': () => ({ result: { response: 'Sorry, I cannot help with that.' } }),
+    'null': () => ({ result: { response: null } }),
+    'vuota': () => ({}),
+    'un testo in meno': arr => ({ result: { response: JSON.stringify(voci(arr).slice(1)) } }),
+    'un testo in più': arr => ({ result: { response: JSON.stringify(voci(arr).concat(voci(['x']))) } }),
+    'senza il campo text': arr => ({ result: { response: JSON.stringify(arr.map(() => ({ lang: 'en' }))) } }),
+    'testo vuoto': arr => ({ result: { response: JSON.stringify(arr.map(() => ({ lang: 'en', text: ' ' }))) } }),
+    'errore 401': () => ({ status: 401, body: { success: false, errors: [{ code: 10000 }] } }),
+    'errore 500': () => ({ status: 500, body: {} })
+  };
+  for (const [nome, f] of Object.entries(male)) eq((await mk(f).t.traduci(['uno'], 'en')).ok, false, nome);
+  // parti protette (formato del sito): al modello gettoni e testo semplice; tornano intatte; se il modello le tocca la traduzione si scarta
+  const xml = 'Ciao <x>{nome}</x>, <x>https://a.it/?a=1&amp;b=2</x> &amp; &lt;b&gt;';
+  let m = mk(arr => ok(arr, s => s + ' & <ok>'));
+  eq((await m.t.traduci([xml], 'en', { da: 'it', xml: true })).testi, ['Ciao <x>{nome}</x>, <x>https://a.it/?a=1&amp;b=2</x> &amp; &lt;b&gt; &amp; &lt;ok&gt;'], 'escape e parti protette tornano nel formato del sito');
+  eq([m.calls[0].arr, m.calls[0].body.messages[1].content.includes('{nome}')], [['Ciao [[1]], [[2]] & <b>'], false], 'al modello: gettoni al posto delle parti protette, testo semplice');
+  const rompi = { 'gettone perso': s => s.replace('[[1]]', ''), 'gettone doppio': s => s + ' [[1]]', 'gettone inventato': s => s + ' [[7]]', 'gettone con gli spazi': s => s.replace('[[2]]', '[[ 2 ]]') };
+  for (const [nome, f] of Object.entries(rompi)) eq((await mk(arr => ok(arr, f)).t.traduci([xml], 'en', { xml: true })).ok, false, nome);
+  eq((await mk(arr => ok(arr, s => s.replace('[[1]], [[2]]', '[[2]], [[1]]'))).t.traduci([xml], 'en', { xml: true })).testi, ['Ciao <x>https://a.it/?a=1&amp;b=2</x>, <x>{nome}</x> &amp; &lt;b&gt;'], 'l\'ordine può cambiare');
+  m = mk(arr => ok(arr)); eq([(await m.t.traduci(['vedi [[1]] <x>{a}</x>'], 'en', { xml: true })).ok, m.calls.length], [false, 0], 'un testo che ha già un gettone non si manda');
+  eq((await mk(arr => ok(arr)).t.traduci(['vedi [[1]]'], 'en')).testi, ['[X] vedi [[1]]'], 'senza parti protette i gettoni non contano');
+  // gruppi: al massimo 6 testi e 2.500 caratteri per richiesta, stesso ordine
+  const brevi = Array.from({ length: 14 }, (_, i) => 'testo ' + i);
+  m = mk(arr => ok(arr)); let r = await m.t.traduci(brevi, 'de');
+  eq([m.calls.map(x => x.arr.length), r.testi], [[6, 6, 2], brevi.map(s => '[X] ' + s)]);
+  m = mk(arr => ok(arr)); r = await m.t.traduci(['a', 'b', 'c'].map(ch => ch.repeat(1400)), 'de'); eq([r.ok, m.calls.map(x => x.arr.length)], [true, [1, 1, 1]], 'per lunghezza');
+  // un gruppo sbagliato si rifà un testo alla volta; un testo che proprio non va = tutto o niente; un errore del servizio non si riprova
+  m = mk(arr => arr.length > 1 ? { result: { response: 'boh' } } : ok(arr)); r = await m.t.traduci(['uno', 'due', 'tre'], 'en');
+  eq([r.ok, r.testi, m.calls.map(x => x.arr.length)], [true, ['[X] uno', '[X] due', '[X] tre'], [3, 1, 1, 1]]);
+  m = mk(arr => arr.includes('cattivo') ? { result: { response: 'boh' } } : ok(arr)); r = await m.t.traduci(['uno', 'cattivo', 'tre'], 'en');
+  eq([r.ok, m.calls.map(x => x.arr.length)], [false, [3, 1, 1]], 'ci si ferma al primo testo che non va');
+  m = mk(() => ({ status: 503, body: {} })); r = await m.t.traduci(['uno', 'due'], 'en'); eq([r.ok, r.http, m.calls.length], [false, 503, 1], 'errore del servizio: nessun secondo tentativo');
+  // lunghezze assurde
+  eq((await mk(arr => ok(arr, s => s.repeat(30))).t.traduci(['una frase abbastanza normale'], 'en')).ok, false, 'risposta fuori misura');
+  eq((await mk(arr => ok(arr, () => 'ok')).t.traduci(['una frase abbastanza lunga da non diventare due lettere'], 'en')).ok, false, 'risposta troppo corta');
+  eq((await mk(arr => ok(arr, () => 'ok')).t.traduci(['grazie'], 'en')).ok, true, 'un testo breve può avere una risposta breve');
+  // testi vuoti: non vanno al modello
+  m = mk(arr => ok(arr)); r = await m.t.traduci(['', 'ciao', '   '], 'en');
+  eq([r.testi, r.lingue, m.calls.map(x => x.arr)], [['', '[X] ciao', ''], ['', 'en', ''], [['ciao']]]);
+  m = mk(arr => ok(arr)); eq([await m.t.traduci(['', ' '], 'en'), m.calls.length], [{ ok: true, testi: ['', ''], lingue: ['', ''] }, 0], 'solo testi vuoti: nessuna chiamata');
+  // lingue: solo codici a due lettere; se la lingua di partenza è nota vale quella
+  m = mk(() => ({ result: { response: JSON.stringify([{ lang: 'EN-US', text: 'a' }, { lang: 'fil', text: 'b' }, { lang: 'de', text: 'c' }, { text: 'd' }]) } }));
+  eq((await m.t.traduci(['uno', 'due', 'tre', 'quattro'], 'it')).lingue, ['en', '', 'de', '']);
+  m = mk(() => ({ result: { response: JSON.stringify([{ lang: 'xx', text: 'a' }]) } })); r = await m.t.traduci(['uno'], 'en', { da: 'it' });
+  eq(r.lingue, ['it']); assert(/^SOURCE: Italian \(it\)$/m.test(m.calls[0].sys) && /^TARGET: British English \(en\)$/m.test(m.calls[0].sys));
+  eq((await mk(arr => ok(arr)).t.traduci(['uno'], 'xx')).ok, false, 'lingua non gestita');
+  // la richiesta
+  m = mk(arr => ok(arr)); await m.t.traduci(['uno'], 'en'); const q = m.calls[0];
+  eq([q.o.method, q.o.headers.Authorization, q.body.temperature, q.body.messages.map(x => x.role)], ['POST', 'Bearer ' + CF.CLOUDFLARE_API_TOKEN, 0, ['system', 'user']]);
+  assert(Number.isInteger(q.body.max_tokens) && q.body.max_tokens >= 100 && q.body.max_tokens <= 2048 && !q.url.includes(CF.CLOUDFLARE_API_TOKEN), 'max_tokens: ' + q.body.max_tokens);
+  // variabili d'ambiente
+  let x = mk(arr => ok(arr), { CLOUDFLARE_ACCOUNT_ID: 'abc' }); eq([x.t.attiva(), x.t.nome(), (await x.t.traduci(['uno'], 'en')).ok, x.calls.length], [false, '', false, 0], 'Account ID non valido');
+  x = mk(arr => ok(arr), { CLOUDFLARE_API_TOKEN: '  ' }); eq([x.t.attiva(), x.calls.length], [false, 0], 'senza chiave');
+  x = mk(arr => ok(arr), { CLOUDFLARE_AI_MODEL: '@cf/google/gemma-3-12b-it' }); await x.t.traduci(['uno'], 'en'); assert(x.calls[0].url.endsWith('/ai/run/@cf/google/gemma-3-12b-it'), 'modello scelto');
+  for (const brutto of ['evil', '@cf/../x', '@cf/a', 'https://evil.example/x', '@cf/meta/llama?x=1']) {
+    x = mk(arr => ok(arr), { CLOUDFLARE_AI_MODEL: brutto }); await x.t.traduci(['uno'], 'en');
+    assert(x.calls[0].url.endsWith('/ai/run/@cf/mistralai/mistral-small-3.1-24b-instruct'), 'modello non valido → quello di partenza: ' + brutto);
+  }
+  const dl = []; const t2 = makeTraduci({ env: Object.assign({}, CF, { DEEPL_API_KEY: 'k:fx' }), fetch: async u => { dl.push(u); return { ok: true, status: 200, json: async () => ({ translations: [{ text: 'x', detected_source_language: 'IT' }] }) }; } });
+  eq([t2.nome(), (await t2.traduci(['uno'], 'en')).ok, dl], ['DeepL', true, ['https://api-free.deepl.com/v2/translate']], 'con le due chiavi vale DeepL');
+  // il tempo
+  const lento = makeTraduci({ env: Object.assign({}, CF, { CLOUDFLARE_TIMEOUT_MS: '40' }), fetch: (u, o) => new Promise((_, no) => o.signal.addEventListener('abort', () => no(new Error('annullata')))) });
+  const t0 = Date.now(); eq((await lento.traduci(['uno'], 'en')).ok, false); assert(Date.now() - t0 < 2000, 'scade il tempo');
+  // il registro eventi: una riga ogni 30 minuti per motivo, mai i testi; un registro che si rompe non rompe la traduzione
+  const righe = []; x = mk(() => ({ status: 401, body: {} }), {}, e => { righe.push(e); });
+  await x.t.traduci(['segreto'], 'en'); await x.t.traduci(['segreto'], 'en');
+  eq(righe.length, 1, 'una riga sola'); assert(righe[0].lvl === 'ERR' && /errore 401.*CLOUDFLARE_API_TOKEN/.test(righe[0].msg) && !/segreto/.test(righe[0].msg), righe[0].msg);
+  { // gli errori di chiave si ripetono dopo 30 minuti, la quota finita (429) solo dopo 6 ore
+    const ora = Date.now; let salto = 0; Date.now = () => ora() + salto;
+    try {
+      const l429 = [], l401 = [], a = mk(() => ({ status: 429, body: {} }), {}, e => { l429.push(e); }), b = mk(() => ({ status: 401, body: {} }), {}, e => { l401.push(e); });
+      await a.t.traduci(['x'], 'en'); await b.t.traduci(['x'], 'en');
+      salto = 31 * 60e3; await a.t.traduci(['x'], 'en'); await b.t.traduci(['x'], 'en');
+      eq([l429.length, l401.length], [1, 2], 'dopo 31 minuti');
+      salto = 6.5 * 3600e3; await a.t.traduci(['x'], 'en'); eq(l429.length, 2, 'dopo 6 ore e mezza');
+    } finally { Date.now = ora; }
+  }
+  x = mk(() => ({ status: 429, body: {} }), {}, () => { throw new Error('registro giù'); }); eq((await x.t.traduci(['uno'], 'en')).http, 429, 'registro che lancia');
+  x = mk(() => ({ status: 429, body: {} }), {}, () => Promise.reject(new Error('registro giù'))); eq((await x.t.traduci(['uno'], 'en')).http, 429, 'registro che rifiuta');
+});
+
+test('M19 messaggi automatici senza traduzione (servizio giù o spento quando sono partiti): alla lettura dell\'ospite si rifanno dal template con le variabili protette, mai dal testo con nome, codice e Wi-Fi; se il template è cambiato o la regola è tolta restano in italiano', async () => {
+  const fmt = c => c.slice(0, 4) + ' ' + c.slice(4, 8) + ' ' + c.slice(8);
+  const tplW = 'Ciao {nome}, il codice è {codice} & il Wi-Fi è {wifi}.', tplV = 'Benvenuto {nome}, la tua casa è {appartamento}. Arrivo: {checkin}.';
+  const giorno = lg => new Date(Date.UTC(2027, 1, 10, 12)).toLocaleDateString({ it: 'it-IT', en: 'en-GB', de: 'de-DE' }[lg], { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const tpls = (w) => [{ id: 'w', nome: 'Wi-Fi', testo: w || tplW }, { id: 'v', nome: 'Visita', testo: tplV }];
+  const regole = [{ id: 'r1', nome: 'Wi-Fi', attiva: true, tpl: 'w', base: 'conferma' }, { id: 'r2', nome: 'Visita', attiva: true, tpl: 'v', base: 'conferma' }];
+  // due template e due regole «alla conferma»; la prenotazione parte con il servizio spento o giù, quindi i due messaggi partono solo in italiano
+  const parti = async (env, giu) => {
+    await base(env); if (giu) giu();
+    await H.adminApi('msg_tpl_save', { templates: tpls() });
+    const cf = (await H.adminApi('cfg_admin', {})).body; cf.apts.find(p => p.id === 'torre').infoRiservate = 'Password: SEGRETA'; await H.adminApi('save', cf);
+    await H.adminApi('msg_auto_save', { regole });
+    const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' }); await sync();
+    const salvate = kv.exec(['HGETALL', 'msg:tr:' + d.code]); assert(!salvate || !(Array.isArray(salvate) ? salvate.length : Object.keys(salvate).length), 'partito senza traduzioni');
+    eq((await thread(d.code)).messaggi.map(m => m.testo.split(' ')[0]), ['Ciao', 'Benvenuto'], 'i due messaggi sono partiti, in italiano');
+    return d;
+  };
+  const leggi = async (d, lingua) => (await ospite('msg_list', { code: d.code, t: d.t, lingua })).body.messaggi;
+  const privati = (d, x) => { const s = JSON.stringify(x); return !/Mario|SEGRETA|nuovo@|Prova/.test(s) && !s.includes(d.code) && !s.includes(fmt(d.code)); };
+  try {
+    // Cloudflare: giù quando sono partiti, giù anche alla prima lettura (un solo tentativo, non uno per messaggio), poi torna
+    let d = await parti(CF, () => { global.__cf.mode = 'down'; }); const cf = global.__cf;
+    cf.calls.length = 0; let l = await leggi(d, 'en');
+    eq([cf.calls.length, l.map(m => m.testo.split(' ')[0]), l.map(m => m.originale)], [1, ['Ciao', 'Benvenuto'], [undefined, undefined]], 'ancora giù: un tentativo, restano in italiano');
+    cf.mode = 'ok'; cf.calls.length = 0; l = await leggi(d, 'en');
+    eq(cf.calls.map(x => x.usr), [['Ciao [[1]], il codice è [[2]] & il Wi-Fi è [[3]].'], ['Benvenuto [[1]], la tua casa è [[2]]. Arrivo: [[3]].']], 'al servizio vanno i template con i gettoni al posto delle variabili');
+    assert(cf.calls.every(x => /^SOURCE: Italian \(it\)$/m.test(x.sys) && /^TARGET: British English \(en\)$/m.test(x.sys)) && privati(d, cf.calls.map(x => x.usr)), 'nessun dato della prenotazione al servizio');
+    eq(l[0].testo, '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', 'variabili inserite dopo la traduzione');
+    const casa = /è (.+)\. Arrivo/.exec(l[1].originale)[1];
+    eq([l[0].originale.startsWith('Ciao Mario'), l[1].originale, l[1].testo], [true, 'Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('it') + '.', '[EN] Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('en') + '.'], 'date nella lingua del testo');
+    assert(JSON.stringify(kv.exec(['HGETALL', 'msg:tr:' + d.code])).includes('[EN] Ciao Mario, il codice è '), 'la traduzione compilata resta salvata con la conversazione');
+    cf.calls.length = 0; l = await leggi(d, 'en'); eq(cf.calls.length, 0, 'già tradotti e salvati: nessuna nuova chiamata');
+    l = await leggi(d, 'de'); eq([cf.calls.length, l[0].testo.startsWith('[DE] Ciao Mario, il codice è '), l[1].testo], [2, true, '[DE] Benvenuto Mario, la tua casa è ' + casa + '. Arrivo: ' + giorno('de') + '.'], 'un\'altra lingua: di nuovo dal template, date comprese');
+    assert(privati(d, cf.calls.map(x => x.usr)));
+    // DeepL: lo stesso, con le variabili tra <x>…</x>
+    d = await parti({ DEEPL_API_KEY: 'chiave-pro' }, () => { global.__deepl.mode = 'down'; });
+    global.__deepl.mode = 'ok'; global.__deepl.calls.length = 0; l = await leggi(d, 'en');
+    eq(global.__deepl.calls.map(x => x.body.text), [['Ciao <x>{nome}</x>, il codice è <x>{codice}</x> &amp; il Wi-Fi è <x>{wifi}</x>.'], ['Benvenuto <x>{nome}</x>, la tua casa è <x>{appartamento}</x>. Arrivo: <x>{checkin}</x>.']], 'DeepL: i template con le variabili protette');
+    assert(privati(d, global.__deepl.calls.map(x => x.body.text)) && l[0].testo === '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', 'DeepL: nessun dato della prenotazione, variabili inserite dopo');
+    // il template è cambiato dopo l'invio: quel messaggio resta in italiano (non si sa più cosa dicesse), l'altro si traduce; con la regola tolta, anche
+    d = await parti(CF, () => { global.__cf.mode = 'down'; });
+    global.__cf.mode = 'ok'; global.__cf.calls.length = 0;
+    await H.adminApi('msg_tpl_save', { templates: tpls('Ciao {nome}! Il codice è {codice}.') });
+    l = await leggi(d, 'en');
+    eq([global.__cf.calls.map(x => x.usr), l.map(m => m.originale !== undefined)], [[['Benvenuto [[1]], la tua casa è [[2]]. Arrivo: [[3]].']], [false, true]], 'template cambiato: solo l\'altro messaggio si traduce');
+    await H.adminApi('msg_auto_save', { regole: regole.slice(0, 1) }); global.__cf.calls.length = 0;
+    l = await leggi(d, 'de'); eq([global.__cf.calls.length, l.map(m => m.originale !== undefined)], [0, [false, false]], 'template cambiato e regola tolta: restano in italiano, nessuna chiamata');
+    // il servizio era spento quando sono partiti ed è stato attivato dopo (il caso di chi lo attiva ora): i messaggi già nelle conversazioni si completano dal template
+    d = await parti({});
+    Object.assign(process.env, CF); global.__cf.calls.length = 0; l = await leggi(d, 'en');
+    eq([global.__cf.calls.length, l[0].testo, privati(d, global.__cf.calls.map(x => x.usr))], [2, '[EN] Ciao Mario, il codice è ' + fmt(d.code) + ' & il Wi-Fi è Password: SEGRETA.', true], 'attivato dopo: si completano dal template');
+  } finally { for (const k of Object.keys(CF)) delete process.env[k]; }
 });
 
 /* ===================== esecuzione ===================== */

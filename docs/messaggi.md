@@ -1,6 +1,6 @@
 # Messaggi, template, messaggi automatici e traduzione – La Columbera
 
-Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M15; foto e link: M14, M15) e `tests/sim/ui.js` (U4j, W13, W31, W38).
+Ambito: chat tra ospite (area clienti) e titolare (Gestione → Messaggi), template, messaggi automatici programmati, messaggi programmati a mano, traduzione automatica. Codice: `api/_messaggi.js`, `api/_traduci.js`, azioni `msg_*` in `api/x.js`, pagina dell'ospite `js/area.js`, Gestione `js/admin-messaggi.js`. Prove: `tests/sim/messaggi.js` (M1–M19; foto e link: M14, M15; traduzione con Cloudflare: M16, M17, M18; traduzione dei messaggi automatici alla lettura: M19) e `tests/sim/ui.js` (U4j, W13, W31, W38, W40).
 
 ---
 
@@ -71,18 +71,28 @@ Regole del motore (`esegui` in `api/_messaggi.js`), pensate per non sbagliare ma
 - **Solo prenotazioni confermate:** mai alle annullate, alle «da verificare» o ai pagamenti non completati.
 - **Quando gira:** dentro l'azione `sync`, che lo script del foglio chiama ogni pochi minuti (e «Sincronizza ora» in Gestione). Niente servizi o cron nuovi. Ha un tempo massimo (~6 secondi) e non lancia mai: se i messaggi falliscono (KV, DeepL, email) la sincronizzazione delle date continua uguale (test M9) e nel registro eventi resta «Messaggi automatici: N invii non riusciti».
 
-## 4. Traduzione automatica (DeepL)
+## 4. Traduzione automatica (Cloudflare gratuito, oppure DeepL)
 
-- **Come si attiva:** variabile d'ambiente **`DEEPL_API_KEY`** su Vercel. Le chiavi che finiscono con `:fx` sono del piano gratuito (api-free.deepl.com), le altre del piano Pro (api.deepl.com). Senza la variabile la traduzione è spenta e tutto funziona in italiano.
-- **Quale piano:** per i messaggi degli ospiti usare **DeepL API Pro**: per contratto DeepL non conserva i testi tradotti con il piano Pro. **Prima di attivarla verificare le condizioni del contratto** e aggiornare, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga DeepL).
+- **Come si attiva:** con le variabili d'ambiente su Vercel, **`CLOUDFLARE_ACCOUNT_ID`** e **`CLOUDFLARE_API_TOKEN`** (Cloudflare, gratuito, senza carta) oppure **`DEEPL_API_KEY`** (DeepL, a pagamento). Se ci sono tutte e due vale DeepL, come prima. Senza, la traduzione è spenta e tutto funziona in italiano. In Gestione → Messaggi → Automatici, in fondo, si legge quale servizio traduce.
+- **Cloudflare Workers AI (gratuito):** non è un traduttore classico ma un modello di linguaggio (di partenza **Mistral Small 3.1**, di Mistral AI, licenza Apache 2.0) istruito a tradurre e basta. Per attivarlo:
+  1. crea un account gratuito su dash.cloudflare.com (basta l'email, non serve la carta);
+  2. nel menu cerca **AI → Workers AI** e scegli **Use REST API**: la pagina mostra il tuo **Account ID** (32 caratteri) e il pulsante **Create a Workers AI API Token**; crealo e copia subito il token, che si vede una volta sola (i nomi dei pulsanti possono cambiare: serve un token con il permesso «Workers AI» sul tuo account);
+  3. su Vercel → Settings → Environment Variables: **`CLOUDFLARE_ACCOUNT_ID`** = l'Account ID, **`CLOUDFLARE_API_TOKEN`** = il token (per provare prima su un'anteprima, anche nell'ambiente Preview); poi nuovo deploy;
+  4. prova come al paragrafo 9, punto 4.
+- **Quota e costi:** il piano gratuito dà **10.000 «neuron» al giorno** (si azzerano a mezzanotte UTC). Un messaggio breve ne usa circa 15–40 (stima: il conto dipende dalla lunghezza), quindi bastano per centinaia di messaggi al giorno. Se la quota finisce Cloudflare risponde con errore 429: i messaggi partono lo stesso nella lingua originale e la traduzione riprende il giorno dopo. Finché non passi tu al piano a pagamento di Cloudflare non si paga nulla.
+- **Qualità:** buona per italiano, inglese, tedesco e le altre lingue europee, più incerta per le lingue rare; essendo un modello di linguaggio può sbagliare. Per questo il titolare vede sempre l'originale accanto alla traduzione e l'ospite può aprire il testo originale. Il codice scarta le risposte non valide (testo mancante, di lunghezza assurda, parti protette toccate): in quel caso il messaggio parte in originale. Più lento di DeepL: di solito 1–4 secondi; il limite è 10 secondi per richiesta (chi scrive aspetta al massimo quel tempo, poi il messaggio parte comunque).
+- **Modello:** di partenza `@cf/mistralai/mistral-small-3.1-24b-instruct`; si può cambiare con la variabile facoltativa **`CLOUDFLARE_AI_MODEL`** (per esempio se Cloudflare ritira quel modello). Se compare un errore 403 dopo un cambio di modello, alcuni modelli chiedono di accettare la licenza una volta (vedi la pagina del modello su Cloudflare).
+- **Se non traduce:** il registro eventi della Gestione riporta una riga «Traduzione automatica (Cloudflare): …» con il motivo (chiave o permessi non validi, account o modello non trovato, quota finita, nessuna risposta, risposta non valida), al massimo una ogni 30 minuti per motivo (una ogni 6 ore per la quota finita) e senza mai i testi dei messaggi. Con un Account ID non valido (non di 32 caratteri esadecimali) la traduzione resta spenta.
+- **Privacy:** Cloudflare dichiara di non usare i contenuti elaborati da Workers AI per addestrare modelli e di conservarli solo il tempo necessario; esegue però la traduzione sulla sua rete mondiale, quindi i testi possono essere elaborati anche fuori dall'Unione europea. **Prima di usarla con gli ospiti veri** controlla i termini e l'accordo sul trattamento dei dati (DPA) accettati con l'account Cloudflare e aggiorna, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga Cloudflare); l'informativa (`privacy.html`) nomina già DeepL e Cloudflare.
+- **DeepL:** variabile **`DEEPL_API_KEY`**. Le chiavi che finiscono con `:fx` sono del piano gratuito (api-free.deepl.com), le altre del piano Pro (api.deepl.com). Per i messaggi degli ospiti usare **DeepL API Pro**: per contratto DeepL non conserva i testi tradotti con il piano Pro. **Prima di attivarla verificare le condizioni del contratto** e aggiornare, se serve, il registro dei trattamenti (`docs/gdpr/inventario-trattamenti.md`, riga DeepL).
 - **Cosa si traduce:**
-  - messaggio dell'ospite → italiano (DeepL riconosce la lingua);
+  - messaggio dell'ospite → italiano (il servizio riconosce la lingua);
   - risposta del titolare → lingua dell'area ospiti (inglese o tedesco), se è spuntato «Traduci»;
   - alla lettura, nella lingua che l'ospite ha scelto, ciò che manca.
   
   Ogni traduzione si fa una volta e resta salvata (`msg:tr:<codice>`).
-- **Messaggi automatici:** si traduce il **template** in inglese e tedesco, con le variabili protette (`<x>{nome}</x>`); le variabili si riempiono dopo. A DeepL non arrivano mai nome, codice, Wi-Fi o date della prenotazione (test M7). Le traduzioni dei template restano salvate 60 giorni.
-- **Se DeepL non risponde** (6 secondi) o dà errore: il messaggio parte comunque e si legge in originale; la traduzione mancante si completa alla lettura successiva (test M8).
+- **Messaggi automatici:** si traduce il **template** in inglese e tedesco, con le variabili protette (`<x>{nome}</x>`); le variabili si riempiono dopo. Quando il messaggio parte, al servizio di traduzione non arrivano mai nome, codice, Wi-Fi o date della prenotazione (test M7 e M16; a Cloudflare al posto delle variabili vanno gettoni `[[1]]`, `[[2]]`… che devono tornare uguali). Se in quel momento il servizio non risponde (o la traduzione era spenta), alla lettura successiva dell'ospite il messaggio si traduce **di nuovo dal template**, sempre con le variabili protette, e le variabili si riempiono dopo: nome, codice e Wi-Fi non arrivano mai al servizio. Il template si ritrova dalla regola che ha mandato il messaggio e deve rifare esattamente il testo partito: se nel frattempo il template è stato modificato, la regola è stata tolta o i dati della prenotazione sono cambiati (anche il dominio del sito, per i template con `{link_area}`), quel messaggio resta in italiano (test M19). Le traduzioni dei template restano salvate 60 giorni.
+- **Se il servizio non risponde** (6 secondi per DeepL, 10 per Cloudflare), dà errore o ha finito la quota: il messaggio parte comunque e si legge in originale; la traduzione mancante si completa alla lettura successiva (test M8 per DeepL, M17 per Cloudflare). Con Cloudflare una conversazione lunga arriva a gruppi (al massimo 6 messaggi e 2.500 caratteri per richiesta) e un gruppo sbagliato si rifà un messaggio alla volta (test M17, M18).
 
 ## 5. Avvisi email
 
@@ -125,7 +135,10 @@ L'elenco completo è in testa ad `api/_messaggi.js`.
 
 | Variabile | Obbligatoria | Cosa fa |
 |---|---|---|
-| `DEEPL_API_KEY` | No | Attiva la traduzione automatica (vedi paragrafo 4) |
+| `CLOUDFLARE_ACCOUNT_ID` | Con `CLOUDFLARE_API_TOKEN` | L'Account ID del tuo account Cloudflare (32 caratteri): attiva la traduzione automatica gratuita (vedi paragrafo 4) |
+| `CLOUDFLARE_API_TOKEN` | Con `CLOUDFLARE_ACCOUNT_ID` | Token API di Cloudflare con il permesso «Workers AI» (segreto: mai nel repository) |
+| `CLOUDFLARE_AI_MODEL` | No | Modello di Cloudflare da usare al posto di quello di partenza (vedi paragrafo 4) |
+| `DEEPL_API_KEY` | No | Attiva la traduzione automatica con DeepL (vedi paragrafo 4); se c'è, vale al posto di Cloudflare |
 
 Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi email, `OWNER_EMAIL` per il destinatario degli avvisi.
 
@@ -134,7 +147,7 @@ Restano quelle di sempre: `GMAIL_USER` e `GMAIL_APP_PASSWORD` per gli avvisi ema
 1. Prenotazione di prova con Stripe in modalità test; apri l'area ospiti dal link della mail → scheda **Messaggi** → scrivi un messaggio.
 2. Deve arrivarti l'email «Nuovo messaggio da …» con il testo. Premi **Rispondi**: si apre la conversazione in Gestione (se il dispositivo non ha l'accesso, prima la password).
 3. Rispondi; all'ospite arriva l'email con la tua risposta: il suo **Rispondi** apre l'area ospiti già sulla scheda Messaggi, senza codice. In Gestione compare «✓✓ letto».
-4. Con `DEEPL_API_KEY`: area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
+4. Con `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_API_TOKEN` (o con `DEEPL_API_KEY`): area ospiti in inglese, scrivi in inglese → in Gestione la traduzione italiana; rispondi in italiano → l'ospite legge in inglese con «Mostra originale».
 5. Template → «Benvenuto» → Invio automatico «Appena la prenotazione è confermata» → «Salva template» → nuova prenotazione di prova → dopo la sincronizzazione successiva il messaggio è nella conversazione. In Automatici la stessa regola compare attiva.
 6. Prenotazioni → una prenotazione del foglio (Booking o Airbnb) → «Messaggio da mandare»: «Per Booking.com e Airbnb» → «Prepara e copia» → incolla il testo nella chat della piattaforma (il link apre l'area ospiti).
 

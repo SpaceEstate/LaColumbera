@@ -119,6 +119,35 @@ async function routeFetch(url, opts = {}) {
     const tgt = String(body.target_lang || '').slice(0, 2), src = l => /[äöüß]/i.test(l) ? 'DE' : /\b(the|and|is|we|you|thanks?)\b/i.test(l) ? 'EN' : /\b(merci|bonjour|nous)\b/i.test(l) ? 'FR' : 'IT';
     return res(200, JSON.stringify({ translations: (body.text || []).map(t => ({ detected_source_language: body.source_lang || src(t), text: src(t) === tgt && !body.source_lang ? t : '[' + tgt + '] ' + t })) }));
   }
+  if (url.startsWith('https://api.cloudflare.com/client/v4/accounts/')) {      // Cloudflare Workers AI finto: un «modello» che traduce "[EN] testo"; global.__cf = { mode, calls: [] }
+    // mode: 'ok' | 'down' (503) | 'slow' | 'quota' (429, codice 3036) | 'garbage' (risponde a parole) | 'fence' (JSON tra ```) | 'choices' (forma OpenAI)
+    //       | 'mangle' (butta via il gettone [[1]]) | 'batch' (sbaglia i gruppi di più testi: uno alla volta va bene)
+    const d = global.__cf || (global.__cf = { mode: 'ok', calls: [] }), h = opts.headers || {};
+    const m = /^https:\/\/api\.cloudflare\.com\/client\/v4\/accounts\/([0-9a-f]{32})\/ai\/run\/(@(?:cf|hf)\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)$/.exec(url);
+    let body = null; try { body = JSON.parse(opts.body || ''); } catch (e) { body = null; }
+    const msgs = body && Array.isArray(body.messages) ? body.messages : [], sys = (msgs[0] && msgs[0].content) || '', usr = (msgs[1] && msgs[1].content) || '';
+    let arr = null; try { arr = JSON.parse(usr); } catch (e) { arr = null; }
+    d.calls.push({ url, model: m && m[2], auth: h.Authorization, body, sys, usr: arr, n: Array.isArray(arr) ? arr.length : 0 });
+    if (!m) return res(404, '{"result":null,"success":false,"errors":[{"code":7000,"message":"No route for that URI"}],"messages":[]}');
+    if (!/^Bearer \S+$/.test(h.Authorization || '')) return res(401, '{"result":null,"success":false,"errors":[{"code":10000,"message":"Authentication error"}],"messages":[]}');
+    if (d.mode === 'down') return res(503, '{"result":null,"success":false,"errors":[{"code":3040,"message":"giù"}],"messages":[]}');
+    if (d.mode === 'quota') return res(429, JSON.stringify({ result: null, success: false, errors: [{ code: 3036, message: 'You have used up your daily free allocation of 10,000 neurons. Please upgrade to Cloudflare\'s Workers Paid plan if you would like to continue usage.' }], messages: [] }));
+    if (d.mode === 'slow') await sleepAbortable(60000, opts.signal);
+    const tgt = (/^TARGET: .*\(([a-z]{2})\)$/m.exec(sys) || [])[1], src0 = (/^SOURCE: .*\(([a-z]{2})\)$/m.exec(sys) || [])[1];
+    // come l'API vera, una richiesta sbagliata è un errore
+    if (msgs.length !== 2 || msgs[0].role !== 'system' || msgs[1].role !== 'user' || !tgt || !Array.isArray(arr) || !arr.length || arr.some(t => typeof t !== 'string') || !(body.max_tokens >= 1 && body.max_tokens <= 2048) || body.temperature !== 0)
+      return res(400, '{"result":null,"success":false,"errors":[{"code":5006,"message":"richiesta non valida"}],"messages":[]}');
+    const lg = t => /[äöüß]/i.test(t) ? 'de' : /\b(the|and|is|we|you|thanks?)\b/i.test(t) ? 'en' : /\b(merci|bonjour|nous)\b/i.test(t) ? 'fr' : 'it';
+    let items = arr.map(t => { const l = src0 || lg(t); return { lang: l, text: l === tgt ? t : '[' + tgt.toUpperCase() + '] ' + t }; });
+    if (d.mode === 'mangle') items = items.map(x => ({ lang: x.lang, text: x.text.replace(/\[\[1\]\]/g, '') }));
+    const json = JSON.stringify(items);
+    let out;
+    if (d.mode === 'garbage' || (d.mode === 'batch' && arr.length > 1)) out = { response: 'Sorry, I cannot help with that.' };
+    else if (d.mode === 'fence') out = { response: '```json\n' + json + '\n```' };
+    else if (d.mode === 'choices') out = { choices: [{ index: 0, message: { role: 'assistant', content: json } }] };
+    else out = { response: json };
+    return res(200, JSON.stringify({ result: Object.assign(out, { usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), success: true, errors: [], messages: [] }));
+  }
   if (url.startsWith(WEBAPP_URL)) {
     webapp.calls.push({ method: opts.method || 'GET', url });
     if (webapp.mode === 'down') return res(500, 'Internal Error');
@@ -137,7 +166,7 @@ global.fetch = (...a) => routeFetch(...a);
 /* ---------------- ambiente Vercel ---------------- */
 const SECRETS = { SYNC_SECRET: 'sync-test-secret', SHEET_SECRET: 'sheet-test-secret', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 function setEnv(extra) {
-  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|CODICE_CASSETTA_)/.test(k)) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|CLOUDFLARE_|CODICE_CASSETTA_)/.test(k)) delete process.env[k];
   Object.assign(process.env, { KV_REST_API_URL: KV_URL, KV_REST_API_TOKEN: 'tok', SHEET_WEBAPP_URL: WEBAPP_URL, SHEET_SECRET: SECRETS.SHEET_SECRET, SYNC_SECRET: SECRETS.SYNC_SECRET,
     STRIPE_SECRET_KEY: 'sk_test', STRIPE_PUBLISHABLE_KEY: 'pk_test_prova', STRIPE_WEBHOOK_SECRET: SECRETS.STRIPE_WEBHOOK_SECRET, GMAIL_USER: 'info@test', GMAIL_APP_PASSWORD: 'x', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 'sess',
     OWNER_EMAIL: 'owner@test', FEED_TIMEOUT_MS: '150', REG_TIMEOUT_MS: '300' }, extra || {});
@@ -297,7 +326,7 @@ const PREFETCH = { syncRapida: [PRE.feeds], syncCompleta: [PRE.feeds, PRE.recon]
 /* ---------------- ambiente di test ---------------- */
 const defaultCfg = () => { const d = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')); return Object.assign(d, { ical: { torre: FEED.bookingTorre + ',' + FEED.airbnbTorre, corte: FEED.bookingCorte + ',' + FEED.airbnbCorte }, closed: {} }); };
 async function newEnv({ legacyRows, env, cfg, startIso } = {}) {
-  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false;
+  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__cf = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false;
   clock.set(startIso || '2026-10-02T09:00:00Z');
   setEnv(env); V = loadVercel();
   const c = cfg || defaultCfg(); kv.exec(['SET', 'cfg', JSON.stringify(c)]);
