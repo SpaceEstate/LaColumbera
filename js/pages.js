@@ -1,7 +1,7 @@
 // La Columbera · pagine appartamento, guest card, eventi (l'area clienti è in js/area.js)
 const $=s=>document.querySelector(s),B=document.body.dataset;
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const eur=n=>'€'+Math.round(n);
+const eur=n=>money(n);      // «da … a notte»: stesso formato degli altri importi (vedi money)
 const api=(a,b,t)=>fetch('api/x?a='+a,{method:'POST',headers:{'Content-Type':'application/json',Authorization:t||''},body:JSON.stringify(b||{})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok){const e=Error(j.err||'Servizio non disponibile');e.status=r.status;e.code=j.code||'';throw e}return j});
 const get=q=>fetch('api/x?'+q).then(r=>r.ok?r.json():null).catch(()=>null);
 const iso=d=>d.toISOString().slice(0,10);
@@ -13,7 +13,10 @@ const tot=(p,da,a,n)=>days(da,a).reduce((s,d)=>s+np(p,d)+sup(p,n),0);
 const fmtD=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
 const fmtW=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'});
 const fmtL=s=>new Date(s+'T00:00:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-const money=n=>'€'+Math.round(n).toLocaleString('it-IT');
+// Importi come nell'area ospiti (js/area.js, stesso toLocaleString): euro interi senza decimali (€180), due decimali solo se l'importo ha i centesimi (€95,50). La Gestione accetta
+// prezzi con i decimali e Stripe addebita l'importo esatto (Math.round(totale*100) in api/x.js, azione checkout): arrotondare all'euro mostrava «€287» per un addebito
+// di 286,50 €. Si arrotonda ai centesimi PRIMA di decidere se è intero: la somma di prezzi con i decimali non lascia code (332,00000000000006 → €332, non €332,00).
+const money=n=>{n=Math.round(n*100)/100;return '€'+n.toLocaleString('it-IT',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})};
 const pad=n=>String(n).padStart(2,'0');
 // Testo semplice per le sezioni scritte da Gestione: "## Titolo" apre una sezione, le righe vuote separano i paragrafi, "- voce" fa un elenco
 const mdLite=t=>{const out=[];let cur=null;
