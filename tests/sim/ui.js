@@ -979,6 +979,55 @@ test('W1u due ospiti sulle stesse date: tutti e due arrivano ai campi della cart
   const bk = JSON.parse(kv.exec(['HGET', 'bkh', JSON.parse(b.w.sessionStorage.getItem('lc_acc') || 'null')?.c || '']) || 'null');
   assert(!bk || (bk.stato === 'in_attesa' && bk.scaduta), 'B non è confermata e il suo pagamento è chiuso');
 });
+test('W41 importi con i centesimi: scheda, riepilogo, «Da pagare ora» e «Paga» mostrano la cifra che Stripe addebita (3 notti a €95,50 = €286,50, non €287); gli interi restano come prima (€540); la somma di decimali non lascia code (€332, non €332,00)', async () => {
+  await setup();
+  const eq = (x, y, m) => assert.deepStrictEqual(x, y, m);      // con la differenza in vista se fallisce
+  const cfg = async f => { const c = (await H.adminApi('cfg_admin', {})).body; f(c.apts.find(x => x.id === 'torre')); eq((await H.adminApi('save', c)).status, 200); };
+  const scheda = async () => { const r = await load('torre.html', { scripts: ['js/site.js', 'js/pages.js'] }); await waitFor(() => r.doc.querySelector('#cal .d'), 'calendario'); return r.doc; };
+  const totale = doc => text(doc.querySelector('[data-testid=booking-total]'));
+  // la Gestione accetta i decimali (campi numerici; il server salva +v): 95,50 € a notte
+  await cfg(t => { t.base = 95.5; });
+  let doc = await scheda();
+  eq(text(doc.querySelector('#price')), 'da €95,50 a notte', 'il prezzo «da» ha i centesimi');
+  pickDates(doc, NIGHTS.da, NIGHTS.a);
+  eq(totale(doc), '€286,50', '3 notti × €95,50: la cifra che Stripe addebita, non €287');
+  doc.querySelector('[data-testid=booking-guests-plus]').click();
+  eq(totale(doc), '€346,50', '3 adulti: 3 × (€95,50 + €20)');
+  // pagina di prenotazione: conto, importo da pagare e pulsante «Paga» con gli stessi centesimi; a Stripe va quella cifra
+  const p = await loadPren(), $ = s => p.doc.querySelector(s);
+  await waitFor(() => $('[data-testid=booking-form]'), 'modulo');
+  const conto = text($('[data-testid=prenota-conto]'));
+  assert(/3 notti × €95,50 ?€286,50/.test(conto) && !/€287\b/.test(conto), conto);
+  eq(totale(p.doc), '€286,50');
+  fill(p.doc, { name: 'Mario', surname: 'Rossi', email: 'mario@test.it' });
+  const prima = global.__stripeSessions.length; $('#f').requestSubmit();
+  await waitFor(() => !$('[data-testid=prenota-pagamento]').hidden && $('[data-testid=stripe-fake-card]'), 'campi della carta');
+  eq(global.__stripeSessions[prima].params.line_items[0].price_data.unit_amount, 28650, 'Stripe addebita 286,50 €');
+  assert(/Da pagare ora/.test(text($('[data-testid=prenota-da-pagare]'))) && /€286,50/.test(text($('[data-testid=prenota-da-pagare]'))) && !/€287\b/.test(text($('[data-testid=prenota-da-pagare]'))), text($('[data-testid=prenota-da-pagare]')));
+  eq(text($('[data-testid=prenota-paga]')), 'Paga €286,50');
+  // importi interi: come prima, scritti come li scrive toLocaleString('it-IT') (con il punto delle migliaia dove l'ICU lo mette: 1260 o 1.260); con i centesimi anche sopra le migliaia
+  const euro = (n, cent) => '€' + n.toLocaleString('it-IT', cent ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {});
+  await cfg(t => { t.base = 180; });
+  doc = await scheda();
+  eq(text(doc.querySelector('#price')), 'da €180 a notte');
+  pickDates(doc, NIGHTS.da, '2026-10-27');
+  eq(totale(doc), euro(1260), '7 notti × €180: intero, come prima');
+  await cfg(t => { t.base = 180.5; });
+  doc = await scheda(); pickDates(doc, NIGHTS.da, '2026-10-27');
+  eq(totale(doc), euro(1263.5, true), '7 notti × €180,50');
+  // prezzi con decimali che sommati danno un intero «sporco» (332,00000000000006): €332, non €332,00 e non €331,99; e la riga per ogni prezzo con i suoi centesimi
+  await cfg(t => { t.base = 90.01; t.extra = 20.1; t.prices = { '2026-10-21': 91.68 }; });
+  doc = await scheda();
+  pickDates(doc, NIGHTS.da, NIGHTS.a); doc.querySelector('[data-testid=booking-guests-plus]').click();
+  eq(totale(doc), '€332', '90,01 + 91,68 + 90,01 + 3 × 20,10');
+  const q = await loadPren({ adulti: '3' });
+  await waitFor(() => q.doc.querySelector('[data-testid=booking-form]'), 'modulo');
+  const c3 = text(q.doc.querySelector('[data-testid=prenota-conto]'));
+  assert(/1 notte × €90,01 · dal 20 ott ?€90,01/.test(c3) && /1 notte × €91,68 · dal 21 ott ?€91,68/.test(c3) && /Ospiti in più: 3 notti × €20,10 ?€60,30/.test(c3), c3);
+  eq(totale(q.doc), '€332');
+  const co = await checkout({ adulti: 3, ospiti: 3 }); eq(co.status, 200, JSON.stringify(co.body));
+  eq(global.__stripeSessions[global.__stripeSessions.length - 1].params.line_items[0].price_data.unit_amount, 33200, 'e Stripe addebita 332,00 €');
+});
 test('W1v pagina di prenotazione: dopo «Paga» la vista va sul riquadro (conferma, o date non più disponibili) DOPO averlo mostrato, con uno spostamento immediato (lo scorrimento morbido su iPhone si fermava in fondo alla pagina); il fuoco sul titolo', async () => {
   await setup();
   const a = await loadPren(), b = await loadPren();
