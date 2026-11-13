@@ -574,6 +574,24 @@ test('U4r Guest Card · soggiorno chiuso (410) e troppi tentativi (429) nella li
     assert(TROPPI[l].test(text(g.doc.querySelector('#e'))), l + ': «' + text(g.doc.querySelector('#e')) + '»');
   }
 });
+test('U4t Guest Card · «richiesta già in corso» (409 IN_CORSO: un altro telefono della famiglia sta già emettendo la card) nella lingua della pagina, non come «non disponibile»; in italiano il messaggio del server; il pulsante torna com\'era e non si salva nessuna card', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const IN_CORSO = { it: 'Richiesta già in corso, riprova tra qualche secondo.', en: 'A request is already in progress: please try again in a few seconds.', de: 'Eine Anfrage läuft bereits: Bitte versuchen Sie es in einigen Sekunden erneut.' };
+  process.env.TGC_CARD_TYPE_ID = 'prova';      // configurata: la richiesta arriva fino al blocco per prenotazione (api/x.js, gc_issue)
+  try {
+    kv.exec(['SET', 'lock:gc:' + c.code, '1', 'EX', '120']);      // l'altra richiesta sta emettendo la card
+    for (const l of ['it', 'en', 'de']) {
+      const g = await gcLoad('#k=' + c.code, { lang: BROWSER[l] });
+      const go = await waitFor(() => g.doc.querySelector('#gc-go'), 'pulsante ' + l), orig = text(go);
+      go.click(); await waitFor(() => text(g.doc.querySelector('#e2')), 'messaggio ' + l);
+      assert.equal(text(g.doc.querySelector('#e2')), IN_CORSO[l], l + ' · richiesta già in corso');
+      assert(g.log.calls.some(a => a.a === 'gc_issue' && a.status === 409), l + ': il server risponde 409');
+      assert(!go.disabled && text(go) === orig, l + ': il pulsante torna com\'era («' + text(go) + '»)');
+    }
+    assert.equal(kv.exec(['GET', 'gc:' + c.code]), null, 'nessuna card salvata mentre l\'altra richiesta è in corso');
+  } finally { delete process.env.TGC_CARD_TYPE_ID; }
+});
 test('U4q lingue dell\'area e della Guest Card: in italiano, inglese e tedesco stesse chiavi e stessi segnaposto; i testi italiani scritti nelle pagine coincidono con il dizionario; le due pagine scelgono la lingua con la stessa regola', async () => {
   await setup();
   const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');

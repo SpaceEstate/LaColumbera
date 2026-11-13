@@ -353,6 +353,7 @@ function gcl(){
       err404:'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.',errChiusa:'Il soggiorno è finito: l\'area clienti resta aperta fino a 7 giorni dopo la partenza. Per qualsiasi necessità scrivici a lacolumbera@gmail.com.',
       err429:'Troppi tentativi. Riprova tra qualche minuto (se hai prenotato sul sito puoi anche aprire il link della mail di conferma).',
       err409:'La Guest Card non è disponibile per questa prenotazione: potrebbe essere annullata, non ancora confermata o senza il numero di ospiti registrato. Se ti serve aiuto scrivici a lacolumbera@gmail.com.',
+      errInCorso:'Richiesta già in corso, riprova tra qualche secondo.',
       errTgc:'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.',errServizio:'Servizio non disponibile in questo momento: riprova più tardi o scrivici a lacolumbera@gmail.com.',errRete:'Servizio non raggiungibile: controlla la connessione e riprova.'},
     en:{eyebrow:'Guest benefits',lead:'If you come from the guest area, your booking is already recognised; otherwise enter your booking code (the one in the confirmation email, or your Booking.com or Airbnb reservation number). The dates of your stay and the number of guests are taken automatically from the confirmed booking, so your Guest Card is issued with the correct details.',
       etCodice:'Booking code',ph:'e.g. 558R TE56 487A9',verifica:'Check booking',codiceServe:'The code is only used to recognise your booking.',informativa:'Privacy notice',
@@ -365,6 +366,7 @@ function gcl(){
       err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',errChiusa:'Your stay has ended: the guest area stays open until 7 days after check-out. For anything you need, write to us at lacolumbera@gmail.com.',
       err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',
       err409:'The Guest Card is not available for this booking right now: it may be cancelled, not yet confirmed, or without a registered number of guests. If you need help, write to us at lacolumbera@gmail.com.',
+      errInCorso:'A request is already in progress: please try again in a few seconds.',
       errTgc:'The Trentino Guest Card system did not respond: please try again later or write to us at lacolumbera@gmail.com.',errServizio:'Service not available at the moment: please try again later or write to us at lacolumbera@gmail.com.',errRete:'Service unavailable: check your connection and try again.'},
     de:{eyebrow:'Vorteile für Gäste',lead:'Wenn Sie aus dem Gästebereich kommen, ist Ihre Buchung bereits erkannt; andernfalls geben Sie Ihren Buchungscode ein (den aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb). Aufenthaltszeitraum und Gästezahl werden automatisch aus der bestätigten Buchung übernommen, damit die Guest Card mit den richtigen Daten ausgestellt wird.',
       etCodice:'Buchungscode',ph:'z. B. 558R TE56 487A9',verifica:'Buchung prüfen',codiceServe:'Der Code dient nur dazu, Ihre Buchung zu erkennen.',informativa:'Datenschutzhinweis',
@@ -377,6 +379,7 @@ function gcl(){
       err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',errChiusa:'Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet. Für alle Anliegen schreiben Sie uns an lacolumbera@gmail.com.',
       err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',
       err409:'Die Guest Card ist für diese Buchung im Moment nicht verfügbar: Sie ist möglicherweise storniert, noch nicht bestätigt oder ohne erfasste Gästezahl. Wenn Sie Hilfe brauchen, schreiben Sie uns an lacolumbera@gmail.com.',
+      errInCorso:'Eine Anfrage läuft bereits: Bitte versuchen Sie es in einigen Sekunden erneut.',
       errTgc:'Das System der Trentino Guest Card hat nicht geantwortet: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.',errServizio:'Der Dienst ist im Moment nicht verfügbar: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.'}};
   const pick=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
   let salvata='';try{salvata=sessionStorage.getItem('lc_lang')||''}catch{}
@@ -394,11 +397,11 @@ async function guestcard(c){
   const q=new URLSearchParams(location.search),box=$('#r'),{t,lang,loc}=gcl();
   // date nella lingua della pagina: 5 dic 2026 · 5 Dec 2026 · 5. Dez. 2026
   const fd=s=>new Date(s+'T00:00:00').toLocaleDateString(loc,{day:'numeric',month:'short',year:'numeric'});
-  // errore mostrato all'ospite: senza stato di risposta è la rete; in italiano il messaggio del server; altrimenti il testo scelto dallo stato
+  // errore mostrato all'ospite: senza stato di risposta è la rete; in italiano il messaggio del server; altrimenti il testo scelto dal codice (IN_CORSO) o dallo stato
   const errMsg=x=>{const s=x&&x.status;
     if(!s)return t('errRete');
     if(lang==='it')return x.message;
-    return t(s===404?'err404':s===410?'errChiusa':s===429?'err429':s===409?'err409':s===400?'emailNo':s===502?'errTgc':'errServizio')};
+    return t(x.code==='IN_CORSO'?'errInCorso':s===404?'err404':s===410?'errChiusa':s===429?'err429':s===409?'err409':s===400?'emailNo':s===502?'errTgc':'errServizio')};      // IN_CORSO: un'altra richiesta sta emettendo la card (409 di gc_issue con un suo codice)
   // Copia negli appunti (con ripiego per i browser che non permettono navigator.clipboard)
   const copia=async t=>{
     try{await navigator.clipboard.writeText(t);return true}
