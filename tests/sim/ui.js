@@ -442,6 +442,175 @@ test('U4i area ospiti: lingua del browser (inglese, tedesco) e scelta manuale; B
   assert(!r.doc.querySelector('#login').hidden && !r.doc.querySelector('[data-testid=guest-app]') && !r.w.sessionStorage.getItem('lc_acc'), 'uscita: sessione cancellata');
 });
 
+/* ===================== Guest Card in tre lingue (guest-card.html, js/pages.js) ===================== */
+const GC_PAGE = ['js/site.js', 'js/pages.js'];
+const BROWSER = { it: 'it-IT', en: 'en-GB', de: 'de-DE' };
+const gcLoad = (hash, o = {}) => load('guest-card.html', Object.assign({ hash, scripts: GC_PAGE }, o));
+const gcPronta = async g => { await waitFor(() => g.log.calls.some(x => x.a === 'cfg'), 'pagina pronta'); await sleep(40); };      // il modulo del codice parte dopo la configurazione del sito
+const gcCerca = (g, code) => { g.doc.querySelector('#gc-code').value = code; g.doc.querySelector('#f').dispatchEvent(new g.w.Event('submit', { cancelable: true })); };
+const snapAirbnb = ospiti => kv.exec(['SET', 'reg:snap', JSON.stringify({ rows: [{ id: 'AIRBNB|HMSEDESZCW', fonte: 'AIRBNB', codice: 'HMSEDESZCW', apt: 'corte', checkin: '2026-10-05', checkout: '2026-10-11', notti: 6, ospiti, stato: 'CONFERMATA', uid: '', motivo: '', creata: '', aggiornata: '', ultimoSeen: '', annullata: '', note: '', flags: [] }], invalid: [], count: 1, lastAttempt: clock.iso(), lastSuccess: clock.iso(), status: 'OK' })]);
+const combacia = (atteso, s) => atteso instanceof RegExp ? atteso.test(s) : atteso === s;
+test('U4s Guest Card in italiano, inglese e tedesco: lingua scelta nell\'area (lc_lang) o, se manca, quella del browser (inglese se non è una delle tre); testi fissi subito, prenotazione trovata, date e lingua del documento; l\'italiano resta quello di sempre', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const ATTESO = {
+    it: { eyebrow: 'Vantaggi ospiti', label: 'Codice di prenotazione', ph: 'es. 558R TE56 487A9', submit: 'Verifica prenotazione', nota: 'Il codice serve solo a riconoscere la tua prenotazione. Informativa privacy',
+      lead: /^Se arrivi dall'area clienti la prenotazione è già riconosciuta; altrimenti inserisci il codice di prenotazione \(quello della email di conferma, oppure il numero di Booking\.com o Airbnb\)\. Periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti\.$/,
+      titolo: 'Prenotazione trovata', celle: [['Appartamento', 'Torre'], ['Check-in', '10 dic 2026'], ['Check-out', '13 dic 2026'], ['Notti', '3'], ['Ospiti', '2']],
+      auto: /^Questi dati sono presi automaticamente dalla tua prenotazione confermata e non si possono modificare qui: la Guest Card viene sempre emessa per il periodo e il numero di ospiti reali della prenotazione\.$/,
+      privacy: 'Per emettere la card inviamo al sistema Trentino Guest Card la tua email, le date del soggiorno e il numero di ospiti. Informativa privacy', genera: 'Genera Trentino Guest Card' },
+    en: { eyebrow: 'Guest benefits', label: 'Booking code', ph: 'e.g. 558R TE56 487A9', submit: 'Check booking', nota: 'The code is only used to recognise your booking. Privacy notice',
+      lead: /^If you come from the guest area, your booking is already recognised; otherwise enter your booking code .*so your Guest Card is issued with the correct details\.$/,
+      titolo: 'Booking found', celle: [['Apartment', 'Torre'], ['Check-in', '10 Dec 2026'], ['Check-out', '13 Dec 2026'], ['Nights', '3'], ['Guests', '2']],
+      auto: /^These details are taken automatically from your confirmed booking and cannot be changed here: the Guest Card is always issued for the actual dates and number of guests of the booking\.$/,
+      privacy: 'To issue the card we send your email, the dates of your stay and the number of guests to the Trentino Guest Card system. Privacy notice', genera: 'Generate Trentino Guest Card' },
+    de: { eyebrow: 'Vorteile für Gäste', label: 'Buchungscode', ph: 'z. B. 558R TE56 487A9', submit: 'Buchung prüfen', nota: 'Der Code dient nur dazu, Ihre Buchung zu erkennen. Datenschutzhinweis',
+      lead: /^Wenn Sie aus dem Gästebereich kommen, ist Ihre Buchung bereits erkannt; andernfalls geben Sie Ihren Buchungscode ein .*damit die Guest Card mit den richtigen Daten ausgestellt wird\.$/,
+      titolo: 'Buchung gefunden', celle: [['Apartment', 'Torre'], ['Check-in', '10. Dez. 2026'], ['Check-out', '13. Dez. 2026'], ['Nächte', '3'], ['Gäste', '2']],
+      auto: /^Diese Angaben werden automatisch aus Ihrer bestätigten Buchung übernommen und können hier nicht geändert werden: Die Guest Card wird immer für den tatsächlichen Zeitraum und die tatsächliche Gästezahl der Buchung ausgestellt\.$/,
+      privacy: 'Zur Ausstellung der Karte übermitteln wir Ihre E-Mail-Adresse, die Aufenthaltsdaten und die Gästezahl an das System der Trentino Guest Card. Datenschutzhinweis', genera: 'Trentino Guest Card erstellen' } };
+  const CASI = [
+    ['italiano (browser italiano)', { lang: 'it-IT' }, 'it'],
+    ['inglese (browser inglese)', { lang: 'en-GB' }, 'en'],
+    ['tedesco scelto nell\'area, con il browser inglese', { lang: 'en-GB', session: { lc_lang: 'de' } }, 'de'],
+    ['browser francese: inglese', { lang: 'fr-FR' }, 'en'],
+    ['scelta non valida: la lingua del browser (tedesco)', { lang: 'de-AT', session: { lc_lang: 'zz' } }, 'de']];
+  for (const [nome, opt, l] of CASI) {
+    const x = ATTESO[l], g = await gcLoad('', opt), $ = s => g.doc.querySelector(s);
+    // i testi fissi ci sono subito, prima ancora che arrivi la configurazione del sito
+    assert.deepEqual([g.doc.documentElement.lang, text($('.section-eyebrow')), text($('h1')), text($('label[for=gc-code]')), $('#gc-code').placeholder, text($('[data-testid=gc-submit]')), text($('[data-testid=gc-form-privacy]'))],
+      [l, x.eyebrow, 'Trentino Guest Card', x.label, x.ph, x.submit, x.nota], nome);
+    assert(x.lead.test(text($('.lead'))), nome + ': ' + text($('.lead')));
+    assert.equal($('[data-testid=gc-form-privacy] a').getAttribute('href'), 'privacy.html', nome);
+    await gcPronta(g); gcCerca(g, c.code);
+    await waitFor(() => $('[data-testid=gc-confirm]'), 'prenotazione trovata (' + nome + ')');
+    assert.equal(text($('[data-testid=gc-confirm] h2')), x.titolo, nome);
+    assert.deepEqual([...g.doc.querySelectorAll('[data-testid=gc-confirm] .bc-cell')].map(e => [text(e.querySelector('span')), text(e.querySelector('b'))]), x.celle, nome);
+    assert(x.auto.test(text($('[data-testid=gc-confirm] .book-note'))), nome + ': ' + text($('[data-testid=gc-confirm] .book-note')));
+    assert.equal(text($('[data-testid=gc-privacy]')), x.privacy, nome); assert.equal($('[data-testid=gc-privacy] a').getAttribute('href'), 'privacy.html', nome);
+    assert.equal(text($('[data-testid=gc-issue]')), x.genera, nome);
+    if (l !== 'it') assert(!/\b(prenotazione|ospiti|codice|verifica|periodo|appartamento|notti|genera|informativa)\b/i.test(text($('main'))), nome + ': resta italiano in «' + text($('main')) + '»');
+  }
+  // dall'area: il tedesco scelto con il pulsante vale anche per la Guest Card aperta nella stessa scheda, già riconosciuta (senza ridigitare il codice)
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, lang: 'en-GB', scripts: AREA });
+  await waitFor(() => r.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
+  r.doc.querySelector('[data-testid=ga-lang-de]').click();
+  assert.equal(r.w.sessionStorage.getItem('lc_lang'), 'de');
+  const g = await gcLoad('', { lang: 'en-GB', session: { lc_acc: r.w.sessionStorage.getItem('lc_acc'), lc_lang: r.w.sessionStorage.getItem('lc_lang') } });
+  const lento = g.w.fetch; g.w.fetch = (u, i) => /a=gc_check/.test(String(u)) ? new Promise(ok => setTimeout(() => ok(lento(u, i)), 200)) : lento(u, i);      // la risposta arriva dopo un attimo: si vede «Cerco…»
+  const cerco = await waitFor(() => g.doc.querySelector('[data-testid=gc-cerco]'), 'attesa');
+  assert.equal(text(cerco), 'Ihre Buchung wird gesucht…');
+  await waitFor(() => g.doc.querySelector('[data-testid=gc-confirm]'), 'Guest Card riconosciuta dall\'area');
+  assert.deepEqual([g.doc.documentElement.lang, text(g.doc.querySelector('[data-testid=gc-confirm] h2')), text(g.doc.querySelector('[data-testid=gc-altro]'))], ['de', 'Buchung gefunden', 'Anderen Buchungscode verwenden']);
+});
+test('U4p Guest Card · messaggio finale con la card già emessa e copia del codice; errori nelle tre lingue (codice non trovato, ospiti non registrati, email non valida, servizio non configurato o che non risponde, rete); in italiano restano i messaggi del server e il pulsante torna com\'era', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  kv.exec(['SET', 'gc:' + c.code, JSON.stringify({ gc_id: 'QR-PROVA-1', stato: 'richiesta_inviata', valid_from: '2026-12-10', valid_to: '2026-12-13', ospiti: 2, email: 'mario@test.it', creato: clock.iso() })]);
+  const FINALE = {
+    it: { righe: ['Richiesta Trentino Guest Card inviata 🎉', 'Codice: QR-PROVA-1', 'Periodo: 10 dic 2026 → 13 dic 2026', 'Ospiti coperti: 2'], copia: ['Copia codice', 'Codice copiato ✓', 'Copia non riuscita'],
+      mail: /^Controlla la mail che arriverà a ma\*\*\*@test\.it: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card\. Fatto questo la card sarà pronta sull'app Mio Trentino\.$/ },
+    en: { righe: ['Trentino Guest Card request sent 🎉', 'Code: QR-PROVA-1', 'Period: 10 Dec 2026 → 13 Dec 2026', 'Guests covered: 2'], copia: ['Copy code', 'Code copied ✓', 'Copy failed'],
+      mail: /^Check your inbox: an email is on its way to ma\*\*\*@test\.it\. Open the link to complete the activation — you will be asked to add any children in the group and where you come from, and to create the password for your Trentino Guest Card account\. Once that is done, the card will be ready in the Mio Trentino app\.$/ },
+    de: { righe: ['Anfrage für die Trentino Guest Card gesendet 🎉', 'Code: QR-PROVA-1', 'Zeitraum: 10. Dez. 2026 → 13. Dez. 2026', 'Abgedeckte Gäste: 2'], copia: ['Code kopieren', 'Code kopiert ✓', 'Kopieren fehlgeschlagen'],
+      mail: /^Prüfen Sie Ihr Postfach: Eine E-Mail an ma\*\*\*@test\.it ist unterwegs\. Öffnen Sie den Link, um die Aktivierung abzuschließen – Sie werden gebeten, eventuelle Kinder in der Gruppe und Ihre Herkunft anzugeben und das Passwort für Ihr Trentino-Guest-Card-Konto zu erstellen\. Danach ist die Karte in der App Mio Trentino bereit\.$/ } };
+  for (const [l, x] of Object.entries(FINALE)) {
+    const g = await gcLoad('#k=' + c.code, { lang: BROWSER[l] }), card = await waitFor(() => g.doc.querySelector('[data-testid=gc-success]'), 'card ' + l);
+    assert.deepEqual([...card.querySelectorAll('h2, p:not(.book-note)')].map(text), x.righe, l);
+    assert(x.mail.test(text(card.querySelector('p.book-note'))), l + ': ' + text(card.querySelector('p.book-note')));
+    const b = card.querySelector('[data-testid=gc-copy]'); assert.equal(text(b), x.copia[0], l);
+    b.click(); await waitFor(() => text(b) === x.copia[2], 'copia non riuscita (' + l + ')');      // in jsdom gli appunti non ci sono
+    Object.defineProperty(g.w.navigator, 'clipboard', { value: { writeText: async () => {} }, configurable: true });
+    b.click(); await waitFor(() => text(b) === x.copia[1], 'codice copiato (' + l + ')');
+  }
+  const ERR = {
+    it: { nonTrovata: /^Prenotazione non trovata\. Controlla il codice/, ospiti: 'Numero di ospiti non ancora registrato per questa prenotazione: scrivici a lacolumbera@gmail.com', email: 'Inserisci un\'email valida', email400: 'Email non valida',
+      conf: /^Guest Card non configurata sul server/, tgc: 'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.', rete: 'Servizio non raggiungibile: controlla la connessione e riprova.', genera: 'Genera Trentino Guest Card' },
+    en: { nonTrovata: /^Booking not found\. Check the code/, ospiti: 'The Guest Card is not available for this booking right now: it may be cancelled, not yet confirmed, or without a registered number of guests. If you need help, write to us at lacolumbera@gmail.com.', email: 'Please enter a valid email address', email400: 'Please enter a valid email address',
+      conf: 'Service not available at the moment: please try again later or write to us at lacolumbera@gmail.com.', tgc: 'The Trentino Guest Card system did not respond: please try again later or write to us at lacolumbera@gmail.com.', rete: 'Service unavailable: check your connection and try again.', genera: 'Generate Trentino Guest Card' },
+    de: { nonTrovata: /^Buchung nicht gefunden\. Prüfen Sie den Code/, ospiti: 'Die Guest Card ist für diese Buchung im Moment nicht verfügbar: Sie ist möglicherweise storniert, noch nicht bestätigt oder ohne erfasste Gästezahl. Wenn Sie Hilfe brauchen, schreiben Sie uns an lacolumbera@gmail.com.', email: 'Bitte geben Sie eine gültige E-Mail-Adresse ein', email400: 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
+      conf: 'Der Dienst ist im Moment nicht verfügbar: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.', tgc: 'Das System der Trentino Guest Card hat nicht geantwortet: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.', rete: 'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.', genera: 'Trentino Guest Card erstellen' } };
+  const errore = async (g, email) => { const e2 = g.doc.querySelector('#e2'); e2.textContent = ''; g.doc.querySelector('[data-testid=gc-email]').value = email; g.doc.querySelector('#gc-go').click(); await waitFor(() => text(e2), 'messaggio d\'errore'); return text(e2); };
+  try {
+    for (const l of ['it', 'en', 'de']) {
+      const x = ERR[l], uguale = (atteso, s, che) => assert(combacia(atteso, s), l + ' · ' + che + ': «' + s + '»');
+      const n = await gcLoad('#k=ZZZZZZZZZZZZZ', { lang: BROWSER[l] });      // codice che non c'è: torna il primo passo, con il messaggio
+      await waitFor(() => text(n.doc.querySelector('#e')), 'codice non trovato ' + l); uguale(x.nonTrovata, text(n.doc.querySelector('#e')), 'codice non trovato');
+      assert(!n.doc.querySelector('[data-testid=gc-card]').hidden, l + ': primo passo di nuovo visibile');
+      snapAirbnb(0);      // prenotazione del foglio senza il numero degli ospiti: il server risponde 409
+      const o = await gcLoad('#k=HMSEDESZCW', { lang: BROWSER[l] });
+      await waitFor(() => text(o.doc.querySelector('#e')), 'ospiti non registrati ' + l); uguale(x.ospiti, text(o.doc.querySelector('#e')), 'ospiti non registrati (409)');
+      snapAirbnb(2);      // con gli ospiti: chiede l'email per la card
+      const g = await gcLoad('#k=HMSEDESZCW', { lang: BROWSER[l] });
+      await waitFor(() => g.doc.querySelector('[data-testid=gc-email]'), 'email ' + l);
+      uguale(x.email, await errore(g, ''), 'email mancante (controllo nella pagina)');
+      assert(!g.log.calls.some(a => a.a === 'gc_issue'), l + ': nessuna chiamata al server con l\'email mancante');
+      uguale(x.email400, await errore(g, 'due @ spazi.it'), 'email non valida per il server (400)');
+      uguale(x.conf, await errore(g, 'ospite@test.it'), 'Guest Card non configurata sul server (500)');
+      process.env.TGC_CARD_TYPE_ID = 'prova';      // configurata ma Trentino Guest Card non è collegata: il server risponde 502
+      uguale(x.tgc, await errore(g, 'ospite@test.it'), 'Trentino Guest Card non risponde (502)');
+      delete process.env.TGC_CARD_TYPE_ID;
+      g.w.fetch = async () => { throw new TypeError('Failed to fetch'); };
+      uguale(x.rete, await errore(g, 'ospite@test.it'), 'rete');
+      const b = g.doc.querySelector('#gc-go'); assert(!b.disabled && text(b) === x.genera, l + ': il pulsante torna com\'era («' + text(b) + '»)');
+    }
+  } finally { delete process.env.TGC_CARD_TYPE_ID; }
+});
+test('U4r Guest Card · soggiorno chiuso (410) e troppi tentativi (429) nella lingua della pagina; in italiano i messaggi del server', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const CHIUSO = { it: /^Il soggiorno è finito: l'area clienti resta aperta fino a 7 giorni dopo la partenza\./, en: /^Your stay has ended: the guest area stays open until 7 days after check-out\./, de: /^Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet\./ };
+  const TROPPI = { it: /^Troppi tentativi\. Riprova tra 15 minuti /, en: /^Too many attempts\. Please try again in a few minutes/, de: /^Zu viele Versuche\. Bitte versuchen Sie es in einigen Minuten erneut/ };
+  clock.set('2026-12-21T10:00:00Z');      // 8 giorni dopo il check-out: l'area è chiusa, il link della mail lo dice
+  for (const l of ['it', 'en', 'de']) {
+    const g = await gcLoad('', { lang: BROWSER[l], session: { lc_acc: JSON.stringify({ c: c.code, t: c.t }) } });
+    await waitFor(() => text(g.doc.querySelector('#e')), 'soggiorno chiuso ' + l);
+    assert(CHIUSO[l].test(text(g.doc.querySelector('#e'))) && !g.doc.querySelector('[data-testid=gc-card]').hidden, l + ': «' + text(g.doc.querySelector('#e')) + '»');
+  }
+  for (let i = 0; i < 12; i++) await H.api('gc_check', { code: 'ZZZZZZZZZZZZZ' });      // dieci tentativi sbagliati di fila dallo stesso indirizzo
+  for (const l of ['it', 'en', 'de']) {
+    const g = await gcLoad('#k=ZZZZZZZZZZZZZ', { lang: BROWSER[l] });
+    await waitFor(() => text(g.doc.querySelector('#e')), 'troppi tentativi ' + l);
+    assert(TROPPI[l].test(text(g.doc.querySelector('#e'))), l + ': «' + text(g.doc.querySelector('#e')) + '»');
+  }
+});
+test('U4q lingue dell\'area e della Guest Card: in italiano, inglese e tedesco stesse chiavi e stessi segnaposto; i testi italiani scritti nelle pagine coincidono con il dizionario; le due pagine scelgono la lingua con la stessa regola', async () => {
+  await setup();
+  const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+  // i dizionari stanno dentro gli script (non sono esposti): si leggono eseguendo lo script vero con un gancio in più, solo in questa prova
+  assert(src('js/area.js').includes('const pickL=') && src('js/pages.js').includes('function gcl()'), 'punti di aggancio nei dizionari');
+  const a = await load('area-clienti.html', { scripts: ['js/site.js', 'js/pages.js'] }); a.w.eval(src('js/area.js').replace('const pickL=', 'window.__L=L;const pickL='));
+  const g = await load('guest-card.html', { scripts: ['js/site.js'] }); g.w.eval(src('js/pages.js') + '\n;window.__gcl=gcl;');
+  const DIZ = { 'area (js/area.js)': a.w.__L, 'Guest Card (js/pages.js)': g.w.__gcl().L }, LINGUE = ['it', 'en', 'de'];
+  const VUOTE = new Set(['testiIt', 'ricPaeseDef']);      // voci vuote di proposito in una lingua (testi della casa già in italiano; «Italia» come paese di partenza)
+  for (const [nome, D] of Object.entries(DIZ)) {
+    const chiavi = l => Object.keys(D[l]).sort();
+    assert(chiavi('it').length >= 30, nome + ': dizionario letto (' + chiavi('it').length + ' voci)');
+    assert.deepEqual(chiavi('en'), chiavi('it'), nome + ': inglese e italiano non hanno le stesse chiavi'); assert.deepEqual(chiavi('de'), chiavi('it'), nome + ': tedesco e italiano non hanno le stesse chiavi');
+    for (const k of chiavi('it')) {
+      const v = LINGUE.map(l => D[l][k]);
+      assert(v.every(x => typeof x === typeof v[0]), nome + '.' + k + ': tipo diverso tra le lingue');
+      if (typeof v[0] === 'function') {      // segnaposto: stesso numero di argomenti, e ognuno compare nel testo di ogni lingua
+        assert(v.every(f => f.length === v[0].length), nome + '.' + k + ': numero di segnaposto diverso');
+        const arg = Array.from({ length: v[0].length }, (_, i) => '«' + (i + 1) + '»');
+        v.forEach((f, i) => { const s = String(f(...arg)); for (const p of arg) assert(s.includes(p), nome + '.' + k + ' (' + LINGUE[i] + '): manca il segnaposto ' + p); });
+      } else assert(v.every(x => VUOTE.has(k) || String(x).trim()), nome + '.' + k + ': testo vuoto');
+    }
+  }
+  // i testi italiani scritti nelle pagine (valgono senza JavaScript) sono quelli del dizionario italiano
+  for (const [file, D] of [['guest-card.html', DIZ['Guest Card (js/pages.js)']], ['area-clienti.html', DIZ['area (js/area.js)']]]) {
+    const els = [...new JSDOM(src(file)).window.document.querySelectorAll('[data-i18n]')];
+    assert(els.length >= 6, file + ': testi con data-i18n');
+    for (const el of els) { const k = el.dataset.i18n; assert(k in D.it, file + ': la chiave ' + k + ' non è nel dizionario'); assert.equal(text(el), D.it[k], file + ': ' + k); }
+  }
+  // stessa regola nelle due pagine: scelta fatta nell'area (valida), altrimenti la lingua del browser, altrimenti l'inglese
+  for (const [nome, opt, atteso] of [['browser italiano', { lang: 'it-IT' }, 'it'], ['browser inglese', { lang: 'en-GB' }, 'en'], ['browser tedesco (Austria)', { lang: 'de-AT' }, 'de'], ['browser francese', { lang: 'fr-FR' }, 'en'],
+    ['scelta nell\'area (de) con il browser italiano', { lang: 'it-IT', session: { lc_lang: 'de' } }, 'de'], ['scelta non valida: la lingua del browser', { lang: 'de-DE', session: { lc_lang: 'zz' } }, 'de']]) {
+    const ar = await load('area-clienti.html', Object.assign({ scripts: AREA }, opt)), gc = await gcLoad('', opt);
+    assert.deepEqual([ar.doc.documentElement.lang, gc.doc.documentElement.lang], [atteso, atteso], nome);
+  }
+});
+
 test('W26 area ospiti · annullamento: fino a 7 giorni prima dell\'arrivo il pulsante, poi la conferma con l\'importo dato dal server («No» la tiene; senza importo niente «Sì»); con la commissione di Stripe l\'importo pagato meno i costi trattenuti; «Sì» rimborsa, chiude la sessione e dice quanto torna sulla carta; dopo la scadenza solo la regola; per Airbnb la piattaforma', async () => {
   await setup();
   const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
@@ -526,6 +695,33 @@ test('W27 area ospiti · ricevuta: si chiede con i dati (campi obbligatori contr
   $3('[data-testid=ga-ric-invia]').click(); assert(/mit Sternchen markierten Felder/.test(text($3('[data-testid=ga-ric-err]'))), 'Land fehlt');
   fill3('paese', 'Deutschland'); $3('[data-testid=ga-ric-invia]').click();
   await waitFor(() => /Anfrage am .* gesendet: Wir erstellen Ihre Quittung und senden sie an ha\*\*\*@test\.de/.test(text($3('[data-testid=ga-ric-richiesta]'))), 'Anfrage gesendet');
+});
+test('W27b area ospiti · ricevuta: «già inviata» (409) e «troppe richieste» (429) nella lingua dell\'area; in italiano restano i messaggi del server', async () => {
+  await setup();
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  const dati = { nome: 'Mario Rossi', cf: 'RSSMRA80A01H501U', indirizzo: 'Via Roma 1', cap: '38123', citta: 'Trento' }, pagine = {};
+  for (const l of ['it', 'en', 'de']) {      // una scheda per lingua, con il modulo aperto e compilato
+    const r = await load('area-clienti.html', { hash: '#k=' + c.code, lang: BROWSER[l], scripts: AREA });
+    await waitFor(() => r.doc.querySelector('[data-testid=guest-app]'), 'area ' + l); r.doc.querySelector('[data-testid=ga-ric-apri]').click();
+    for (const [k, v] of Object.entries(dati)) r.doc.querySelector('#ric-' + k).value = v;
+    r.doc.querySelector('#ric-paese').value = 'Italia'; pagine[l] = r;
+  }
+  const invia = async (l, atteso, che) => {
+    const r = pagine[l], e = r.doc.querySelector('[data-testid=ga-ric-err]'); e.textContent = '';
+    r.doc.querySelector('[data-testid=ga-ric-invia]').click();
+    await waitFor(() => text(e), che + ' ' + l);
+    assert(combacia(atteso, text(e)), che + ' ' + l + ': «' + text(e) + '»');
+    assert(!r.doc.querySelector('[data-testid=ga-ric-invia]').disabled, l + ': si può riprovare');
+  };
+  // il titolare manda la ricevuta mentre i moduli sono aperti: chi preme «Invia» dopo si sente dire che è già partita
+  assert.equal((await H.adminApi('ricevuta_invia', { code: c.code, file: 'data:application/pdf;base64,' + Buffer.from('%PDF-1.4 x').toString('base64') })).status, 200);
+  await invia('it', /^La ricevuta ti è già stata mandata il \d\d\/\d\d: se serve una correzione scrivici a lacolumbera@gmail\.com\.$/, '409');
+  await invia('en', 'Your receipt has already been sent to you: if you need a correction, write to us at lacolumbera@gmail.com.', '409');
+  await invia('de', 'Die Quittung wurde Ihnen bereits gesendet: Wenn eine Korrektur nötig ist, schreiben Sie uns an lacolumbera@gmail.com.', '409');
+  for (let i = 0; i < 4; i++) await H.api('ricevuta', { code: c.code, dati });      // le richieste valide contano: oltre le cinque al giorno scatta il limite
+  await invia('it', 'Hai già mandato diverse richieste oggi: se serve correggere qualcosa scrivici a lacolumbera@gmail.com.', '429');
+  await invia('en', 'You have already sent several requests today: if something needs correcting, write to us at lacolumbera@gmail.com.', '429');
+  await invia('de', 'Sie haben heute bereits mehrere Anfragen gesendet: Wenn etwas korrigiert werden muss, schreiben Sie uns an lacolumbera@gmail.com.', '429');
 });
 test('U4j area ospiti · Messaggi: si scrive e si legge (testo, mai HTML), la risposta arriva tradotta con l\'originale; Booking/Airbnb senza scheda Messaggi', async () => {
   await setup({ DEEPL_API_KEY: 'chiave-prova' });

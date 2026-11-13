@@ -328,47 +328,113 @@ async function apt(c){
   draw();
 }
 
+/* ---------------- Guest Card (guest-card.html) in italiano, inglese e tedesco ---------------- */
+// Come l'area clienti (js/area.js): la lingua scelta lì (sessionStorage «lc_lang», vale solo per questa scheda) e, se non c'è, quella del browser
+// (inglese se non è né italiano né inglese né tedesco). Il resto del sito pubblico resta in italiano. I testi italiani sono scritti anche nella pagina
+// (data-i18n): senza JavaScript e in italiano la pagina è quella di sempre. Il dizionario contiene solo testo: in pagina entra sempre con esc().
+// Gli errori del server sono scritti in italiano: in italiano si mostrano com'è, nelle altre lingue il testo si sceglie dallo stato della risposta
+// (le voci italiane err404…errServizio servono solo a tenere uguali le chiavi nelle tre lingue). Date, ospiti e card le decide il server.
+let gcMemo=null;
+function gcl(){
+  if(gcMemo)return gcMemo;
+  const LANGS=['it','en','de'],LOC={it:'it-IT',en:'en-GB',de:'de-DE'};
+  const L={
+    it:{eyebrow:'Vantaggi ospiti',lead:'Se arrivi dall\'area clienti la prenotazione è già riconosciuta; altrimenti inserisci il codice di prenotazione (quello della email di conferma, oppure il numero di Booking.com o Airbnb). Periodo di soggiorno e numero di ospiti vengono presi automaticamente dalla prenotazione confermata, così la Guest Card viene generata con i dati corretti.',
+      etCodice:'Codice di prenotazione',ph:'es. 558R TE56 487A9',verifica:'Verifica prenotazione',codiceServe:'Il codice serve solo a riconoscere la tua prenotazione.',informativa:'Informativa privacy',
+      altroCodice:'Usa un altro codice di prenotazione',cerco:'Cerco la tua prenotazione…',copia:'Copia codice',copiato:'Codice copiato ✓',copiaNo:'Copia non riuscita',
+      cardTit:'Richiesta Trentino Guest Card inviata 🎉',codice:'Codice:',periodo:'Periodo:',ospitiCop:'Ospiti coperti:',
+      mailA:'Controlla la mail che arriverà a ',mailAnon:'l\'indirizzo indicato',mailB:': apri il link per completare l\'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull\'app Mio Trentino.',
+      trovata:'Prenotazione trovata',apt:'Appartamento',checkin:'Check-in',checkout:'Check-out',notti:'Notti',ospiti:'Ospiti',
+      datiAuto:'Questi dati sono presi automaticamente dalla tua prenotazione confermata e non si possono modificare qui: la Guest Card viene sempre emessa per il periodo e il numero di ospiti reali della prenotazione.',
+      etEmail:'La tua email (per ricevere la Guest Card)',privCard:'Per emettere la card inviamo al sistema Trentino Guest Card la tua email, le date del soggiorno e il numero di ospiti.',genera:'Genera Trentino Guest Card',emailNo:'Inserisci un\'email valida',genero:'Genero…',
+      err404:'Prenotazione non trovata. Controlla il codice: è quello della mail di conferma oppure il numero di prenotazione di Booking.com o Airbnb.',errChiusa:'Il soggiorno è finito: l\'area clienti resta aperta fino a 7 giorni dopo la partenza. Per qualsiasi necessità scrivici a lacolumbera@gmail.com.',
+      err429:'Troppi tentativi. Riprova tra qualche minuto (se hai prenotato sul sito puoi anche aprire il link della mail di conferma).',
+      err409:'La Guest Card non è disponibile per questa prenotazione: potrebbe essere annullata, non ancora confermata o senza il numero di ospiti registrato. Se ti serve aiuto scrivici a lacolumbera@gmail.com.',
+      errTgc:'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.',errServizio:'Servizio non disponibile in questo momento: riprova più tardi o scrivici a lacolumbera@gmail.com.',errRete:'Servizio non raggiungibile: controlla la connessione e riprova.'},
+    en:{eyebrow:'Guest benefits',lead:'If you come from the guest area, your booking is already recognised; otherwise enter your booking code (the one in the confirmation email, or your Booking.com or Airbnb reservation number). The dates of your stay and the number of guests are taken automatically from the confirmed booking, so your Guest Card is issued with the correct details.',
+      etCodice:'Booking code',ph:'e.g. 558R TE56 487A9',verifica:'Check booking',codiceServe:'The code is only used to recognise your booking.',informativa:'Privacy notice',
+      altroCodice:'Use a different booking code',cerco:'Looking for your booking…',copia:'Copy code',copiato:'Code copied ✓',copiaNo:'Copy failed',
+      cardTit:'Trentino Guest Card request sent 🎉',codice:'Code:',periodo:'Period:',ospitiCop:'Guests covered:',
+      mailA:'Check your inbox: an email is on its way to ',mailAnon:'the address you provided',mailB:'. Open the link to complete the activation — you will be asked to add any children in the group and where you come from, and to create the password for your Trentino Guest Card account. Once that is done, the card will be ready in the Mio Trentino app.',
+      trovata:'Booking found',apt:'Apartment',checkin:'Check-in',checkout:'Check-out',notti:'Nights',ospiti:'Guests',
+      datiAuto:'These details are taken automatically from your confirmed booking and cannot be changed here: the Guest Card is always issued for the actual dates and number of guests of the booking.',
+      etEmail:'Your email (to receive the Guest Card)',privCard:'To issue the card we send your email, the dates of your stay and the number of guests to the Trentino Guest Card system.',genera:'Generate Trentino Guest Card',emailNo:'Please enter a valid email address',genero:'Generating…',
+      err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',errChiusa:'Your stay has ended: the guest area stays open until 7 days after check-out. For anything you need, write to us at lacolumbera@gmail.com.',
+      err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',
+      err409:'The Guest Card is not available for this booking right now: it may be cancelled, not yet confirmed, or without a registered number of guests. If you need help, write to us at lacolumbera@gmail.com.',
+      errTgc:'The Trentino Guest Card system did not respond: please try again later or write to us at lacolumbera@gmail.com.',errServizio:'Service not available at the moment: please try again later or write to us at lacolumbera@gmail.com.',errRete:'Service unavailable: check your connection and try again.'},
+    de:{eyebrow:'Vorteile für Gäste',lead:'Wenn Sie aus dem Gästebereich kommen, ist Ihre Buchung bereits erkannt; andernfalls geben Sie Ihren Buchungscode ein (den aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb). Aufenthaltszeitraum und Gästezahl werden automatisch aus der bestätigten Buchung übernommen, damit die Guest Card mit den richtigen Daten ausgestellt wird.',
+      etCodice:'Buchungscode',ph:'z. B. 558R TE56 487A9',verifica:'Buchung prüfen',codiceServe:'Der Code dient nur dazu, Ihre Buchung zu erkennen.',informativa:'Datenschutzhinweis',
+      altroCodice:'Anderen Buchungscode verwenden',cerco:'Ihre Buchung wird gesucht…',copia:'Code kopieren',copiato:'Code kopiert ✓',copiaNo:'Kopieren fehlgeschlagen',
+      cardTit:'Anfrage für die Trentino Guest Card gesendet 🎉',codice:'Code:',periodo:'Zeitraum:',ospitiCop:'Abgedeckte Gäste:',
+      mailA:'Prüfen Sie Ihr Postfach: Eine E-Mail an ',mailAnon:'die angegebene Adresse',mailB:' ist unterwegs. Öffnen Sie den Link, um die Aktivierung abzuschließen – Sie werden gebeten, eventuelle Kinder in der Gruppe und Ihre Herkunft anzugeben und das Passwort für Ihr Trentino-Guest-Card-Konto zu erstellen. Danach ist die Karte in der App Mio Trentino bereit.',
+      trovata:'Buchung gefunden',apt:'Apartment',checkin:'Check-in',checkout:'Check-out',notti:'Nächte',ospiti:'Gäste',
+      datiAuto:'Diese Angaben werden automatisch aus Ihrer bestätigten Buchung übernommen und können hier nicht geändert werden: Die Guest Card wird immer für den tatsächlichen Zeitraum und die tatsächliche Gästezahl der Buchung ausgestellt.',
+      etEmail:'Ihre E-Mail-Adresse (für den Erhalt der Guest Card)',privCard:'Zur Ausstellung der Karte übermitteln wir Ihre E-Mail-Adresse, die Aufenthaltsdaten und die Gästezahl an das System der Trentino Guest Card.',genera:'Trentino Guest Card erstellen',emailNo:'Bitte geben Sie eine gültige E-Mail-Adresse ein',genero:'Wird erstellt…',
+      err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',errChiusa:'Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet. Für alle Anliegen schreiben Sie uns an lacolumbera@gmail.com.',
+      err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',
+      err409:'Die Guest Card ist für diese Buchung im Moment nicht verfügbar: Sie ist möglicherweise storniert, noch nicht bestätigt oder ohne erfasste Gästezahl. Wenn Sie Hilfe brauchen, schreiben Sie uns an lacolumbera@gmail.com.',
+      errTgc:'Das System der Trentino Guest Card hat nicht geantwortet: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.',errServizio:'Der Dienst ist im Moment nicht verfügbar: Bitte versuchen Sie es später erneut oder schreiben Sie uns an lacolumbera@gmail.com.',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.'}};
+  const pick=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
+  let salvata='';try{salvata=sessionStorage.getItem('lc_lang')||''}catch{}
+  const lang=pick(salvata)||(navigator.languages||[navigator.language]).map(pick).find(Boolean)||'en';
+  const t=(k,...a)=>{const v=(L[lang]||L.it)[k],w=v===undefined?L.it[k]:v;return typeof w==='function'?w(...a):w};
+  return gcMemo={L,lang,loc:LOC[lang],t}}
+// testi fissi della pagina (data-i18n) e lingua del documento, subito: non aspettano la configurazione del sito
+function gcStatic(){
+  const{t,lang}=gcl(),cod=$('#gc-code');
+  document.documentElement.lang=lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const v=t(el.dataset.i18n);if(typeof v==='string')el.textContent=v});
+  if(cod)cod.placeholder=t('ph')}
+
 async function guestcard(c){
-  const q=new URLSearchParams(location.search),box=$('#r');
+  const q=new URLSearchParams(location.search),box=$('#r'),{t,lang,loc}=gcl();
+  // date nella lingua della pagina: 5 dic 2026 · 5 Dec 2026 · 5. Dez. 2026
+  const fd=s=>new Date(s+'T00:00:00').toLocaleDateString(loc,{day:'numeric',month:'short',year:'numeric'});
+  // errore mostrato all'ospite: senza stato di risposta è la rete; in italiano il messaggio del server; altrimenti il testo scelto dallo stato
+  const errMsg=x=>{const s=x&&x.status;
+    if(!s)return t('errRete');
+    if(lang==='it')return x.message;
+    return t(s===404?'err404':s===410?'errChiusa':s===429?'err429':s===409?'err409':s===400?'emailNo':s===502?'errTgc':'errServizio')};
   // Copia negli appunti (con ripiego per i browser che non permettono navigator.clipboard)
   const copia=async t=>{
     try{await navigator.clipboard.writeText(t);return true}
     catch{try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}};
   // dall'area clienti (o dal link #k=…) la prenotazione si riconosce da sola: il primo passo, il codice, non si mostra; resta a portata con «Usa un altro codice»
-  const form=$('[data-testid=gc-card]'),altro=auto=>auto?`<p class="book-note"><button type="button" class="link-btn" data-act="gc-altro" data-testid="gc-altro">Usa un altro codice di prenotazione</button></p>`:'';
+  const form=$('[data-testid=gc-card]'),altro=auto=>auto?`<p class="book-note"><button type="button" class="link-btn" data-act="gc-altro" data-testid="gc-altro">${esc(t('altroCodice'))}</button></p>`:'';
   box.addEventListener('click',async e=>{
     if(e.target.closest('[data-act=gc-altro]')){box.innerHTML='';if(form)form.hidden=false;$('#gc-code').focus();return}
     const b=e.target.closest('[data-copy]');if(!b)return;
     const orig=b.dataset.label||(b.dataset.label=b.textContent),ok=await copia(b.dataset.copy);
-    b.textContent=ok?'Codice copiato ✓':'Copia non riuscita';
+    b.textContent=ok?t('copiato'):t('copiaNo');
     clearTimeout(b._t);b._t=setTimeout(()=>{b.textContent=orig},2200)});
-  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>Richiesta Trentino Guest Card inviata 🎉</h2>${g.gc_id?`<p>Codice: <b>${esc(g.gc_id)}</b></p>`:''}<p>Periodo: <b>${fmtD(g.valid_from)} → ${fmtD(g.valid_to)}</b></p><p>Ospiti coperti: <b>${g.ospiti}</b></p><p class="book-note">Controlla la mail che arriverà a <b>${esc(g.email||'l\'indirizzo indicato')}</b>: apri il link per completare l'attivazione — ti verrà chiesto di indicare eventuali bambini nel gruppo, la provenienza, e di creare la password del tuo account Trentino Guest Card. Fatto questo la card sarà pronta sull'app Mio Trentino.</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">Copia codice</button>`:''}</div>`;
+  const renderCard=g=>`<div class="admin-card" data-testid="gc-success"><h2>${esc(t('cardTit'))}</h2>${g.gc_id?`<p>${esc(t('codice'))} <b>${esc(g.gc_id)}</b></p>`:''}<p>${esc(t('periodo'))} <b>${esc(fd(g.valid_from))} → ${esc(fd(g.valid_to))}</b></p><p>${esc(t('ospitiCop'))} <b>${esc(g.ospiti)}</b></p><p class="book-note">${esc(t('mailA'))}<b>${esc(g.email||t('mailAnon'))}</b>${esc(t('mailB'))}</p>${g.gc_id?`<button type="button" class="btn btn-wine" data-copy="${esc(g.gc_id)}" data-testid="gc-copy">${esc(t('copia'))}</button>`:''}</div>`;
   const renderConfirm=(x,auto)=>{
     box.innerHTML=`<div class="admin-card" data-testid="gc-confirm">
-      <h2>Prenotazione trovata</h2>
+      <h2>${esc(t('trovata'))}</h2>
       <div class="bc-grid">
-        <div class="bc-cell"><span>Appartamento</span><b>${nomeA(c,x.id)}</b></div>
-        <div class="bc-cell"><span>Check-in</span><b>${fmtD(x.da)}</b></div>
-        <div class="bc-cell"><span>Check-out</span><b>${fmtD(x.a)}</b></div>
-        <div class="bc-cell"><span>Notti</span><b>${x.notti}</b></div>
-        <div class="bc-cell"><span>Ospiti</span><b>${x.ospiti}</b></div>
+        <div class="bc-cell"><span>${esc(t('apt'))}</span><b>${nomeA(c,x.id)}</b></div>
+        <div class="bc-cell"><span>${esc(t('checkin'))}</span><b>${esc(fd(x.da))}</b></div>
+        <div class="bc-cell"><span>${esc(t('checkout'))}</span><b>${esc(fd(x.a))}</b></div>
+        <div class="bc-cell"><span>${esc(t('notti'))}</span><b>${esc(x.notti)}</b></div>
+        <div class="bc-cell"><span>${esc(t('ospiti'))}</span><b>${esc(x.ospiti)}</b></div>
       </div>
-      <p class="book-note">Questi dati sono presi automaticamente dalla tua prenotazione confermata e non si possono modificare qui: la Guest Card viene sempre emessa per il periodo e il numero di ospiti reali della prenotazione.</p>
-      ${x.needsEmail?`<div class="field"><label for="gc-email">La tua email (per ricevere la Guest Card)</label><input id="gc-email" type="email" required data-testid="gc-email"></div>`:''}
-      <p class="book-note" data-testid="gc-privacy">Per emettere la card inviamo al sistema Trentino Guest Card la tua email, le date del soggiorno e il numero di ospiti. <a href="privacy.html" target="_blank" rel="noopener">Informativa privacy</a></p>
-      <button class="btn btn-wine" style="width:100%;justify-content:center" id="gc-go" data-testid="gc-issue">Genera Trentino Guest Card</button>
+      <p class="book-note">${esc(t('datiAuto'))}</p>
+      ${x.needsEmail?`<div class="field"><label for="gc-email">${esc(t('etEmail'))}</label><input id="gc-email" type="email" required data-testid="gc-email"></div>`:''}
+      <p class="book-note" data-testid="gc-privacy">${esc(t('privCard'))} <a href="privacy.html" target="_blank" rel="noopener">${esc(t('informativa'))}</a></p>
+      <button class="btn btn-wine" style="width:100%;justify-content:center" id="gc-go" data-testid="gc-issue">${esc(t('genera'))}</button>
       <p class="form-err" id="e2"></p>
     </div>${altro(auto)}`;
     $('#gc-go').onclick=async()=>{
       const btn=$('#gc-go');if(btn.dataset.loading)return;
       const email=x.needsEmail?($('#gc-email').value||'').trim():undefined;
-      if(x.needsEmail&&!/.+@.+\..+/.test(email||'')){$('#e2').textContent="Inserisci un'email valida";return}
-      btn.dataset.loading='1';btn.disabled=true;const orig=btn.textContent;btn.textContent='Genero…';
+      if(x.needsEmail&&!/.+@.+\..+/.test(email||'')){$('#e2').textContent=t('emailNo');return}
+      btn.dataset.loading='1';btn.disabled=true;const orig=btn.textContent;btn.textContent=t('genero');
       try{const g=await api('gc_issue',Object.assign(accBody(x.code),{email}));box.innerHTML=renderCard(g)}
-      catch(err){$('#e2').textContent=err.message;btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
+      catch(err){$('#e2').textContent=errMsg(err);btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=orig;delete btn.dataset.loading}};
   };
   const check=async(body,auto)=>{
-    $('#e').textContent='';box.innerHTML=auto?'<p class="book-note" data-testid="gc-cerco">Cerco la tua prenotazione…</p>':'';
+    $('#e').textContent='';box.innerHTML=auto?`<p class="book-note" data-testid="gc-cerco">${esc(t('cerco'))}</p>`:'';
     if(auto&&form)form.hidden=true;
     try{let r;
       try{r=await api('gc_check',body)}
@@ -376,7 +442,7 @@ async function guestcard(c){
       const code=r.code||body.code;if(r.t)accSet(code,r.t);
       if(r.card){box.innerHTML=renderCard(r.card)+altro(auto);return}
       renderConfirm({...r.booking,code},auto)}
-    catch(x){box.innerHTML='';if(form)form.hidden=false;$('#e').textContent=x.message}};      // non riconosciuta: si torna al primo passo, con il codice già scritto
+    catch(x){box.innerHTML='';if(form)form.hidden=false;$('#e').textContent=errMsg(x)}};      // non riconosciuta: si torna al primo passo, con il codice già scritto
   $('#f').onsubmit=e=>{e.preventDefault();const code=codeIn($('#gc-code').value);if(code)check(accBody(code))};
   // dall'area clienti (stessa scheda) il token è già in sessionStorage; dal messaggio di benvenuto (#k=…) basta il codice;
   // dai link con ?code=… si precompila solo il codice
@@ -584,5 +650,7 @@ async function eventi(c){
 window.LCP={esc,api,get,iso,fmtD,fmtW,fmtL,mdLite,modal,accGet,accSet,accDel,accFromHash,accBody,fmtCode,codeIn,eventiList};
 const P={apt,guestcard,eventi,prenota};
 // la pagina Eventi non usa la configurazione del sito: parte subito, senza aspettarla
+// la Guest Card mostra subito i suoi testi fissi nella lingua dell'ospite (poi il resto, con la configurazione)
+if(B.p==='guestcard')gcStatic();
 if(B.p==='eventi')eventi();
 else if(P[B.p])get('a=cfg').then(c=>c||fetch('data/default.json').then(r=>r.json())).then(c=>P[B.p](c));

@@ -52,7 +52,8 @@ const L={
   ricEmailPren:e=>'facoltativa: se la lasci vuota te la mandiamo a '+e,ricEmailAlt:'Email',ricEmail:'Email a cui mandarla',ricNota:'Nota (facoltativa)',ricInvia:'Invia la richiesta',ricInvio:'Invio…',
   ricPriv:'Usiamo questi dati solo per preparare la ricevuta.',ricRichiesta:(d,e)=>'Richiesta inviata il '+d+': prepariamo la ricevuta e te la mandiamo'+(e?' a '+e:'')+'.',ricCorreggi:'Correggi i dati',
   ricInviata:(d,e)=>'Ricevuta inviata il '+d+(e?' a '+e:'')+'. Non la trovi? Guarda nello spam o scrivici.',ricCompila:'Compila i campi con l\'asterisco.',ricEmailNo:'L\'email non sembra giusta: controllala.',
-  ricControlla:'Controlla i dati inseriti.',ricErr:'Richiesta non inviata: controlla la connessione e riprova.',obbl:'obbligatorio'},
+  ricControlla:'Controlla i dati inseriti.',ricErr:'Richiesta non inviata: controlla la connessione e riprova.',
+  ricGia:'La ricevuta ti è già stata mandata: se serve una correzione scrivici a lacolumbera@gmail.com.',ricTroppe:'Hai già mandato diverse richieste oggi: se serve correggere qualcosa scrivici a lacolumbera@gmail.com.',obbl:'obbligatorio'},
  en:{eyebrow:'Guest area',titolo:'Your booking',sub:'Enter your booking code: you will find it in the confirmation email if you booked on our website, otherwise it is your Booking.com or Airbnb reservation number.',
   etCodice:'Booking code',entra:'Open',cerco:'Searching…',privacy:'Your booking code works like a key: do not share it with anyone who is not staying with you. We only use it to show you your booking and the related services.',informativa:'Privacy notice',lingua:'Language',
   err404:'Booking not found. Check the code: it is the one in the confirmation email or your Booking.com or Airbnb reservation number.',err429:'Too many attempts. Please try again in a few minutes (if you booked on our website you can also open the link in the confirmation email).',errRete:'Service unavailable: check your connection and try again.',errChiusa:'Your stay has ended: the guest area stays open until 7 days after check-out. For anything you need, write to us at lacolumbera@gmail.com.',
@@ -84,7 +85,8 @@ const L={
   ricEmailPren:e=>'optional: if you leave it empty we send it to '+e,ricEmailAlt:'Email',ricEmail:'Email address to send it to',ricNota:'Note (optional)',ricInvia:'Send request',ricInvio:'Sending…',
   ricPriv:'We only use these details to prepare your receipt.',ricRichiesta:(d,e)=>'Request sent on '+d+': we will prepare your receipt and send it'+(e?' to '+e:'')+'.',ricCorreggi:'Correct the details',
   ricInviata:(d,e)=>'Receipt sent on '+d+(e?' to '+e:'')+'. Can\'t find it? Check your spam folder or write to us.',ricCompila:'Please fill in the fields marked with an asterisk.',ricEmailNo:'The email address does not look right: please check it.',
-  ricControlla:'Please check the details you entered (tax code, postcode).',ricErr:'Request not sent: check your connection and try again.',obbl:'required'},
+  ricControlla:'Please check the details you entered (tax code, postcode).',ricErr:'Request not sent: check your connection and try again.',
+  ricGia:'Your receipt has already been sent to you: if you need a correction, write to us at lacolumbera@gmail.com.',ricTroppe:'You have already sent several requests today: if something needs correcting, write to us at lacolumbera@gmail.com.',obbl:'required'},
  de:{eyebrow:'Gästebereich',titolo:'Ihre Buchung',sub:'Geben Sie Ihren Buchungscode ein: Sie finden ihn in der Bestätigungs-E-Mail, wenn Sie auf unserer Website gebucht haben, ansonsten ist es Ihre Buchungsnummer von Booking.com oder Airbnb.',
   etCodice:'Buchungscode',entra:'Öffnen',cerco:'Suche…',privacy:'Der Buchungscode funktioniert wie ein Schlüssel: Geben Sie ihn nicht an Personen weiter, die nicht mit Ihnen übernachten. Wir verwenden ihn nur, um Ihnen Ihre Buchung und die zugehörigen Dienste anzuzeigen.',informativa:'Datenschutzhinweis',lingua:'Sprache',
   err404:'Buchung nicht gefunden. Prüfen Sie den Code: Es ist der aus der Bestätigungs-E-Mail oder Ihre Buchungsnummer von Booking.com oder Airbnb.',err429:'Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut (wenn Sie auf unserer Website gebucht haben, können Sie auch den Link in der Bestätigungs-E-Mail öffnen).',errRete:'Dienst nicht erreichbar: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',errChiusa:'Ihr Aufenthalt ist beendet: Der Gästebereich bleibt bis 7 Tage nach der Abreise geöffnet. Für alle Anliegen schreiben Sie uns an lacolumbera@gmail.com.',
@@ -116,7 +118,8 @@ const L={
   ricEmailPren:e=>'optional: leer lassen, dann senden wir sie an '+e,ricEmailAlt:'E-Mail',ricEmail:'E-Mail-Adresse für den Versand',ricNota:'Anmerkung (optional)',ricInvia:'Anfrage senden',ricInvio:'Wird gesendet…',
   ricPriv:'Wir verwenden diese Angaben nur für Ihre Quittung.',ricRichiesta:(d,e)=>'Anfrage am '+d+' gesendet: Wir erstellen Ihre Quittung und senden sie'+(e?' an '+e:'')+'.',ricCorreggi:'Angaben korrigieren',
   ricInviata:(d,e)=>'Quittung am '+d+(e?' an '+e:'')+' gesendet. Nicht gefunden? Prüfen Sie den Spam-Ordner oder schreiben Sie uns.',ricCompila:'Bitte füllen Sie die mit Sternchen markierten Felder aus.',ricEmailNo:'Die E-Mail-Adresse scheint nicht zu stimmen: Bitte prüfen Sie sie.',
-  ricControlla:'Bitte prüfen Sie Ihre Angaben (Steuernummer, PLZ).',ricErr:'Anfrage nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',obbl:'Pflichtfeld'}
+  ricControlla:'Bitte prüfen Sie Ihre Angaben (Steuernummer, PLZ).',ricErr:'Anfrage nicht gesendet: Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.',
+  ricGia:'Die Quittung wurde Ihnen bereits gesendet: Wenn eine Korrektur nötig ist, schreiben Sie uns an lacolumbera@gmail.com.',ricTroppe:'Sie haben heute bereits mehrere Anfragen gesendet: Wenn etwas korrigiert werden muss, schreiben Sie uns an lacolumbera@gmail.com.',obbl:'Pflichtfeld'}
 };
 const pickL=l=>{l=String(l||'').slice(0,2).toLowerCase();return LANGS.includes(l)?l:''};
 let lang=pickL(ss('lc_lang'))||(navigator.languages||[navigator.language]).map(pickL).find(Boolean)||'en';
@@ -306,7 +309,7 @@ async function sendRic(f){
  if(dati.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dati.email))return err(t('ricEmailNo'));
  const btn=f.querySelector('[data-testid=ga-ric-invia]');btn.disabled=true;btn.textContent=t('ricInvio');err('');
  try{const r=await callG('ricevuta',{lingua:lang,dati});delete r.t;sog().ricevuta=r;ricForm=false;ricErr='';ricRepaint('#ga-ric h3')}
- catch(x){err(x.status===429||x.status===409?x.message:x.status===400?(lang==='it'?x.message:t('ricControlla')):t('ricErr'));btn.disabled=false;btn.textContent=t('ricInvia')}}
+ catch(x){err(x.status===429?(lang==='it'?x.message:t('ricTroppe')):x.status===409?(lang==='it'?x.message:t('ricGia')):x.status===400?(lang==='it'?x.message:t('ricControlla')):t('ricErr'));btn.disabled=false;btn.textContent=t('ricInvia')}}      // i messaggi del server sono in italiano
 function pPay(s,pay){
  let body='';
  if(pay){
