@@ -95,7 +95,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 | istat | 30 ok |
 | adempimenti | 42 ok (40 fino a `69c7337`) |
 | informativa | 5 ok |
-| ui | 120 ok (119 fino a `72ae77a`, 113 fino a `1b9259a`, 112 fino a `69c7337`, 111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
+| ui | 120 ok (119 fino a `72ae77a`, 114 fino a `df2bf66`, 113 fino a `1b9259a`, 112 fino a `69c7337`, 111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.
