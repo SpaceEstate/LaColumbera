@@ -260,7 +260,7 @@ test('U4c area clienti senza link: basta il codice (anche minuscolo e a gruppi);
   assert.equal(r.doc.querySelector('#cd').value, c.code, 'codice precompilato'); assert.equal(r.w.location.search, '', 'codice tolto dall\'indirizzo');
   assert(!r.log.calls.some(x => x.a === 'mie'), 'dal link con ?code= non parte nessuna richiesta da sola');
   assert(!r.doc.querySelector('#cda') && !r.doc.querySelector('#cem') && !r.doc.querySelector('input[type=date]') && !r.doc.querySelector('input[type=email]'), 'nessuna data né email da inserire');
-  r.doc.querySelector('#cd').value = c.code.slice(0, 12) + 'Z';
+  r.doc.querySelector('#cd').value = c.code.slice(0, 12) + (c.code.endsWith('Z') ? 'Y' : 'Z');      // sempre diverso dal codice vero: il codice è casuale e 1 volta su 32 finisce già per «Z»
   r.doc.querySelector('#f').dispatchEvent(new r.w.Event('submit', { cancelable: true }));
   await waitFor(() => /Prenotazione non trovata/.test(text(r.doc.querySelector('#r'))), 'errore con il codice sbagliato');
   r.doc.querySelector('#cd').value = (c.code.slice(0, 4) + ' ' + c.code.slice(4, 8) + ' ' + c.code.slice(8)).toLowerCase();
