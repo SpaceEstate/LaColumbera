@@ -208,6 +208,19 @@ test('S9  login amministratore: 10 tentativi falliti per IP, poi pausa; gli altr
   eq((await H.api('login', { u: 'admin', p: 'pw-di-prova' }, as(a))).status, 200, 'finita la pausa');
 });
 
+test('S28 login amministratore: senza ADMIN_PASSWORD su Vercel non si entra con nessuna password (con la sola SESSION_SECRET impostata bastava scrivere «undefined»)', async () => {
+  await base();
+  delete process.env.ADMIN_PASSWORD;      // variabile dimenticata o tolta per sbaglio; SESSION_SECRET c'è
+  for (const p of ['undefined', '', 'pw-di-prova']) {
+    const r = await H.api('login', { u: 'admin', p }, as(ip()));
+    eq([r.status, !!(r.body && r.body.t)], [500, false], 'password «' + p + '»: nessun accesso');
+  }
+  process.env.ADMIN_PASSWORD = 'pw-di-prova';
+  const ok = await H.api('login', { u: 'admin', p: 'pw-di-prova' }, as(ip()));
+  eq([ok.status, !!ok.body.t], [200, true], 'con la variabile impostata si entra come sempre');
+  eq((await H.api('login', { u: 'admin', p: 'undefined' }, as(ip()))).status, 401);
+});
+
 test('S10 checkout: al massimo 10 avvii di pagamento ogni 30 minuti per IP (gli hold non si possono accumulare da un solo IP)', async () => {
   await base();
   const a = ip();

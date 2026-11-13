@@ -602,7 +602,8 @@ if(a==='gc_oauth_callback'){ // pubblico: redirect di ritorno da Trentino Market
   console.error('gc_oauth_callback',JSON.stringify(diag));
   res.setHeader('Content-Type','text/html; charset=utf-8');
   return res.status(502).send('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:sans-serif;padding:40px;max-width:760px"><h2>Autorizzazione Trentino Guest Card non riuscita</h2><p>Il login è andato a buon fine ma lo scambio del codice è stato rifiutato. Dettagli (il secret non viene mai mostrato):</p><pre style="white-space:pre-wrap;word-break:break-word;background:#f4f0e6;padding:16px;border-radius:8px;font-size:14px">'+h(JSON.stringify(diag,null,2))+'</pre><p>Il codice è monouso: per riprovare rifai «Autorizza Trentino Guest Card» dal <a href="/admin.html#guestcard">pannello admin</a>.</p></body></html>')}}
-if(a==='login'){if(!S()||!process.env.ADMIN_USER)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
+// senza ADMIN_PASSWORD non si entra: con la sola SESSION_SECRET il confronto era con il testo «undefined» (bastava scriverlo come password)
+if(a==='login'){if(!S()||!process.env.ADMIN_USER||!process.env.ADMIN_PASSWORD)return res.status(500).json({err:'Mancano ADMIN_USER e ADMIN_PASSWORD su Vercel'});
  const bl=await ACC.blockedIp(req,'lg',ACC.RL.loginIp);if(bl)return deny(res,bl);      // troppi tentativi falliti da questo IP: pausa
  if(eq(String(b.u||''),process.env.ADMIN_USER)&eq(String(b.p||''),process.env.ADMIN_PASSWORD))return res.json({t:sign(String(Date.now()+288e5))});
  await ACC.countFail(req,'lg',ACC.RL.loginIp);
@@ -693,7 +694,8 @@ if(a==='msg_thread'||a==='msg_reply'||a==='msg_prog_add'){const bk=await E.bkGet
  if(a==='msg_thread')return res.json(Object.assign(await MSG.perHost(bk.code,b.v,b.lo),{prenotazione:{code:bk.code,nome:bk.nome||'',email:bk.email||'',tel:bk.tel||'',apt:bk.id,dal:bk.da,al:bk.a,ospiti:bk.ospiti,notti:bk.notti,stato:bk.stato},scrivibile:chatOk({origine:'sito',stato:bk.stato})}));
  if(!chatOk({origine:'sito',stato:bk.stato}))return res.status(409).json({err:'Si può scrivere solo alle prenotazioni confermate'});
  try{if(a==='msg_prog_add')return res.json(await MSG.programma(bk.code,b.testo,b.quando,b.foto));
-  return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false?null:await MSG.linguaDi(bk.code),booking:bk,site:siteOf(req),foto:b.foto}))}catch(e){return msgErr(res,e)}}
+  // nonTradurre: il titolare ha tolto la spunta «Traduci anche in…» (la pagina lo manda solo se la casella c'era): il messaggio non si traduce nemmeno alla lettura
+  return res.json(await MSG.daHost(bk.code,b.testo,{verso:b.traduci===false||b.nonTradurre===true?null:await MSG.linguaDi(bk.code),nonTradurre:b.nonTradurre===true,booking:bk,site:siteOf(req),foto:b.foto}))}catch(e){return msgErr(res,e)}}
 if(a==='msg_tpl')return res.json({templates:await MSG.templates(),variabili:require('./_messaggi.js').VARIABILI,regole:await MSG.regole()});      // con le regole: l'invio automatico si sceglie anche nel template
 if(a==='msg_tpl_save')try{return res.json({templates:await MSG.salvaTemplates(b.templates)})}catch(e){return msgErr(res,e)}
 if(a==='msg_auto'){const bks=await E.bkAll(),by=new Map(bks.map(x=>[x.code,x]));

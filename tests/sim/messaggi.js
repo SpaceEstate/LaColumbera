@@ -798,6 +798,55 @@ test('M22 la lingua ricordata dall\'area si cancella come la conversazione: anch
   eq([await giu.ricordaLingua('X', 'en'), await MSG.ricordaLingua('X', 'fr'), await MSG.ricordaLingua('', 'en'), await MSG.ricordaLingua('X', 'de')], [false, false, false, true]);
 });
 
+test('M23 link con il testo e indirizzo «www.», variabile dentro un indirizzo: le parti protette non si annidano e nel testo tradotto non resta nessun «</x>» (Cloudflare: risposta e messaggio automatico); con DeepL stesso risultato di prima', async () => {
+  const CF = { CLOUDFLARE_ACCOUNT_ID: '0123456789abcdef0123456789abcdef', CLOUDFLARE_API_TOKEN: 'tok' };
+  const testo = 'Prenota qui: [Prenota un tavolo](https://www.esempio.it/tavolo?a=1&b=2) oppure [www.esempio.it](https://www.esempio.it), grazie';
+  const tpl = 'Ciao {nome}, la guida: https://www.esempio.it/{appartamento} oppure [dalla tua area](https://www.esempio.it/area)';
+  const prova = async env => {
+    await base(env);
+    const c = await confermata();
+    await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });      // l'ospite usa l'area in inglese
+    eq((await H.adminApi('msg_reply', { code: c.code, testo })).status, 200);
+    const l = (await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+    eq([l[0].testo, l[0].originale], ['[EN] ' + testo, testo], 'risposta: i link arrivano interi');
+    // messaggio automatico: il template ha un link con il testo e una variabile dentro un indirizzo
+    await H.adminApi('msg_tpl_save', { templates: [{ id: 'g', nome: 'Guida', testo: tpl }] });
+    await H.adminApi('msg_auto_save', { regole: [{ id: 'conf', nome: 'Alla conferma', attiva: true, tpl: 'g', base: 'conferma' }] });
+    const d = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'nuovo@esempio.it' });
+    await sync();
+    const a = (await ospite('msg_list', { code: d.code, t: d.t, lingua: 'de' })).body.messaggi[0];
+    eq([a.testo, a.originale], ['[DE] Ciao Mario, la guida: https://www.esempio.it/Torre oppure [dalla tua area](https://www.esempio.it/area)', 'Ciao Mario, la guida: https://www.esempio.it/Torre oppure [dalla tua area](https://www.esempio.it/area)'], 'automatico: variabile riempita dentro l\'indirizzo, nessun residuo');
+  };
+  await prova(CF);
+  const mandati = global.__cf.calls.flatMap(x => x.usr);
+  assert(mandati.includes('Prenota qui: [Prenota un tavolo]([[1]]) oppure [[[2]]]([[3]]), grazie') && mandati.includes('Ciao [[1]], la guida: [[2]] oppure [dalla tua area]([[3]])'), 'al modello un gettone per ogni parte protetta: ' + JSON.stringify(mandati));
+  assert(!mandati.some(t => /<\/?x>/.test(t)), 'nessun pezzo di <x> arriva al modello');
+  await prova({ DEEPL_API_KEY: 'chiave-pro' });
+  const xml = global.__deepl.calls.flatMap(x => x.body.text).filter(t => /<x>/.test(t));
+  assert(xml.length >= 3 && !xml.some(t => /<x>(?:(?!<\/x>)[\s\S])*<x>/.test(t)), 'DeepL: parti protette mai una dentro l\'altra: ' + JSON.stringify(xml));
+});
+
+test('M24 risposta con «Traduci anche in…» tolto (nonTradurre): l\'ospite la legge com\'è stata scritta, anche cambiando lingua, e nessun testo va al servizio di traduzione; senza quel segno (casella assente, pagina di gestione di prima) si traduce alla lettura, come prima', async () => {
+  await base({ DEEPL_API_KEY: 'chiave-pro' });
+  const c = await confermata();
+  const leggi = async lingua => (await ospite('msg_list', { code: c.code, t: c.t, lingua })).body.messaggi;
+  await leggi('en');      // l'ospite usa l'area in inglese
+  const n = global.__deepl.calls.length;
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Hello, I write in English myself', traduci: false, nonTradurre: true })).status, 200);
+  let l = await leggi('en');
+  eq([l[0].testo, l[0].originale, global.__deepl.calls.length - n], ['Hello, I write in English myself', undefined, 0], 'resta com\'è: nessuna traduzione, né all\'invio né alla lettura');
+  l = await leggi('de'); eq([l[0].testo, l[0].originale, global.__deepl.calls.length - n], ['Hello, I write in English myself', undefined, 0], 'anche se l\'ospite cambia lingua');
+  eq((await thread(c.code)).messaggi[0].tradotto, undefined, 'in Gestione niente «come lo legge l\'ospite»: lo legge così');
+  const mo = mailsTo('mario.prova@esempio.it').pop();
+  assert(mo && /Hello, I write in English myself/.test(mo.text) && !/\[(EN|DE)\]/.test(mo.text), 'email di avviso all\'ospite: il testo com\'è');
+  // senza «nonTradurre» (casella assente perché la lingua dell\'ospite non era nota, oppure pagina di gestione non aggiornata): come prima, si traduce alla lettura
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Solo italiano', traduci: false })).status, 200);
+  l = await leggi('en'); eq([l[1].testo, l[1].originale], ['[EN] Solo italiano', 'Solo italiano']);
+  // un valore che non è un vero sì non conta
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'A domani', nonTradurre: 'si' })).status, 200);
+  l = await leggi('en'); eq(l[2].testo, '[EN] A domani');
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

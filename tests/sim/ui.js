@@ -2982,6 +2982,39 @@ test('W40 Gestione · Messaggi: dice quale servizio traduce (Cloudflare, oppure 
   assert(/traduzione automatica non attiva: vedi Automatici/.test(casella), casella);
 });
 
+test('W42 area ospiti · Messaggi: cambiando lingua da un\'altra scheda, i messaggi del titolare si leggono nella lingua nuova (non restano in quella di prima), anche se nel frattempo l\'area ha già detto al server la lingua nuova', async () => {
+  await setup({ DEEPL_API_KEY: 'chiave-prova' });
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  await H.adminApi('msg_reply', { code: c.code, testo: 'Vi aspettiamo dalle 16' });
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, lang: 'en-GB', scripts: AREA });
+  await waitFor(() => r.doc.querySelector('[data-testid=guest-app]'), 'area ospiti');
+  const bolla = () => text(r.doc.querySelector('#ga-p-messaggi .ga-msg.them .ga-bubble'));
+  tabOf(r, 'messaggi'); await waitFor(() => /^\[EN\] Vi aspettiamo dalle 16/.test(bolla()), 'messaggio in inglese');
+  tabOf(r, 'soggiorno'); r.doc.querySelector('#ga-lang-app [data-lang=de]').click();      // lingua cambiata fuori dalla scheda Messaggi
+  assert.equal(r.doc.documentElement.lang, 'de');
+  tabOf(r, 'messaggi'); await waitFor(() => /^\[DE\] Vi aspettiamo dalle 16/.test(bolla()), 'messaggio in tedesco dopo il cambio lingua');
+  assert(/Automatisch übersetzt/.test(text(r.doc.querySelector('#ga-p-messaggi .ga-msg.them .ga-meta'))), 'con «Automatisch übersetzt» e l\'originale a portata');
+  // di nuovo in inglese, ma prima di tornare su «Messaggi» l'area rilegge la prenotazione con la lingua nuova (a=mie, come al ritorno dal check-in
+  // online): il server sa già che la lingua è l'inglese, quindi la pagina non deve chiedere l'elenco «solo se è cambiato qualcosa»
+  tabOf(r, 'info'); r.doc.querySelector('#ga-lang-app [data-lang=en]').click();
+  assert.equal((await H.api('mie', { code: c.code, t: JSON.parse(r.w.sessionStorage.getItem('lc_acc')).t, lingua: 'en' })).status, 200);
+  tabOf(r, 'messaggi'); await waitFor(() => /^\[EN\] Vi aspettiamo dalle 16/.test(bolla()), 'di nuovo in inglese');
+});
+
+test('W43 Gestione · Messaggi: tolta la spunta «Traduci anche in…» l\'ospite legge la risposta com\'è stata scritta; con la spunta la legge tradotta, con l\'originale', async () => {
+  await setup({ DEEPL_API_KEY: 'chiave-prova' });
+  const c = (await checkout({ da: '2026-12-10', a: '2026-12-13' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  await H.api('msg_list', { code: c.code, t: c.t, lingua: 'en' });      // l'ospite usa l'area in inglese
+  const r = await loadAdmin('#messaggi/c/' + c.code), $ = s => r.doc.querySelector(s), mie = () => r.doc.querySelectorAll('[data-testid=msg-messages] .ga-msg.me').length;
+  await waitFor(() => $('[data-testid=msg-traduci]'), 'casella «Traduci anche in inglese»');
+  assert($('[data-testid=msg-traduci]').checked, 'spuntata di partenza');
+  const invia = async (t, spunta) => { const n = mie(); $('[data-testid=msg-traduci]').checked = spunta; $('[data-testid=msg-testo]').value = t; $('#msg-reply').requestSubmit(); await waitFor(() => mie() === n + 1 && $('[data-testid=msg-traduci]'), 'risposta inviata: ' + t); };
+  await invia('See you at 4 pm!', false);
+  await invia('A presto', true);
+  const l = (await H.api('msg_list', { code: c.code, t: c.t, lingua: 'en' })).body.messaggi;
+  assert.deepEqual(l.map(m => [m.testo, m.originale]), [['See you at 4 pm!', undefined], ['[EN] A presto', 'A presto']]);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

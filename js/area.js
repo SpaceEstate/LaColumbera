@@ -465,7 +465,8 @@ function wire(){
  window.addEventListener('focus',dopoCheckin);      // il check-in aperto in un'altra finestra (computer): la pagina resta "visibile"
  document.addEventListener('click',async e=>{
   const lb=e.target.closest('[data-lang]');
-  if(lb){lang=lb.dataset.lang;ss('lc_lang',lang);if(R)paint();else i18nLogin();const nb=$(`[data-lang="${lang}"]`);if(nb)nb.focus();return}
+  // MS.v=null: l'elenco dei messaggi si richiede per intero, nella lingua nuova (quello in pagina è nell'altra; con la stessa versione il server direbbe «niente di nuovo»)
+  if(lb){lang=lb.dataset.lang;ss('lc_lang',lang);MS.v=null;if(R)paint();else i18nLogin();const nb=$(`[data-lang="${lang}"]`);if(nb)nb.focus();return}
   const tb=e.target.closest('.ga-tabs [role=tab]');if(tb){setTab(tb.dataset.tab);return}
   const og=e.target.closest('[data-orig]');if(og){const o=$('#ga-o-'+og.dataset.orig);if(o){o.hidden=!o.hidden;og.setAttribute('aria-expanded',String(!o.hidden))}return}
   const cp=e.target.closest('[data-copy]');

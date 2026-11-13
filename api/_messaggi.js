@@ -9,7 +9,7 @@
 // un template); l'ospite scrive solo testo.
 //
 // KV (chiavi separate dalla configurazione: il pulsante «Salva modifiche» della Gestione non le tocca mai):
-//   msg:<codice>        lista dei messaggi {id, da: 'ospite'|'host'|'auto', testo, lingua, ts, regola?, foto?}: al massimo 300, i più vecchi escono
+//   msg:<codice>        lista dei messaggi {id, da: 'ospite'|'host'|'auto', testo, lingua, ts, regola?, foto?, nt?}: al massimo 300, i più vecchi escono
 //   msg:v:<codice>      versione della conversazione (cresce a ogni messaggio): chi controlla se c'è qualcosa di nuovo legge solo questa
 //   msg:tr:<codice>     traduzioni, campo "<id>:<lingua>" → testo
 //   msg:idx             conversazioni, campo codice → {ts, da, anteprima}
@@ -72,10 +72,13 @@ const fineGiorno = day => romeMs(AV.addDays(day, 1), '00:00') - 1;
 const cleanId = s => String(s == null ? '' : s).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
 // le variabili dei template non si traducono: <x>…</x> con il formato XML di DeepL (il resto del testo va reso XML valido)
 // anche gli indirizzi non si traducono: quello di un link «[testo](indirizzo)» (il testo sì) e quelli scritti da soli
-const proteggi = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// Le parti protette non stanno mai una dentro l'altra (l'indirizzo «https://www.…» di un link con il testo, una variabile dentro un indirizzo):
+// resta solo quella più esterna (piatto). Annidate, con Cloudflare (gettoni [[n]], api/_traduci.js) nel testo tradotto restava un «</x>» in più.
+const piatto = s => { let d = 0; return s.replace(/<\/?x>/g, t => t === '<x>' ? (d++ ? '' : t) : (--d ? '' : t)); };
+const proteggi = s => piatto(s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/\]\s?\((https?:\/\/[^\s()<>"]+)\)/g, '](<x>$1</x>)')
   .replace(/(^|[^>\w])((?:https?:\/\/|www\.)[^\s<()]*[^\s<().,;:!?\]'"])/g, '$1<x>$2</x>')
-  .replace(/\{([a-z_]+)\}/g, '<x>{$1}</x>');
+  .replace(/\{([a-z_]+)\}/g, '<x>{$1}</x>'));
 const sproteggi = s => s.replace(/<x>\s*(\{[a-z_]+\})\s*<\/x>/g, '$1').replace(/<\/?x>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 // Compila un template per una prenotazione (del sito o del foglio). Una variabile vuota (es. il nome per una prenotazione Booking) sparisce
@@ -181,7 +184,8 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     if (v != null && v !== '' && +v === (+cur || 0) && !(+nl > 0)) return { v: +cur || 0, invariato: true };
     const msgs = await lista(code);
     let tr = hashObj(await kv('HGETALL', 'msg:tr:' + code));
-    const mancanti = msgs.filter(m => m.da !== 'ospite' && (m.lingua || 'it') !== lingua && tr[m.id + ':' + lingua] == null);
+    // nt: risposta mandata con «Traduci anche in…» tolto: resta com'è stata scritta, non si traduce nemmeno alla lettura
+    const mancanti = msgs.filter(m => m.da !== 'ospite' && !m.nt && (m.lingua || 'it') !== lingua && tr[m.id + ':' + lingua] == null);
     tr = await completa(code, mancanti.filter(m => m.da !== 'auto'), tr, lingua, { da: 'it' });
     tr = await completaAuto(code, mancanti.filter(m => m.da === 'auto'), tr, lingua, ctx);      // gli automatici mai dal testo già compilato
     await kvp([['HDEL', 'msg:no', code], ['HSET', 'msg:lo', code, String(now())]]);
@@ -205,11 +209,11 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     return { id: m.id, da: 'ospite', testo: m.testo, ts: m.ts };
   }
   // Il titolare scrive (o parte un messaggio automatico): testo, foto o tutti e due. traduzioni = testi già pronti per lingua (template);
-  // verso = lingua dell'ospite
-  async function daHost(code, testo, { auto, regola, verso, traduzioni, booking, site, foto } = {}) {
+  // verso = lingua dell'ospite; nonTradurre = il titolare ha tolto «Traduci anche in…»: il messaggio resta com'è anche alla lettura (nt)
+  async function daHost(code, testo, { auto, regola, verso, traduzioni, booking, site, foto, nonTradurre } = {}) {
     testo = pulisci(testo); foto = pulisciFoto(foto);
     if (!testo && !foto.length) throw err(400, 'Scrivi un messaggio o aggiungi una foto');
-    const m = Object.assign({ id: newId(), da: auto ? 'auto' : 'host', testo, lingua: 'it', ts: now() }, regola ? { regola } : {}, foto.length ? { foto } : {});
+    const m = Object.assign({ id: newId(), da: auto ? 'auto' : 'host', testo, lingua: 'it', ts: now() }, regola ? { regola } : {}, foto.length ? { foto } : {}, nonTradurre ? { nt: 1 } : {});
     await append(code, m);
     const cmds = [], tr = {};      // tr: il messaggio tradotto, per lingua (serve anche all'email per l'ospite)
     for (const [lg, t] of Object.entries(traduzioni || {})) if (lg !== 'it' && t) { tr[lg] = pulisci(t); cmds.push(['HSET', 'msg:tr:' + code, m.id + ':' + lg, tr[lg]]); }

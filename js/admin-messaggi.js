@@ -292,7 +292,8 @@ async function onSubmit(e) {
   const ta = $('#msg-testo', root), btn = e.target.querySelector('[data-testid=msg-invia]'), v = (ta.value || '').trim(), tr = $('#msg-traduci', root), foto = ST.allegati.slice();
   if ((!v && !foto.length) || btn.disabled) return;
   btn.disabled = true; say('msg-out', 'Invio…', true);
-  try { await call('msg_reply', { code: ST.code, testo: v, traduci: tr ? tr.checked : false, foto }); ta.value = ''; ST.allegati = []; say('msg-out', ''); await loadThread(false); }
+  // nonTradurre: la casella «Traduci anche in…» c'era ed è stata tolta → l'ospite legge il messaggio com'è scritto (senza la casella si traduce alla lettura, se serve)
+  try { await call('msg_reply', { code: ST.code, testo: v, traduci: tr ? tr.checked : false, nonTradurre: !!tr && !tr.checked, foto }); ta.value = ''; ST.allegati = []; say('msg-out', ''); await loadThread(false); }
   catch (er) { say('msg-out', er.message); } finally { const b = $('[data-testid=msg-invia]', root); if (b) b.disabled = false; }
 }
 async function onChange(e) {

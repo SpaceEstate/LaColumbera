@@ -82,20 +82,20 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (13/11/2026; partenza commit `6336695`, sicurezza +3 con S25, S26 e S27, pagamenti +7 con P20, P21, P22, P23, C7, R6 e F3, ui +20 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40, U16b, U4o, U4s, U4p, U4q, U4r, W27b, W41 e U4t, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +7 con M16, M17, M18, M19, M20, M21 e M22, adempimenti +2 con L6b e W6b)
+## Baseline (13/11/2026; partenza commit `6336695`, sicurezza +4 con S25, S26, S27 e S28, pagamenti +7 con P20, P21, P22, P23, C7, R6 e F3, ui +22 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40, U16b, U4o, U4s, U4p, U4q, U4r, W27b, W41, U4t, W42 e W43, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +9 con M16, M17, M18, M19, M20, M21, M22, M23 e M24, adempimenti +2 con L6b e W6b)
 
 | Prova | Risultato |
 |---|---|
 | scenarios | 15 ok, 0 falliti, 23 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`, 22 fino a `a6d403b`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub, revisione 2026-11-02b) 38 ok, 0 falliti (37 fino a `a6d403b`) |
 | pagamenti | 42 ok (41 fino a `c98c052`, 40 fino a `6eb5047`, 35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
 | preavviso | 12 ok |
-| sicurezza | 27 ok (26 fino a `903d4ef`, 24 fino a `6336695`, 25 fino a `97368a3`) |
-| messaggi | 22 ok (15 fino a `ab429ea`, 18 fino a `f747346`, 19 fino a `1b9259a`) |
+| sicurezza | 28 ok (27 fino a `2adeacb`, 26 fino a `903d4ef`, 24 fino a `6336695`, 25 fino a `97368a3`) |
+| messaggi | 24 ok (22 fino a `2adeacb`, 15 fino a `ab429ea`, 18 fino a `f747346`, 19 fino a `1b9259a`) |
 | sito | 11 ok (9 fino a `930c8df`) |
 | istat | 30 ok |
 | adempimenti | 42 ok (40 fino a `69c7337`) |
 | informativa | 5 ok |
-| ui | 121 ok (120 fino a `6e23208`, 119 fino a `72ae77a`, 114 fino a `df2bf66`, 113 fino a `1b9259a`, 112 fino a `69c7337`, 111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
+| ui | 123 ok (121 fino a `2adeacb`, 120 fino a `6e23208`, 119 fino a `72ae77a`, 114 fino a `df2bf66`, 113 fino a `1b9259a`, 112 fino a `69c7337`, 111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
 | lua51_check | compatibile con Lua 5.1 |
 
 Quando un intervento aggiunge prove, aggiornare questa tabella nello stesso commit.
