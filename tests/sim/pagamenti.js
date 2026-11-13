@@ -657,6 +657,30 @@ test('F2 ricevuta per un ospite di Airbnb (serve l\'email); straniero senza codi
   eq((await H.adminApi('ricevuta_invia', { code: c, file: pdf() })).status, 409, 'senza richiesta non abbiamo l\'email di un ospite Airbnb');
 });
 
+test('F3 ricevuta: il nome del file arriva all\'ospite con le lettere accentate («Müller», non «M_ller»); separatori di percorso, caratteri di controllo e simboli restano tolti', async () => {
+  // file() pulisce il nome scelto dal titolare: lettere e cifre di ogni lingua restano (anche scomposte, come le dà un Mac), il resto diventa «_»
+  const { file } = require('../../api/_ricevute.js'), PDF = pdf(), nome = n => file(PDF, n, 'COD123').allegato.filename;
+  for (const [dato, atteso, perche] of [
+    ['Ricevuta 12-2026 Müller.pdf', 'Ricevuta 12-2026 Müller.pdf', 'dieresi'],
+    ['Ricevuta Mu\u0308ller.pdf', 'Ricevuta Müller.pdf', 'scomposto (u + dieresi, NFD): torna un carattere solo'],
+    ['José Núñez Łukasz Żółć Ångström.pdf', 'José Núñez Łukasz Żółć Ångström.pdf', 'altre lettere latine'],
+    ['Иванов 山田 ١٢٣ 123.pdf', 'Иванов 山田 ١٢٣ 123.pdf', 'altri alfabeti e altre cifre'],
+    ['नमस्ते สวัสดี.pdf', 'नमस्ते สวัสดี.pdf', 'alfabeti le cui vocali sono segni combinanti (non hanno una forma composta)'],
+    ['../../etc/passwd.pdf', '.._.._etc_passwd.pdf', 'separatori di percorso'],
+    ['C:\\Users\\Mario\\Ricevuta Müller.pdf', 'C_Users_Mario_Ricevuta Müller.pdf', 'percorso di Windows'],
+    ['Ricevuta\u0007 \u202eMüller\u200b.pdf', 'Ricevuta_ _Müller_.pdf', 'controllo, inversione di direzione e spazio a larghezza zero'],
+    ['Ricevuta   12\t2026 🙂 "Rossi" <b>.pdf', 'Ricevuta 12 2026 _ _Rossi_ _b_.pdf', 'spazi riuniti; simboli e virgolette tolti'],
+    ['.pdf', 'ricevuta-COD123.pdf', 'solo l\'estensione: nome di ripiego'],
+    [undefined, 'ricevuta-COD123.pdf', 'nessun nome']
+  ]) eq(nome(dato), atteso, perche);
+  eq(file(PDF, 'x.exe', 'COD123').allegato.filename, 'x.pdf', 'l\'estensione la decide il contenuto vero, non il nome');
+  // dalla Gestione fino all'email dell'ospite
+  await base(); const code = await pagata(); global.__mails = [];
+  const s = await H.adminApi('ricevuta_invia', { code, file: pdf('n. 13/2026'), nome: 'Ricevuta 13-2026 Müller.pdf' }); eq(s.status, 200, JSON.stringify(s.body));
+  eq(global.__mails.length, 1); eq(global.__mails[0].attachments.map(x => x.filename), ['Ricevuta 13-2026 Müller.pdf']);
+  eq(JSON.parse(kv.exec(['HGET', 'ric', code])).file, 'Ricevuta 13-2026 Müller.pdf', 'lo stesso nome resta nella Gestione');
+});
+
 /* ===================== check-in online fatto (api/_checkin.js) ===================== */
 // Sessione Stripe del check-in (progetto Checkin, stesso account Stripe): dataCheckin la distingue dai pagamenti del sito, numeroPrenotazione
 // c'è solo se l'ospite ha verificato la prenotazione nel primo passo del modulo.

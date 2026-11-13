@@ -44,7 +44,9 @@ function file(dataUrl, nome, code) {
   const buf = Buffer.from(m[2], 'base64');
   if (!buf.length || buf.length > MAX_FILE) return { err: 'Il file è troppo grande: al massimo 3 MB' };
   if (!t[1](buf)) return { err: 'Il file non è un ' + t[0].toUpperCase() + ' valido' };
-  let n = riga(nome, 80).replace(/[^\w.\- ]+/g, '_').replace(/\.[^.]*$/, '').trim() || 'ricevuta-' + code;
+  // Nel nome restano lettere, segni che le completano e cifre di ogni lingua (Müller, José, Łukasz; NFC: la «ü» scomposta di un Mac torna un carattere solo),
+  // più «_ . - » e lo spazio. Separatori di percorso, caratteri di controllo e simboli diventano «_» (con \w le lettere accentate diventavano «M_ller»).
+  let n = riga(nome, 80).normalize('NFC').replace(/[^\p{L}\p{M}\p{N}_.\- ]+/gu, '_').replace(/\.[^.]*$/, '').trim() || 'ricevuta-' + code;
   return { allegato: { filename: n + '.' + t[0], content: buf, contentType: m[1] } };
 }
 
