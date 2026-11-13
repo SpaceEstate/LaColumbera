@@ -554,6 +554,35 @@ test('U4j area ospiti · Messaggi: si scrive e si legge (testo, mai HTML), la ri
   assert(!a.doc.querySelector('[data-testid=ga-tab-messaggi]'), 'nessuna scheda Messaggi per Airbnb');
 });
 
+test('U4o area ospiti · la lingua dell\'area va al server già all\'accesso (a=mie), anche senza aprire «Messaggi», e a ogni rilettura (anche nel secondo tentativo con la sessione scaduta); Booking/Airbnb nulla', async () => {
+  await setup();
+  const lingua = code => kv.exec(['HGET', 'msg:lingua', code]);
+  const c = (await checkout({ da: '2026-10-05', a: '2026-10-08' })).body; await H.webhook('checkout.session.completed', H.paidSession(c.code));
+  // browser in inglese: l'area si apre in inglese e il server ricorda l'inglese, senza che l'ospite apra i messaggi
+  const r = await load('area-clienti.html', { hash: '#k=' + c.code, lang: 'en-GB', scripts: AREA });
+  const ln = await waitFor(() => r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']'), 'area ospiti');
+  assert.equal(lingua(c.code), 'en', 'lingua registrata all\'accesso');
+  assert(!r.log.calls.some(x => x.a === 'msg_list'), 'i messaggi non sono stati aperti: la lingua viene da a=mie');
+  // cambia lingua nella pagina (nessuna chiamata), poi torna dalla scheda del check-in: la rilettura porta la lingua di adesso
+  r.doc.querySelector('[data-testid=ga-lang-de]').click();
+  assert.equal(lingua(c.code), 'en', 'il solo cambio di lingua non chiama il server');
+  r.doc.querySelector('[data-testid=checkin-link-' + c.code + ']').dispatchEvent(new r.w.MouseEvent('click', { bubbles: true, cancelable: true }));
+  r.doc.dispatchEvent(new r.w.Event('visibilitychange'));
+  await waitFor(() => lingua(c.code) === 'de', 'rilettura dopo il check-in con la lingua scelta');
+  // sessione scaduta (token vecchio): la prima richiesta è rifiutata e la seconda, con il solo codice, porta comunque la lingua
+  const old = await load('area-clienti.html', { session: { lc_acc: JSON.stringify({ c: c.code, t: 'x'.repeat(22) }) }, lang: 'en-GB', scripts: AREA });
+  await waitFor(() => old.doc.querySelector('[data-testid=guest-app]'), 'area ospiti con la sessione scaduta');
+  assert.equal(lingua(c.code), 'en', 'secondo tentativo con il solo codice: lingua registrata');
+  // un altro telefono, in italiano
+  const r2 = await load('area-clienti.html', { hash: '#k=' + c.code, lang: 'it-IT', scripts: AREA });
+  await waitFor(() => r2.doc.querySelector('[data-testid=guest-app]'), 'seconda scheda'); assert.equal(lingua(c.code), 'it');
+  // Booking e Airbnb non hanno la chat: nessuna lingua da ricordare
+  regAirbnb();
+  const a = await load('area-clienti.html', { hash: '#k=HMSEDESZCW', lang: 'en-GB', scripts: AREA });
+  await waitFor(() => a.doc.querySelector('[data-testid=guest-app]'), 'area ospiti Airbnb');
+  assert.equal(lingua('HMSEDESZCW'), null, 'nessuna lingua per Airbnb');
+});
+
 /* ===================== pannello admin (admin.js) ===================== */
 test('U5 admin · Sincronizzazione: stato per appartamento, calendari, riconciliazione e matrice per data', async () => {
   await setup();

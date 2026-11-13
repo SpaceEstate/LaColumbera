@@ -684,6 +684,120 @@ test('M19 messaggi automatici senza traduzione (servizio giù o spento quando so
   } finally { for (const k of Object.keys(CF)) delete process.env[k]; }
 });
 
+/* ===================== lingua dell'ospite: avviso email e area ospiti ===================== */
+test('M20 avviso all\'ospite a lingua non nota (non ha ancora aperto l\'area): il benvenuto automatico porta anche il testo inglese sotto quello italiano, senza altre chiamate al servizio di traduzione; con la lingua nota, senza traduzione o per un messaggio scritto a mano l\'email resta com\'era', async () => {
+  const giorno = lg => new Date(Date.UTC(2026, 11, 20, 12)).toLocaleDateString({ it: 'it-IT', en: 'en-GB' }[lg], { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  await base({ DEEPL_API_KEY: 'chiave-prova:fx' });
+  eq((await H.adminApi('msg_auto_save', { regole: [{ nome: 'Benvenuto', tpl: 'benvenuto', base: 'conferma', attiva: true }] })).status, 200);
+  // l'ospite ha pagato e non ha ancora aperto nulla: la lingua non si conosce; le traduzioni inglese e tedesca del template ci sono già
+  const c = await confermata({ da: '2026-12-20', a: '2026-12-23', email: 'otto@esempio.it', nome: 'Otto Prova' }), k0 = global.__deepl.calls.length;
+  await sync();
+  eq(global.__deepl.calls.length - k0, 2, 'solo le due traduzioni del template (inglese e tedesco), come prima: nessuna chiamata in più');
+  const a = mailsTo('otto@esempio.it'); eq(a.length, 1, 'il benvenuto avvisa l\'ospite');
+  const ita = 'Ciao Otto, grazie per aver scelto La Columbera! Ti aspettiamo ' + giorno('it') + ' nell\'appartamento Torre', ing = '[EN] Ciao Otto, grazie per aver scelto La Columbera! Ti aspettiamo ' + giorno('en') + ' nell\'appartamento Torre';
+  assert(a[0].subject === 'Nuovo messaggio da La Columbera · New message' && a[0].replyTo === 'lacolumbera@gmail.com', a[0].subject);
+  const t = a[0].text, h = a[0].html;
+  assert(t.indexOf(ita) >= 0 && t.indexOf('\n\nEnglish translation:\n' + ing) > t.indexOf(ita), 'testo: prima l\'italiano, poi l\'inglese (con la data in inglese):\n' + t);
+  const iIt = h.lastIndexOf(ita), iEt = h.indexOf('English translation'), iEn = h.indexOf(ing);      // lastIndexOf: la prima copia dell'italiano è nel preheader, nascosto in cima
+  assert(iIt >= 0 && iEt > iIt && iEn > iEt, 'html: il riquadro con l\'italiano, poi «English translation» con il testo inglese');
+  assert(!/Original text|Testo originale/.test(t + h) && /Rispondi · Reply: .*&s=messaggi/.test(t) && /Rispondi · Reply/.test(h), 'cornice e pulsante restano quelli di prima');
+  // scritto a mano, lingua ancora non nota: nessuna traduzione (come prima), quindi solo italiano
+  clock.advance(16 * MIN); eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Vi aspettiamo con piacere' })).status, 200);
+  const b = mailsTo('otto@esempio.it'); eq(b.length, 2, 'dopo 15 minuti un altro avviso');
+  assert(b[1].subject === 'Nuovo messaggio da La Columbera · New message' && /Vi aspettiamo con piacere/.test(b[1].text) && !/English translation|\[EN\]/.test(b[1].text + b[1].html), 'a mano e lingua non nota: solo italiano');
+  // lingua nota (aperti i messaggi prima della partenza del benvenuto): tedesco con l'originale sotto, italiano da solo; mai il riquadro inglese
+  const d = await confermata({ da: '2027-01-05', a: '2027-01-08', email: 'hans@esempio.it', nome: 'Hans Prova' }); await ospite('msg_list', { code: d.code, t: d.t, lingua: 'de' });
+  const e = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'ita@esempio.it', nome: 'Ita Prova' }); await ospite('msg_list', { code: e.code, t: e.t, lingua: 'it' });
+  await sync();
+  const g = mailsTo('hans@esempio.it')[0], i = mailsTo('ita@esempio.it')[0];
+  assert(g.subject === 'Neue Nachricht von La Columbera' && /\[DE\] Ciao Hans, grazie/.test(g.text) && /Originaltext \(Italienisch\):\nCiao Hans/.test(g.text) && !/English translation|\[EN\]/.test(g.text + g.html), g.text);
+  assert(i.subject === 'Nuovo messaggio da La Columbera' && /^Ciao Ita!/.test(i.text) && /Ciao Ita, grazie/.test(i.text) && !/English translation|\[EN\]|Reply/.test(i.text + i.html), i.text);
+  // il servizio di traduzione non risponde quando il messaggio parte e il template non era ancora stato tradotto (le traduzioni dei template restano in
+  // memoria 60 giorni): nessun inglese, l'email è quella di sempre
+  eq((await H.adminApi('msg_tpl_save', { templates: [{ id: 'benvenuto', nome: 'Benvenuto', testo: 'Ciao {nome}, benvenuto alla Columbera!' }] })).status, 200);
+  global.__deepl.mode = 'down';
+  await confermata({ da: '2027-03-10', a: '2027-03-12', email: 'giu@esempio.it', nome: 'Giu Prova' }); await sync(); global.__deepl.mode = 'ok';
+  const f = mailsTo('giu@esempio.it'); eq(f.length, 1);
+  assert(f[0].subject === 'Nuovo messaggio da La Columbera · New message' && /Ciao Giu, benvenuto alla Columbera!/.test(f[0].text) && !/English translation|\[EN\]/.test(f[0].text + f[0].html), 'traduzione non disponibile: solo italiano');
+  // il modulo delle email da solo: l'inglese conta solo a lingua non nota, con un testo e se è diverso dall'italiano
+  const M = require('../../api/_mail.js'), site = 'https://www.lacolumbera.test', bk = { code: c.code, nome: 'Otto Prova', id: 'torre', email: 'otto@esempio.it' };
+  const mostra = m => { const x = M.avvisoOspite(bk, site, 'tok', m); return /English translation/.test(x.html) && /English translation:\nHello/.test(x.text); };
+  eq([mostra({ testo: 'Ciao', en: 'Hello' }), mostra({ testo: 'Ciao', lingua: '', en: 'Hello' })], [true, true], 'lingua non nota: sì');
+  eq(['it', 'en', 'de'].map(lingua => mostra({ testo: 'Ciao', lingua, tradotto: lingua === 'it' ? '' : 'Hi', en: 'Hello' })), [false, false, false], 'lingua nota: mai');
+  eq([mostra({ testo: '', en: 'Hello', foto: ['https://x.public.blob.vercel-storage.com/foto/msg/a.jpg'] }), mostra({ testo: 'Hello', en: 'Hello' }), mostra({ testo: 'Ciao' }), mostra({ testo: 'Ciao', en: '' })], [false, false, false, false], 'solo foto, inglese uguale all\'italiano, nessuna traduzione: nessun riquadro');
+});
+
+test('M21 la lingua si impara già all\'accesso all\'area (a=mie): solo it, en, de e solo per le prenotazioni del sito confermate; Gestione, risposte ed email la usano subito; «niente di nuovo» e il costo di msg_list restano quelli di prima; un guasto di KV non blocca l\'area', async () => {
+  await base({ DEEPL_API_KEY: 'chiave-prova:fx' }); regAirbnb();
+  const c = await confermata(), lingua = code => kv.exec(['HGET', 'msg:lingua', code]);
+  // nessuna lingua, una lingua sconosciuta o scritta male: non si registra niente (e non costa un comando KV in più)
+  const visti = []; kv.after = async cmd => { if (cmd[1] === 'msg:lingua') visti.push(cmd[0]); };
+  for (const l of [undefined, '', 'fr', 'EN', ['en'], { l: 'en' }, 5, null]) eq((await ospite('mie', { code: c.code, t: c.t, lingua: l })).status, 200, JSON.stringify(l));
+  eq([lingua(c.code), visti], [null, []], 'nessuna lingua valida: nulla da ricordare, nessun comando su msg:lingua');
+  eq((await ospite('mie', { code: 'HMSEDESZCW', lingua: 'en' })).status, 200); eq([lingua('HMSEDESZCW'), visti], [null, []], 'Booking e Airbnb non hanno la chat: nessuna lingua');
+  // it, en, de sì; si scrive solo se cambia (a lingua invariata si legge e basta)
+  await ospite('mie', { code: c.code, t: c.t, lingua: 'en' }); eq([lingua(c.code), visti], ['en', ['HGET', 'HSET']]);
+  visti.length = 0; await ospite('mie', { code: c.code, t: c.t, lingua: 'en' }); eq(visti, ['HGET'], 'invariata: solo una lettura');
+  visti.length = 0; await ospite('mie', { code: c.code, t: c.t, lingua: 'de' }); eq([lingua(c.code), visti], ['de', ['HGET', 'HSET']], 'cambiata: si aggiorna');
+  await ospite('mie', { code: c.code, t: c.t, lingua: 'en' }); kv.after = null;
+  // la Gestione la sa subito (casella «Traduci anche in inglese»), senza che l'ospite abbia mai aperto i messaggi
+  const th = await thread(c.code); eq([th.lingua, th.traduzione], ['en', true]);
+  // la risposta del titolare si traduce e l'email arriva in inglese, con l'originale sotto; aprendo i messaggi non serve altra traduzione
+  eq((await H.adminApi('msg_reply', { code: c.code, testo: 'Benvenuti, vi aspettiamo!' })).status, 200);
+  const g = mailsTo('mario.prova@esempio.it'); eq(g.length, 1);
+  assert(g[0].subject === 'New message from La Columbera' && /\[EN\] Benvenuti, vi aspettiamo!/.test(g[0].text) && /Original text \(Italian\):\nBenvenuti, vi aspettiamo!/.test(g[0].text) && !/English translation/.test(g[0].text), g[0].text);
+  const k = global.__deepl.calls.length, l = await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en' });
+  eq([global.__deepl.calls.length, l.body.messaggi[0].testo], [k, '[EN] Benvenuti, vi aspettiamo!'], 'già tradotto e salvato: nessuna nuova chiamata');
+  // «niente di nuovo» lo decidono versione e non letti, non la lingua; la lingua nuova si registra come prima; pochi comandi KV
+  const v = l.body.v, n = kv.calls;
+  let q = await ospite('msg_list', { code: c.code, t: c.t, lingua: 'en', v }); eq([q.body.invariato, q.body.messaggi], [true, undefined]);
+  assert(kv.calls - n < 15, 'il controllo periodico costa pochi comandi KV: ' + (kv.calls - n));
+  q = await ospite('msg_list', { code: c.code, t: c.t, lingua: 'de', v }); eq([q.body.invariato, lingua(c.code)], [true, 'de'], 'cambia lingua con la stessa versione: niente di nuovo, ma la lingua si aggiorna');
+  // KV che non risponde sulla lingua: l'area si apre lo stesso e non cambia nulla
+  kv.after = async cmd => { if (cmd[1] === 'msg:lingua') throw new Error('KV giù'); };
+  const r = await ospite('mie', { code: c.code, t: c.t, lingua: 'it' }); kv.after = null;
+  eq([r.status, r.body.soggiorno.messaggi.attivi, lingua(c.code)], [200, true, 'de'], 'KV giù sulla lingua: l\'area si apre, la lingua resta com\'era');
+  // anche l'email di annullo fatto dal titolare segue la lingua dell'area (italiano se non è nota, come prima)
+  await ospite('mie', { code: c.code, t: c.t, lingua: 'en' }); global.__mails.length = 0;
+  eq((await H.adminApi('rimborsa', { code: c.code })).status, 200);
+  const an = mailsTo('mario.prova@esempio.it')[0]; assert(an && /^Booking cancelled/.test(an.subject) && /La Columbera has cancelled your booking/.test(an.text), an && an.text);
+  const s = await confermata({ da: '2027-02-10', a: '2027-02-12', email: 'senza@esempio.it', nome: 'Senza Lingua' }); global.__mails.length = 0;
+  eq((await H.adminApi('rimborsa', { code: s.code })).status, 200);
+  assert(/^Prenotazione annullata/.test(mailsTo('senza@esempio.it')[0].subject), 'lingua non nota: italiano, come prima');
+});
+
+test('M22 la lingua ricordata dall\'area si cancella come la conversazione: anche senza messaggi, 7 giorni dopo la partenza (o subito se la prenotazione non c\'è più); finché il soggiorno non è finito resta; un guasto non cambia le conversazioni cancellate', async () => {
+  await base();
+  const lingua = code => kv.exec(['HGET', 'msg:lingua', code]);
+  const c = await confermata({ da: '2026-12-20', a: '2026-12-23' });                                                       // solo l'area, nessun messaggio
+  const e = await confermata({ id: 'corte', da: '2026-12-20', a: '2026-12-23', email: 'conv@esempio.it', nome: 'Conv Prova' });      // area e conversazione
+  const d = await confermata({ da: '2027-01-20', a: '2027-01-22', email: 'dopo@esempio.it', nome: 'Dopo Prova' });             // soggiorno ancora da fare
+  await ospite('mie', { code: c.code, t: c.t, lingua: 'en' }); await ospite('mie', { code: e.code, t: e.t, lingua: 'de' }); await ospite('mie', { code: d.code, t: d.t, lingua: 'it' });
+  await ospite('msg_send', { code: e.code, t: e.t, testo: 'ciao' });
+  kv.exec(['HSET', 'msg:lingua', 'SPARITA', 'en']);                                                                         // lingua di una prenotazione che non c'è più
+  eq([lingua(c.code), lingua(e.code), lingua(d.code), lingua('SPARITA')], ['en', 'de', 'it', 'en']);
+  clock.set('2026-12-29T10:00:00Z'); await sync();                                                                          // 6 giorni dopo la partenza
+  eq([lingua(c.code), lingua(e.code), lingua(d.code), lingua('SPARITA')], ['en', 'de', 'it', null], 'dentro il periodo di conservazione resta tutto; la lingua di una prenotazione sparita no');
+  eq((await thread(e.code)).messaggi.length, 1, 'e la conversazione c\'è ancora');
+  clock.set('2026-12-31T10:00:00Z'); await sync();                                                                          // 8 giorni dopo (e più di 20 ore dal controllo precedente)
+  eq([lingua(c.code), lingua(e.code), lingua(d.code)], [null, null, 'it'], 'partenza + 7 giorni: via la lingua, con o senza conversazione; il soggiorno di gennaio resta');
+  eq((await thread(e.code)).messaggi.length, 0, 'conversazione cancellata');
+  // la lingua del soggiorno di gennaio se ne va con il suo soggiorno
+  clock.set('2027-02-01T10:00:00Z'); await sync(); eq(lingua(d.code), null, 'anche l\'ultima');
+  eq([...kv.d.keys()].filter(x => kv.get(x) && x === 'msg:lingua' && Object.keys(kv.get(x).v).length), [], 'nessuna lingua rimasta');
+  // una conversazione senza prenotazione (elenco incompleto) ma recente resta, e con lei la sua lingua; ferma da oltre il periodo, se ne vanno insieme
+  await base(); const f = await confermata(); await ospite('mie', { code: f.code, t: f.t, lingua: 'en' }); await H.adminApi('msg_reply', { code: f.code, testo: 'ciao' });
+  const MSG = require('../../api/_messaggi.js').makeMessaggi({ kv: (...a) => kv.run(a), kvp: cmds => Promise.all(cmds.map(x => kv.run(x))), now: () => clock.now() });
+  eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 0, 'orfana ma recente: resta'); eq(lingua(f.code), 'en', 'e con lei la sua lingua');
+  // un guasto nella pulizia delle lingue non cambia il numero delle conversazioni cancellate
+  clock.advance(91 * 24 * 60 * MIN); kv.exec(['DEL', 'msg:pulizia']); kv.after = async cmd => { if (cmd[0] === 'HGETALL' && cmd[1] === 'msg:lingua') throw new Error('KV giù'); };
+  eq((await MSG.pulizia([{ code: 'ALTRA', a: '2026-12-01' }])).cancellate, 1, 'conversazione orfana cancellata anche se la pulizia delle lingue non riesce');
+  kv.after = null; eq(lingua(f.code), null, 'e la sua lingua se ne va con la conversazione');
+  // ricordaLingua non lancia mai, con KV giù
+  const giu = require('../../api/_messaggi.js').makeMessaggi({ kv: async () => { throw new Error('KV giù'); }, kvp: async () => { throw new Error('KV giù'); } });
+  eq([await giu.ricordaLingua('X', 'en'), await MSG.ricordaLingua('X', 'fr'), await MSG.ricordaLingua('', 'en'), await MSG.ricordaLingua('X', 'de')], [false, false, false, true]);
+});
+
 /* ===================== esecuzione ===================== */
 (async () => {
   const only = process.argv[2]; let pass = 0, fail = 0; const t0 = process.hrtime.bigint();

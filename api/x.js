@@ -513,6 +513,7 @@ let cfgG=null;const guestAuth=async()=>ACC.authorize(req,{code:b.code,t:b.t},asy
 if(a==='mie'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x=r.booking;
  if(['annullata','in_attesa','richiesta','da_verificare'].includes(x.stato))return res.status(404).json(require('./_accesso.js').ERR_NOT_FOUND);      // l'area clienti mostra solo prenotazioni confermate (da_verificare è uno stato interno)
  const bk=x.fonte==='sito'?await E.bkGet(x.code):null,ck=await CK.stato(x.code).catch(()=>null),sg=soggiornoOut(cfgG||(cfgG=await cfg(req)),x,bk,ck);      // ck: check-in online fatto (KV non risponde = non fatto)
+ if(chatOk(x))await MSG.ricordaLingua(x.code,b.lingua);      // la lingua dell'area già all'accesso (it, en, de; non lancia mai): l'avviso email di un messaggio nuovo, anche il benvenuto automatico, parte nella lingua giusta
  sg.messaggi=chatOk(x)?{attivi:true,nonLetti:await MSG.nonLettiOspite(x.code),email:(await MSG.impostazioni()).avvisaOspite}:{attivi:false};      // email: le risposte arrivano anche via email
  sg.ricevuta=await RIC.pubblico(x.code,bk);      // solo lo stato e l'indirizzo mascherato, mai i dati inseriti
  return res.json({t:r.token||undefined,code:x.code,prenotazioni:[{code:x.code,id:x.id,da:x.da,a:x.a,ospiti:x.ospiti,notti:x.notti,stato:x.stato}],soggiorno:sg})}

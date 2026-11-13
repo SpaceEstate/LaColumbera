@@ -15,7 +15,8 @@
 //   msg:idx             conversazioni, campo codice → {ts, da, anteprima}
 //   msg:nh / msg:no     non letti dal titolare / dall'ospite, campo codice → numero
 //   msg:lo              ultima lettura dell'ospite (per «letto»), campo codice → ms
-//   msg:lingua          lingua dell'area ospiti (it, en, de), campo codice → lingua
+//   msg:lingua          lingua dell'area ospiti (it, en, de), campo codice → lingua: la scrive l'area già all'accesso (a=mie, ricordaLingua) e quando
+//                       l'ospite apre i messaggi (perOspite). La toglie la pulizia: con la conversazione, oppure da sola (pulisciLingue) se non c'è
 //   msg:tpl             template [{id, nome, testo, foto?}] (finché il titolare non li salva valgono quelli di DEFAULT_TPL)
 //   msg:auto            regole dei messaggi automatici [{id, nome, attiva, tpl, base, giorni, ora, apt, nottiMin, ritardo, dal}]
 //   msg:prog            messaggi programmati a mano, campo id → {id, code, testo, quando, foto?}
@@ -163,6 +164,13 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     return tr;
   }
   const linguaDi = async code => { const l = await kv('HGET', 'msg:lingua', code).catch(() => null); return LINGUE_AREA.includes(l) ? l : null; };
+  // L'area ospiti manda la lingua già all'accesso (a=mie), non solo quando l'ospite apre la scheda Messaggi: così l'avviso email di un messaggio nuovo
+  // e le risposte tradotte arrivano nella lingua giusta anche prima. Come in perOspite si scrive solo se è cambiata. Non lancia mai (l'area si apre
+  // anche se KV non risponde). Chi la chiama controlla già che la prenotazione sia del sito e confermata (chatOk in x.js).
+  async function ricordaLingua(code, lingua) {
+    if (!code || !LINGUE_AREA.includes(lingua)) return false;
+    try { if ((await kv('HGET', 'msg:lingua', code)) !== lingua) await kv('HSET', 'msg:lingua', code, lingua); return true; } catch (e) { return false; }
+  }
 
   // Vista dell'ospite (area clienti). v = versione che la pagina ha già: se non è cambiato nulla basta dirlo.
   // I messaggi del titolare si mostrano nella lingua dell'ospite (traduzione salvata, o fatta ora); leggerli li segna come letti.
@@ -259,13 +267,14 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
   }
   // All'ospite, quando scrivi tu (anche i messaggi automatici): il testo nella sua lingua, se c'è la traduzione, con l'originale sotto,
   // e «Rispondi», che apre i messaggi della sua area ospiti senza il codice (token nel frammento "#"). Si spegne in Messaggi → Automatici.
+  // Lingua non nota: il testo in italiano e, se la traduzione inglese c'è già (nei messaggi automatici sì), anche in inglese sotto.
   async function avvisaOspite(code, b, site, m, tr) {
     if (!sendMail || !mail || !b || !/.+@.+\..+/.test(b.email || '') || !(await impostazioni()).avvisaOspite) return;
     const k = 'msg:avv:o:' + code;
     if (!(await libero(['msg:no', code], k))) return;
     const lg = await linguaDi(code);      // la lingua scelta dall'ospite nell'area (null = non ha ancora aperto i messaggi)
     let tk = null; try { tk = issueToken ? await issueToken(b) : null; } catch (e) { tk = null; }
-    const mm = mail().avvisoOspite(b, site, tk, { testo: m && m.testo, lingua: lg, tradotto: lg && lg !== 'it' ? (tr || {})[lg] || '' : '', foto: m && m.foto });
+    const mm = mail().avvisoOspite(b, site, tk, { testo: m && m.testo, lingua: lg, tradotto: lg && lg !== 'it' ? (tr || {})[lg] || '' : '', en: lg ? '' : (tr || {}).en || '', foto: m && m.foto });
     if ((await sendMail(b.email, mm.subject, mm.html, Object.assign({ text: mm.text }, replyTo ? { replyTo } : {}))) === false) await kv('DEL', k).catch(() => {});
   }
 
@@ -436,9 +445,20 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
     if (out.errori) await logE('Messaggi automatici: ' + out.errori + (out.errori === 1 ? ' invio non riuscito' : ' invii non riusciti') + ' (si riprova al prossimo giro)');
     return out;
   }
+  // La lingua dell'ospite (msg:lingua) si ricorda anche senza che ci sia una conversazione (ricordaLingua): quella non la porta via nessuno, quindi
+  // la toglie la pulizia con lo stesso criterio delle conversazioni (partenza + conservazione), o subito se la prenotazione non c'è più. Se la
+  // conversazione resta, resta anche la sua lingua (idx = conversazioni). Un guasto qui non cambia il numero delle conversazioni cancellate.
+  async function pulisciLingue(by, imp, oggi, idx) {
+    for (const code of Object.keys(hashObj(await kv('HGETALL', 'msg:lingua')))) {
+      if (Object.prototype.hasOwnProperty.call(idx, code)) continue;
+      const b = by.get(code);
+      if (b && !(AV.isIso(b.a) && AV.addDays(b.a, imp.conservazione) < oggi)) continue;
+      await kv('HDEL', 'msg:lingua', code);
+    }
+  }
   // Conservazione: le conversazioni si cancellano `conservazione` giorni dopo la partenza (al massimo un controllo ogni 20 ore).
   // Senza l'elenco delle prenotazioni (KV non ha risposto) non si cancella nulla; una conversazione senza prenotazione si cancella
-  // solo se è ferma da `conservazione` giorni (mai per un errore momentaneo).
+  // solo se è ferma da `conservazione` giorni (mai per un errore momentaneo). Insieme alle conversazioni si pulisce la lingua (pulisciLingue).
   async function pulizia(bks) {
     try {
       if (!Array.isArray(bks) || !bks.length) return { cancellate: 0 };
@@ -453,12 +473,13 @@ function makeMessaggi({ kv, kvp, traduci, sendMail, ownerEmail, replyTo, issueTo
         await via(foto);
         n++;
       }
+      await pulisciLingue(by, imp, oggi, idx).catch(() => {});
       for (const p of await programmati()) if (!by.has(p.code)) { await kv('HDEL', 'msg:prog', p.id); await via(p.foto); }
       return { cancellate: n };
     } catch (e) { return { cancellate: 0, errore: true }; }
   }
 
-  return { versione, perOspite, daOspite, perHost, daHost, inbox, nonLettiHost, nonLettiOspite, linguaDi, impostazioni, salvaImpostazioni, templates, salvaTemplates, testiDaTemplate,
+  return { versione, perOspite, daOspite, perHost, daHost, inbox, nonLettiHost, nonLettiOspite, linguaDi, ricordaLingua, impostazioni, salvaImpostazioni, templates, salvaTemplates, testiDaTemplate,
     regole, salvaRegole, salvaInsieme, prossimi, salta, programmati, programma, annullaProgrammato, esegui, pulizia };
 }
 

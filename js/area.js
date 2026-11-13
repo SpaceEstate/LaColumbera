@@ -186,8 +186,8 @@ function showErr(x){$('#r').innerHTML=`<p class="form-err" role="alert" data-tes
 async function load(body,btn,apri){
  let orig;if(btn){if(btn.dataset.loading)return;btn.dataset.loading='1';orig=btn.textContent;btn.disabled=true;btn.classList.add('is-loading');btn.textContent=t('cerco')}
  try{let r;
-  try{r=await api('mie',body)}
-  catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
+  try{r=await api('mie',Object.assign({lingua:lang},body))}      // lingua: il server la ricorda, così gli avvisi email dei messaggi arrivano nella lingua dell'ospite anche prima che apra «Messaggi»
+  catch(x){if(!body.t||x.status!==404)throw x;accDel();r=await api('mie',{code:body.code,lingua:lang})}      // sessione scaduta o link vecchio (404): si riprova con il solo codice; senza rete la sessione resta
   if(r.t)accSet(r.code||body.code,r.t);
   R=r;tab=apri==='messaggi'&&chatOn()?'messaggi':'soggiorno';evCache=eventiList();stopPoll();Object.assign(MS,{v:null,list:[],poll:0,err:''});paint()}
  catch(x){if(x&&x.status===410)accDel();showErr(x)}      // link di un soggiorno chiuso: si dimentica la sessione
@@ -414,7 +414,7 @@ async function dopoCheckin(){
  const s=sog(),t0=Date.now();
  if(!R||!ckAperto||t0-ckAperto>36e5||t0-ckVisto<15e3||(s.checkin&&s.checkin.fatto))return;
  ckVisto=t0;
- try{const r=await callG('mie');
+ try{const r=await callG('mie',{lingua:lang});
   if(!R||!(r.soggiorno&&r.soggiorno.checkin&&r.soggiorno.checkin.fatto))return;
   R=r;ckAperto=0;
   if(!ricForm&&!(($('#ga-testo')||{}).value||'').trim())paint()}
