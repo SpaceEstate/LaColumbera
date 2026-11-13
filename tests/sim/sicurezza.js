@@ -8,9 +8,9 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const T = '"La Columbera - Torre, Appartamento con 2 camere da letto"', C = '"La Columbera - Corte, Appartamento con 1 camere da letto"', HDR = ['Numero Prenotazione', 'Data Check-in', 'Appartamento', 'Numero Ospiti', 'Numero Notti'];
 const eq = (a, b, m) => assert.deepStrictEqual(a, b, m);
 
-async function base() {
+async function base(extraEnv) {
   const rows = [HDR, ['HMSEDESZCW', H.romeMidnight(2026, 10, 5), C, 2, 6], [6877180932, '02/10/2026', T, 4, 2]];
-  const env = await H.newEnv({ legacyRows: rows, env: { ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw-di-prova', ICAL_PERSONAL_KEY: 'chiave-ical-di-prova' } });
+  const env = await H.newEnv({ legacyRows: rows, env: Object.assign({ ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw-di-prova', ICAL_PERSONAL_KEY: 'chiave-ical-di-prova' }, extraEnv) });
   H.setFeed('bookingTorre', [H.bookingEv('b1', '2026-10-02', '2026-10-04')]);
   H.setFeed('airbnbCorte', [H.airbnbEv('a1', '2026-10-05', '2026-10-11', 'HMSEDESZCW')]);
   await H.runGas(env.gas, 'setup'); await H.runGas(env.gas, 'migraRegistro');
@@ -488,6 +488,58 @@ test('S26 Da fare per l\'app Promemoria (a=dafare): solo con la chiave del calen
   // senza la variabile su Vercel il link non funziona per nessuno (nemmeno con k vuoto)
   await H.newEnv({ legacyRows: [HDR], env: { ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw-di-prova' } });
   for (const q of [{}, { k: '' }, { k: 'chiave-ical-di-prova' }]) eq((await get(q)).status, 403, 'senza ICAL_PERSONAL_KEY: ' + JSON.stringify(q));
+});
+
+test('S27 Guest Card: due richieste nello stesso istante per la stessa prenotazione emettono una sola card (blocco per prenotazione); chi arriva secondo riceve «richiesta già in corso» o la card appena salvata; il blocco si toglie sempre e scade da solo', async () => {
+  await base({ TGC_CARD_TYPE_ID: '7' });
+  kv.exec(['SET', 'tgc:oauth:token', JSON.stringify({ Token: 'tok-tgc', RefreshToken: 'rif-tgc', expiresAt: new Date(clock.now() + 36e5).toISOString() })]);      // la struttura ha già autorizzato Trentino Guest Card
+  const issue = c => H.api('gc_issue', { code: c.code, t: c.t }, as(ip())), emesse = () => global.__tgc.n;
+  const card = c => JSON.parse(kv.exec(['GET', 'gc:' + c.code]) || 'null'), blocco = c => kv.exec(['GET', 'lock:gc:' + c.code]);
+  // 1) due telefoni della stessa famiglia: TGC risponde dopo 150 ms, quindi quando la prima richiesta sta emettendo la seconda ha già letto «nessuna card»
+  const c = await confermata({ da: '2026-11-10', a: '2026-11-13' });
+  global.__tgc.delay = 150;
+  const due = [issue(c), issue(c)];
+  for (let i = 0; i < 200 && !kv.get('lock:gc:' + c.code); i++) await new Promise(r => setTimeout(r, 5));
+  const lk = kv.get('lock:gc:' + c.code), resto = lk ? lk.exp - clock.now() : 0;
+  assert(lk && resto > 60e3 && resto <= 120e3, 'durante l\'emissione c\'è un blocco per questa prenotazione, con una scadenza (se la funzione si ferma, scade da solo): ' + resto);
+  const [a, b] = await Promise.all(due), ok = [a, b].filter(r => r.status === 200), occupata = [a, b].filter(r => r.status === 409);
+  eq([ok.length, occupata.length, emesse()], [1, 1, 1], 'una sola card, non due: ' + JSON.stringify([a.body, b.body]));
+  eq(ok[0].body.gc_id, 'TGC-QR-1'); eq(occupata[0].body.code, 'IN_CORSO'); assert(/già in corso, riprova tra qualche secondo/.test(occupata[0].body.err), occupata[0].body.err);
+  eq([card(c).gc_id, card(c).valid_from, card(c).valid_to, card(c).ospiti], ['TGC-QR-1', '2026-11-10', '2026-11-13', 2]);
+  eq(blocco(c), null, 'il blocco è tolto prima che la risposta parta');
+  global.__tgc.delay = 0;
+  const di_nuovo = await issue(c); eq([di_nuovo.status, di_nuovo.body.gc_id, emesse()], [200, 'TGC-QR-1', 1], 'chi ha ricevuto «in corso» riprova e trova la card: nessuna seconda emissione');
+  // 2) l'altra richiesta finisce proprio mentre questa parte: subito dopo la prima lettura di questa (nessuna card) la card è salvata
+  const altraRichiesta = (c, conBlocco) => {
+    let scattato = false;
+    kv.after = async cmd => {
+      if (scattato || cmd[0] !== 'GET' || cmd[1] !== 'gc:' + c.code) return; scattato = true;
+      kv.exec(['SET', 'gc:' + c.code, JSON.stringify({ gc_id: 'QR-DELL-ALTRA', stato: 'richiesta_inviata', valid_from: c.da, valid_to: c.a, ospiti: 2, email: 'mario.prova@esempio.it', creato: clock.iso() })]);
+      if (conBlocco) kv.exec(['SET', 'lock:gc:' + c.code, '1', 'EX', '120']);
+    };
+    return () => scattato;
+  };
+  //    2a) il blocco è ancora preso: si riceve la card appena salvata, non un errore, e il blocco resta a chi l'ha preso
+  const c2 = Object.assign(await confermata({ da: '2026-11-17', a: '2026-11-20' }), { da: '2026-11-17', a: '2026-11-20' }), scatto2 = altraRichiesta(c2, true);
+  const r2 = await issue(c2); kv.after = null;
+  eq([scatto2(), r2.status, r2.body.gc_id, emesse(), blocco(c2)], [true, 200, 'QR-DELL-ALTRA', 1, '1'], JSON.stringify(r2.body));
+  //    2b) il blocco è già libero: lo si prende, si rilegge, si trova la card (nessuna seconda emissione) e si toglie il proprio blocco
+  const c2b = Object.assign(await confermata({ da: '2026-11-03', a: '2026-11-06' }), { da: '2026-11-03', a: '2026-11-06' }), scatto2b = altraRichiesta(c2b, false);
+  const r2b = await issue(c2b); kv.after = null;
+  eq([scatto2b(), r2b.status, r2b.body.gc_id, emesse(), blocco(c2b)], [true, 200, 'QR-DELL-ALTRA', 1, null], JSON.stringify(r2b.body));
+  // 3) Trentino Guest Card non risponde: errore 502, nessuna card salvata e nessun blocco rimasto, così si riprova subito
+  const c3 = await confermata({ da: '2026-11-24', a: '2026-11-27' });
+  global.__tgc.mode = 'down';
+  let giu; const out = await logs(async () => { giu = await issue(c3); });
+  eq(giu.status, 502); assert(/Trentino Guest Card non ha risposto/.test(giu.body.err), giu.body.err); assert(/gc_issue: TGC/.test(out) && !/mario\.prova|0000000/.test(out), 'l\'errore è nel log, senza dati dell\'ospite: ' + out);
+  eq([blocco(c3), card(c3), emesse()], [null, null, 1], 'nessun blocco rimasto, nessuna card');
+  global.__tgc.mode = 'ok';
+  const poi = await issue(c3); eq([poi.status, poi.body.gc_id, emesse(), blocco(c3)], [200, 'TGC-QR-2', 2, null]);
+  // 4) senza la configurazione sul server (manca il tipo di card) la risposta è quella di prima e non resta nessun blocco
+  delete process.env.TGC_CARD_TYPE_ID;
+  const c4 = await confermata({ da: '2026-12-01', a: '2026-12-04' });
+  const no = await issue(c4); eq(no.status, 500); assert(/TGC_CARD_TYPE_ID/.test(no.body.err));
+  eq([blocco(c4), emesse()], [null, 2]);
 });
 
 /* ===================== esecuzione ===================== */

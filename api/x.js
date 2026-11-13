@@ -545,15 +545,26 @@ if(a==='gc_issue'){const r=await guestAuth();if(!r.ok)return deny(res,r);const x
  if(!email){email=String(b.email||'').trim().toLowerCase().slice(0,120);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({err:'Email non valida'})}
  if(!process.env.TGC_CARD_TYPE_ID)
   return res.status(500).json({err:'Guest Card non configurata sul server (manca TGC_CARD_TYPE_ID su Vercel: chiama prima gc_tipologie per trovarlo)'});
- // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
- // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
- let tgc;
- try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti,codice:x.code})}
- catch(e){console.error('gc_issue: TGC',String(e&&e.message||'errore').slice(0,120));return res.status(502).json({err:'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.'})}
- // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido). Si conserva solo ciò che serve (niente risposta grezza).
- const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString()};
- await kv('SET',GCK(x.code),JSON.stringify(card));
- return res.json(cardOut(card))}
+ // Un solo blocco per prenotazione (SET NX EX, come i passi di api/_pagato.js). Senza, due richieste nello stesso istante (due telefoni della stessa famiglia)
+ // passerebbero entrambe il controllo «c'è già una card?» qui sopra ed emetterebbero due card. Chi arriva secondo trova il blocco: se l'altra richiesta ha già
+ // salvato la card la riceve, altrimenti gli si dice di riprovare. Scade da solo dopo 120 s se la funzione si ferma prima di toglierlo.
+ const lk='lock:'+GCK(x.code);
+ if((await kv('SET',lk,'1','NX','EX','120'))!=='OK'){
+  const salvata=await jg(GCK(x.code));if(salvata)return res.json(cardOut(salvata));
+  return res.status(409).json({err:'Richiesta già in corso, riprova tra qualche secondo.',code:'IN_CORSO'})}
+ const emetti=async()=>{
+  const gia=await jg(GCK(x.code));if(gia)return[200,cardOut(gia)];      // riletta DOPO aver preso il blocco: chi ci precedeva può aver finito proprio ora (card salvata, blocco già tolto)
+  // Notare: date, notti e numero ospiti arrivano SOLO da "x" (la prenotazione verificata lato server),
+  // mai dal corpo della richiesta del browser: è questo che impedisce all'ospite di alterarli.
+  let tgc;
+  try{tgc=await emettiGuestCardTGC({dal:x.da,al:x.a,email,personeMax:x.ospiti,codice:x.code})}
+  catch(e){console.error('gc_issue: TGC',String(e&&e.message||'errore').slice(0,120));return[502,{err:'Il sistema Trentino Guest Card non ha risposto: riprova più tardi o scrivici a lacolumbera@gmail.com.'}]}
+  // Con "Emissione Essenziale" esito:true torna subito il QrCode della card emessa (già valido). Si conserva solo ciò che serve (niente risposta grezza).
+  const card={gc_id:tgc.QrCode||'',stato:'richiesta_inviata',valid_from:x.da,valid_to:x.a,ospiti:x.ospiti,email,creato:new Date().toISOString()};
+  await kv('SET',GCK(x.code),JSON.stringify(card));
+  return[200,cardOut(card)]};
+ let out;try{out=await emetti()}finally{await kv('DEL',lk).catch(()=>{})}      // il blocco si toglie PRIMA di rispondere: dopo la risposta la funzione può essere sospesa e il blocco resterebbe fino alla scadenza
+ return res.status(out[0]).json(out[1])}
 // Annullamento dall'area clienti (prenotazioni del sito pagate): fino a 7 giorni prima dell'arrivo, con il rimborso sulla carta dell'importo pagato
 // meno la commissione che Stripe ha trattenuto (prenotazioni con rimborso_netto; quelle di prima: rimborso totale) (api/_annulla.js)
 // annullo_importo: quanto torna sulla carta, da mostrare nella conferma prima del «Sì» (non cambia nulla)

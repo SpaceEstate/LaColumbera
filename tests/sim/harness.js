@@ -148,6 +148,15 @@ async function routeFetch(url, opts = {}) {
     else out = { response: json };
     return res(200, JSON.stringify({ result: Object.assign(out, { usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), success: true, errors: [], messages: [] }));
   }
+  if (url.startsWith('https://ricettivo.guestcard.info/')) {      // Trentino Guest Card finto (indirizzo di produzione, TGC_BASE_URL non impostato); global.__tgc = { mode: 'ok'|'down', delay: ms di attesa, n: card emesse, calls: [] }
+    const d = global.__tgc || (global.__tgc = { mode: 'ok', delay: 0, n: 0, calls: [] }), h = opts.headers || {}, u = new URL(url);
+    d.calls.push({ path: u.pathname, auth: h.Authorization, form: opts.body && opts.body.entries ? Object.fromEntries(opts.body.entries()) : {} });
+    if (!/^Bearer \S+$/.test(h.Authorization || '')) return res(401, '{"message":"invalid PMS"}');
+    if (d.delay) await sleepAbortable(d.delay, opts.signal);
+    if (d.mode === 'down') return res(503, '{"message":"giù"}');
+    if (u.pathname === '/ws/Pms/EmissioneEssenzialeCard.ashx') return res(200, JSON.stringify({ esito: true, QrCode: 'TGC-QR-' + (++d.n) }));
+    return res(404, '{"message":"non simulato"}');
+  }
   if (url.startsWith(WEBAPP_URL)) {
     webapp.calls.push({ method: opts.method || 'GET', url });
     if (webapp.mode === 'down') return res(500, 'Internal Error');
@@ -166,7 +175,7 @@ global.fetch = (...a) => routeFetch(...a);
 /* ---------------- ambiente Vercel ---------------- */
 const SECRETS = { SYNC_SECRET: 'sync-test-secret', SHEET_SECRET: 'sheet-test-secret', STRIPE_WEBHOOK_SECRET: 'whsec_test' };
 function setEnv(extra) {
-  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|CLOUDFLARE_|CODICE_CASSETTA_)/.test(k)) delete process.env[k];
+  for (const k of Object.keys(process.env)) if (/^(ICAL_|FEED_|REG_|HOLD_|ORIZZONTE|KV_|SHEET_|SYNC_|STRIPE_|GMAIL_|ADMIN_|SESSION_|OWNER_|REPLY_|SITE_|ISTAT_|DEEPL_|CLOUDFLARE_|CODICE_CASSETTA_|TGC_)/.test(k)) delete process.env[k];
   Object.assign(process.env, { KV_REST_API_URL: KV_URL, KV_REST_API_TOKEN: 'tok', SHEET_WEBAPP_URL: WEBAPP_URL, SHEET_SECRET: SECRETS.SHEET_SECRET, SYNC_SECRET: SECRETS.SYNC_SECRET,
     STRIPE_SECRET_KEY: 'sk_test', STRIPE_PUBLISHABLE_KEY: 'pk_test_prova', STRIPE_WEBHOOK_SECRET: SECRETS.STRIPE_WEBHOOK_SECRET, GMAIL_USER: 'info@test', GMAIL_APP_PASSWORD: 'x', ADMIN_USER: 'admin', ADMIN_PASSWORD: 'pw', SESSION_SECRET: 'sess',
     OWNER_EMAIL: 'owner@test', FEED_TIMEOUT_MS: '150', REG_TIMEOUT_MS: '300' }, extra || {});
@@ -326,7 +335,7 @@ const PREFETCH = { syncRapida: [PRE.feeds], syncCompleta: [PRE.feeds, PRE.recon]
 /* ---------------- ambiente di test ---------------- */
 const defaultCfg = () => { const d = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'default.json'), 'utf8')); return Object.assign(d, { ical: { torre: FEED.bookingTorre + ',' + FEED.airbnbTorre, corte: FEED.bookingCorte + ',' + FEED.airbnbCorte }, closed: {} }); };
 async function newEnv({ legacyRows, env, cfg, startIso } = {}) {
-  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__cf = { mode: 'ok', calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false; global.__stripeFee = 0; global.__stripePiFail = false; global.__stripePiCalls = [];
+  kv.reset(); feeds.clear(); webapp.mode = 'ok'; webapp.calls = []; global.__mails = []; global.__deepl = { mode: 'ok', calls: [] }; global.__cf = { mode: 'ok', calls: [] }; global.__tgc = { mode: 'ok', delay: 0, n: 0, calls: [] }; global.__stripeSessions = []; global.__mailFail = false; global.__stripeFail = false; global.__stripeState = {}; global.__stripeWebhooks = []; global.__stripeFailedDeliveries = 0; global.__stripeRetrieveFail = false; global.__stripeListFail = false; global.__stripeRefunds = []; global.__stripeRefundFail = false; global.__stripeRefunded = {}; global.__stripeRefundStatus = ''; global.__stripeList = []; global.__stripeListCalls = 0; global.__stripeListKeys = []; global.__stripeSessionsListFail = false; global.__stripeExpired = []; global.__stripeExpireFail = false; global.__stripeFee = 0; global.__stripePiFail = false; global.__stripePiCalls = [];
   clock.set(startIso || '2026-10-02T09:00:00Z');
   setEnv(env); V = loadVercel();
   const c = cfg || defaultCfg(); kv.exec(['SET', 'cfg', JSON.stringify(c)]);
