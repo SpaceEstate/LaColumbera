@@ -82,12 +82,12 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (03/11/2026; partenza commit `6336695`, sicurezza +2 con S25 e S26, pagamenti +6 con P20, P21, P22, P23, C7 e R6, ui +12 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40 e U16b, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +4 con M16, M17, M18 e M19, adempimenti +2 con L6b e W6b)
+## Baseline (13/11/2026; partenza commit `6336695`, sicurezza +2 con S25 e S26, pagamenti +7 con P20, P21, P22, P23, C7, R6 e F3, ui +12 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40 e U16b, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +4 con M16, M17, M18 e M19, adempimenti +2 con L6b e W6b)
 
 | Prova | Risultato |
 |---|---|
 | scenarios | 15 ok, 0 falliti, 23 saltati senza `LC_GAS_FILE` (20 fino a `4b472a6`, 22 fino a `a6d403b`); con lo script vero (`LC_GAS_FILE` o segreto `GAS_SCRIPT` su GitHub, revisione 2026-11-02b) 38 ok, 0 falliti (37 fino a `a6d403b`) |
-| pagamenti | 41 ok (40 fino a `6eb5047`, 35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
+| pagamenti | 42 ok (41 fino a `1b9259a`, 40 fino a `6eb5047`, 35 fino a `6336695`, 36 fino a `e4af913`, 37 fino a `f88f23e`, 38 fino a `a86a543`, 39 fino a `0124e23`) |
 | preavviso | 12 ok |
 | sicurezza | 26 ok (24 fino a `6336695`, 25 fino a `97368a3`) |
 | messaggi | 19 ok (15 fino a `ab429ea`, 18 fino a `f747346`) |
