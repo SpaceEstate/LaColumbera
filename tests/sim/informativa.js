@@ -6,6 +6,7 @@
 //  I3 ogni modulo che raccoglie dati personali ha accanto il link all'informativa
 //  I4 privacy.html contiene i contenuti minimi dell'art. 13 e nessun tracciamento
 //  I5 la presa visione non è trattata come consenso (il sito non ha caselle di consenso)
+//  I6 privacy.html dice quello che fa il check-in dal 14/11/2026: nessun servizio esterno per il riepilogo, imposta dai 14 anni e al massimo 10 notti
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..', '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -63,6 +64,18 @@ test('I4 privacy.html: contenuti minimi art. 13, segnaposto riconoscibili, nessu
 
 test('I5 nessuna casella di "consenso" privacy nel sito', () => {
   for (const f of HTML.concat(JS)) assert(!/type="checkbox"[^>]*(consen|privacy)|name="[^"]*consen/i.test(read(f)), f + ': casella di consenso');
+});
+
+// 14/11/2026 (progetto Checkin, richieste del titolare): il riepilogo dei dati degli ospiti non è più un PDF generato da un servizio esterno ma sta nel testo
+// dell'email al gestore, e l'imposta di soggiorno si applica dai 14 anni e per un massimo di 10 notti. L'informativa deve dire questo e non quello di prima.
+test('I6 privacy.html: nessun servizio esterno per il riepilogo del check-in; imposta dai 14 anni e al massimo 10 notti', () => {
+  const s = read('privacy.html');
+  assert(!/Browserless/i.test(s), 'Browserless non è più usato dal check-in: non va nominato');
+  assert(!/riepilogo (in )?PDF|PDF di riepilogo|PDF summary/i.test(s), 'il riepilogo del check-in non è più un PDF');
+  assert(s.includes('nel testo del messaggio, un riepilogo dei dati inseriti'), 'italiano: il riepilogo sta nel testo dell\'email');
+  assert(s.includes('a summary of the data entered, written in the text of the message'), 'inglese: il riepilogo sta nel testo dell\'email');
+  assert(s.includes("l'imposta si applica dai 14 anni, fino a un massimo di 10 notti"), 'regola dell\'imposta di soggiorno: 14 anni e 10 notti');
+  assert(!s.includes("l'imposta si applica dai 4 anni"), 'la regola dei 4 anni è superata');
 });
 
 (async () => {

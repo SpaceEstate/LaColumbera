@@ -4,6 +4,8 @@ Branch `gdpr/informativa`, terzo intervento (1: check-in, 2: sicurezza accessi, 
 
 Base di lavoro: `main` di **SpaceEstate/LaColumbera** (commit `bc26096`, che contiene già il Prompt 2) e `main` di **SpaceEstate/Checkin** (commit `431feb0`, che contiene già il Prompt 1 con le richieste successive: foglio Google, PDF di riepilogo, rimozione del riquadro finale).
 
+**Aggiornamento del 14/11/2026 (richieste del titolare).** Il PDF di riepilogo del check-in **non si crea più**: nessuna chiamata a Browserless, il riepilogo dei dati sta nel testo dell'email al gestore e in allegato restano solo le immagini del documento. L'imposta di soggiorno si applica **dai 14 anni e per un massimo di 10 notti** (prima: dai 4 anni, senza tetto di notti). Le righe T11 e T12, la tabella dei servizi (§ 3), le conservazioni (§ 4) e i §§ 6–8 sono aggiornati; `privacy.html` è allineata lo stesso giorno. Dove il testo parla di PDF e di Browserless per fatti precedenti al 14/11/2026 (dati storici) lo dice espressamente.
+
 Questo documento descrive **cosa fa il codice**. Non attesta la conformità al GDPR.
 
 Ogni informazione è marcata così:
@@ -59,9 +61,9 @@ Ogni informazione è marcata così:
 | T8 | Registro prenotazioni e disponibilità | Codice, fonte, appartamento, date, notti, ospiti, stato, note. **Nome, email e telefono NON vengono inviati al foglio** dal sito. Le prenotazioni **manuali** (telefono, di persona) le scrive il titolare: la colonna NOTE è libera e può contenere nome e prezzo; per queste la nota arriva anche in Gestione (solo con il login) | Google Sheet tramite Apps Script (`SHEET_WEBAPP_URL`); copia del registro in KV (`reg`, 90 giorni) | Calendario unico, evitare doppie prenotazioni | 6.1.b, legittimo interesse organizzativo | — | [CODICE] `_avail.js` `regPayload`, `x.js` `adm`. Lo script Apps Script non è nel repository (pubblico): revisione 2026-10-29 descritta in `docs/foglio-prenotazioni.md` |
 | T9 | Sincronizzazione calendari | Date occupate; `SUMMARY` e `DESCRIPTION` degli eventi delle piattaforme (fino a 600 caratteri: possono contenere codice o link della prenotazione) | iCal Booking.com/Airbnb → KV (`ics:*`, 90 giorni, sostituito a ogni aggiornamento); export iCal verso le piattaforme con solo "Bloccato - La Columbera" | Disponibilità | Legittimo interesse / 6.1.b | — | [CODICE]. Contenuto reale delle descrizioni [DA VERIFICARE] |
 | T10 | Check-in online: Alloggiati Web | Per ogni ospite: cognome, nome, sesso, data di nascita, cittadinanza, luogo di nascita (comune e provincia se in Italia). Per il responsabile: tipo, numero e luogo di rilascio del documento | Browser → Vercel (API Checkin) → Neon (`temporary_sessions`, temporaneo) → Google Sheet del check-in (`SHEET_ID`, una riga per ospite, con età e totale) → script del gestore → TXT su Google Drive ("Check-in › Polizia di Stato") → caricamento sul portale | Comunicazione obbligatoria degli alloggiati | Obbligo legale (6.1.c; art. 109 TULPS) | Obbligatorio | [CODICE] `Checkin/api/_sheet-checkin.js`, `_elabora-checkin.js`; script e TXT [GESTORE] |
-| T11 | Check-in online: immagine del documento e riepilogo PDF | Immagine del documento del responsabile (fronte ed eventuale retro, compressa nel browser). PDF con i dati di tutti gli ospiti | Neon (temporaneo); email al gestore tramite Gmail (`EMAIL_USER` → `EMAIL_PROPRIETARIO`) con immagini e PDF; il PDF è generato da **Browserless** (riceve l'HTML con i dati anagrafici, **non** le immagini) | Controllare che i dati inseriti corrispondano al documento prima della comunicazione | 6.1.c (attività strumentale all'obbligo), modalità mantenuta su indicazione del gestore | Nel modulo attuale **la foto è obbligatoria** per completare il check-in online | [CODICE] `_email-gestore.js`, `_pdf-riepilogo.js`; scelta [GESTORE] |
+| T11 | Check-in online: immagine del documento e riepilogo nell'email | Immagine del documento del responsabile (fronte ed eventuale retro, compressa nel browser). Riepilogo con i dati di tutti gli ospiti (nome, sesso, data di nascita con età, cittadinanza, luogo di nascita; per il responsabile anche tipo, numero e luogo di rilascio del documento), scritto nel **testo** dell'email | Neon (temporaneo); email al gestore tramite Gmail (`EMAIL_USER` → `EMAIL_PROPRIETARIO`) con le immagini in allegato e il riepilogo nel testo. Dal 14/11/2026 nessun servizio esterno prepara il riepilogo (prima: PDF generato da **Browserless**, che riceveva l'HTML con i dati anagrafici, **non** le immagini) | Controllare che i dati inseriti corrispondano al documento prima della comunicazione | 6.1.c (attività strumentale all'obbligo), modalità mantenuta su indicazione del gestore | Nel modulo attuale **la foto è obbligatoria** per completare il check-in online | [CODICE] `_email-gestore.js` (`_pdf-riepilogo.js` rimosso il 14/11/2026); scelta [GESTORE] |
 | T11b | Check-in online: lettura automatica del documento (facoltativa, dal 07/11/2026) | Foto o PDF del documento di ogni ospite, letti **solo nel browser** dell'ospite (OCR); i valori letti compilano i campi di T10, che l'ospite controlla e conferma | Dispositivo dell'ospite, con programmi ospitati dal check-in (Tesseract.js, PDF.js; nessun servizio esterno). Le immagini degli ospiti diversi dal responsabile non lasciano il dispositivo; quelle del responsabile sono le stesse di T11 | Compilare il modulo più in fretta e con meno errori | Nessun dato in più al titolare: quelli confermati seguono T10 e T11 | Facoltativo: i campi si possono scrivere a mano | [CODICE] `Checkin/scansione/`, `Checkin/docs/scansione-documenti.md`; informativa § 3 |
-| T12 | Imposta di soggiorno (check-in) | Date di nascita (età ≥ 4 anni), notti, totale; email e pagamento su Stripe; metadati Stripe senza anagrafiche; se l'ospite ha verificato la prenotazione nel primo passo, anche il numero della prenotazione (`numeroPrenotazione`) | Stripe (pagamento), Neon, foglio del check-in (colonna Totale) | Riscossione dell'imposta | Obbligo legale (6.1.c) — riferimento normativo [DA COMPLETARE] | Obbligatorio | [CODICE] `crea-pagamento-stripe.js` |
+| T12 | Imposta di soggiorno (check-in) | Date di nascita (età ≥ 14 anni; fino al 13/11/2026 ≥ 4 anni), notti (al massimo 10 per ospite; fino al 13/11/2026 senza tetto), totale; email e pagamento su Stripe; metadati Stripe senza anagrafiche; se l'ospite ha verificato la prenotazione nel primo passo, anche il numero della prenotazione (`numeroPrenotazione`) | Stripe (pagamento), Neon, foglio del check-in (colonna Totale) | Riscossione dell'imposta | Obbligo legale (6.1.c) — riferimento normativo [DA COMPLETARE] | Obbligatorio | [CODICE] `crea-pagamento-stripe.js`, `_imposta-soggiorno.js` (regola dell'imposta, dal 14/11/2026) |
 | T12b | Check-in online fatto (area clienti) | Codice della prenotazione, giorno della registrazione, ID della sessione Stripe del check-in (`ck:<codice>`); nessun dato degli ospiti. Il codice della cassetta delle chiavi (configurazione dell'appartamento) si mostra nell'area clienti solo dopo il check-in, negli stessi giorni del Wi-Fi | Stripe (evento `checkout.session.completed` del check-in, ricevuto anche dal webhook di questo sito; rilettura delle sessioni degli ultimi 3 giorni dalla sincronizzazione) → Upstash `ck:*` | Mostrare all'ospite che il check-in è fatto e come entrare | 6.1.b | — | [CODICE] `api/_checkin.js` |
 | T13 | Email di benvenuto (check-in) | Email (da Stripe), nome e cognome del responsabile, dati del soggiorno, **codici della cassetta portachiavi** | Gmail SMTP | Accesso alla struttura | 6.1.b | — | [CODICE] `invia-email-ospite.js` |
 | T14 | Invio Alloggiati dal pannello admin (facoltativo) | Schedine dal TXT o inserite a mano. **Non salvate**: restano nella pagina, sul server passano solo in memoria; in KV resta l'impronta per 7 giorni | Vercel → web service Alloggiati Web (Polizia di Stato) | Comunicazione obbligatoria | 6.1.c | — | [CODICE] `api/adempimenti.js` |
@@ -97,14 +99,15 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 | Google – Places API | Recensioni (chiamata dal server, nessun dato dei visitatori) | — | — |
 | Google Maps | Solo link che si aprono su clic; nessuna mappa incorporata | — | — |
 | Stripe | Pagamento delle prenotazioni e dell'imposta di soggiorno | T4, T12 | [DA VERIFICARE] |
-| Browserless | Generazione del PDF di riepilogo del check-in | HTML con i dati anagrafici di tutti gli ospiti (senza immagini) | **Sì, verificabile:** l'endpoint nel codice è `production-sfo.browserless.io` (regione indicata "sfo", San Francisco, USA). Garanzia del trasferimento [DA VERIFICARE]. Alternativa tecnica: endpoint europeo del fornitore, se disponibile nel piano |
 | Trentino Guest Card (Trentino Marketing) | Emissione della card | T7 | [DA VERIFICARE] |
 | Polizia di Stato – Alloggiati Web | Destinatario istituzionale | T10, T14 | — |
 | Provincia autonoma di Trento – ISTAT Alloggi | Destinatario istituzionale | T15 | — |
 | Booking.com, Airbnb | Canali di prenotazione; scambio dei calendari iCal | T8, T9 | Titolari dei dati dei propri clienti secondo le proprie informative [DA VERIFICARE] |
 | Siti turistici ufficiali (visittrentino.info, visittrento.it, ecc.) | Immagini di copertina di alcune schede di "Luoghi di interesse" e "Convenzioni": `api/x?a=og` risponde con un **redirect 302**, quindi il browser scarica l'immagine dal sito esterno | IP del visitatore | [DA VERIFICARE] |
 
-**Non più presente:** il riquadro finale sulla verifica dell'identità nel check-in (rimosso su richiesta del gestore). Le chiavi `stepFinal.identita*` restano in `i18n.js` ma non sono usate.
+**Non più presente:** il riquadro finale sulla verifica dell'identità nel check-in (rimosso su richiesta del gestore; le chiavi `stepFinal.identita*` sono state tolte da `i18n.js` il 14/11/2026).
+
+**Non più usato dal 14/11/2026: Browserless.** Il PDF di riepilogo non si crea più e nessun servizio esterno riceve i dati degli ospiti per prepararlo. Le variabili `BROWSERLESS_API_TOKEN` e `BROWSERLESS_URL` non sono più lette dal codice e si possono togliere da Vercel [GESTORE].
 
 ---
 
@@ -126,7 +129,7 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 | Cache recensioni Google | Sovrascritta ogni 24 h, senza scadenza | |
 | Check-in: dati temporanei su Neon | Non pagati: scadenza 2 h, cancellazione fisica entro circa 24 h (cron). Pagati: cancellati appena il foglio è scritto e l'email al gestore è partita; al massimo 72 h | Prompt 1 |
 | Check-in: registro tecnico | 30 giorni | |
-| Check-in: righe nel foglio Google, TXT su Drive, email con immagini e PDF (casella del gestore, "Posta inviata" del mittente, cestino, copie scaricate) | **Nessuna cancellazione automatica.** Il gestore ha deciso di cancellarli **entro 24 ore dalla registrazione** su Alloggiati Web [GESTORE] | La cancellazione è **manuale** (§ 6). Il Garante indica la cancellazione appena generata la ricevuta |
+| Check-in: righe nel foglio Google, TXT su Drive, email con immagini e riepilogo (casella del gestore, "Posta inviata" del mittente, cestino, copie scaricate) | **Nessuna cancellazione automatica.** Il gestore ha deciso di cancellarli **entro 24 ore dalla registrazione** su Alloggiati Web [GESTORE] | La cancellazione è **manuale** (§ 6). Il Garante indica la cancellazione appena generata la ricevuta |
 | Ricevuta di Alloggiati Web | 5 anni (nota del Garante) | Conservazione manuale; il sistema non la gestisce |
 | Dati fiscali e contabili | [DA COMPLETARE] con il commercialista | La vecchia `privacy.html` indicava "10 anni (art. 2220 c.c.)": non è verificabile dal codice e dipende dal regime fiscale del titolare, quindi è stato sostituito da un segnaposto |
 | Stripe, Gmail, Vercel (log), Upstash, Neon, GitHub | Secondo le impostazioni e i contratti dei fornitori [DA VERIFICARE] | |
@@ -167,10 +170,10 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 4. **Entro 24 ore dalla registrazione** [GESTORE], da eseguire tutte:
    - cancellare le righe degli ospiti dal foglio del check-in;
    - cancellare il TXT dalla cartella Drive e dal cestino di Drive;
-   - cancellare le email con le immagini e il PDF dalla casella del destinatario (`EMAIL_PROPRIETARIO`), da "Posta inviata" della casella mittente (`EMAIL_USER`), dai cestini di entrambe e da ogni copia scaricata o sincronizzata (telefono, computer, backup).
+   - cancellare le email con le immagini e il riepilogo dalla casella del destinatario (`EMAIL_PROPRIETARIO`), da "Posta inviata" della casella mittente (`EMAIL_USER`), dai cestini di entrambe e da ogni copia scaricata o sincronizzata (telefono, computer, backup).
 5. **Dati storici:**
    - righe del foglio del check-in precedenti a questa procedura;
-   - email e PDF già ricevuti;
+   - email e PDF già ricevuti (i PDF fino al 13/11/2026);
    - metadati `resp_*` delle vecchie sessioni Stripe;
    - prenotazioni e Guest Card in KV senza scadenza.
 6. **Istruzioni scritte** a chi gestisce check-in e caselle email: non fare né trattenere copie dei documenti (nota del Garante).
@@ -186,7 +189,7 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
   3. tenerla cifrata nel database, visibile solo da una pagina admin, con cancellazione automatica.
 - **Verifica *de visu*** non garantita dal processo attuale (codici della cassetta via email).
 - **Dati anagrafici duplicati** nel foglio del check-in e nei TXT, con cancellazione solo manuale.
-- **Browserless:** server di Amsterdam (UE, `production-ams`): nessun trasferimento extra SEE per il PDF. Resta da verificare il contratto di trattamento dati (DPA) con il fornitore.
+- **Browserless (non più usato dal 14/11/2026):** il PDF di riepilogo non si genera più. Per i dati inviati fino al 13/11/2026 resta da valutare la cancellazione dell'account o dei dati presso il fornitore [GESTORE].
 - **Conservazione illimitata** di prenotazioni, Guest Card ed email nel KV e nelle caselle.
 - **Fornitori senza DPA verificato** (art. 28) e regioni dei server non verificate.
 - **Richieste a terzi dal browser:**
@@ -197,8 +200,8 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
 
 ## 8. Verifiche che richiedono accesso ad account reali
 
-1. **Contratti e DPA** di Vercel, Upstash, Neon, GitHub, Google (Workspace o account personale: cambia il quadro contrattuale), Stripe, Browserless e Trentino Marketing. Per ciascuno vanno anche ricavati i link alle informative.
-2. **Regioni e trasferimenti:** progetto Vercel (regione delle funzioni), database Upstash, progetto Neon, piano ed endpoint Browserless.
+1. **Contratti e DPA** di Vercel, Upstash, Neon, GitHub, Google (Workspace o account personale: cambia il quadro contrattuale), Stripe e Trentino Marketing. Per ciascuno vanno anche ricavati i link alle informative.
+2. **Regioni e trasferimenti:** progetto Vercel (regione delle funzioni), database Upstash, progetto Neon.
 3. **Permessi su Drive e Sheets:**
    - fogli del check-in e delle prenotazioni e cartella "Check-in › Polizia di Stato" condivisi solo con le persone necessarie e con l'account di servizio;
    - mai "chiunque abbia il link".
@@ -215,4 +218,5 @@ Per ogni fornitore va verificato, sui contratti o sui termini accettati, il **ru
    - se cancella qualcosa.
 8. **Contenuto reale dei feed iCal** di Airbnb e Booking (descrizioni).
 9. **Ruolo del gestore** rispetto al titolare: accordo ex art. 28 o altra forma.
-10. **Riferimenti normativi** dell'imposta di soggiorno e della rilevazione ISTAT in provincia di Trento.
+10. **Riferimenti normativi** dell'imposta di soggiorno (regola confermata dal titolare il 14/11/2026: dai 14 anni, al massimo 10 notti) e della rilevazione ISTAT in provincia di Trento.
+11. **Browserless** (non più usato): chiudere l'account o far cancellare i dati ricevuti fino al 13/11/2026; togliere `BROWSERLESS_API_TOKEN` e `BROWSERLESS_URL` da Vercel.

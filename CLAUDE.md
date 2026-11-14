@@ -54,6 +54,7 @@ Una modifica a uno di questi punti va verificata anche nel repository Checkin.
 - **Pagamenti del check-in (Stripe).** Il sito e Checkin hanno account Stripe **diversi** (02/11/2026: il sito ancora con le chiavi di prova, Checkin con quelle reali). I pagamenti del check-in arrivano al sito da un secondo webhook registrato sull'account di Checkin verso `api/stripe-webhook.js` (segreto `STRIPE_CHECKIN_WEBHOOK_SECRET`; da lì si registra solo il check-in fatto) e la rete di sicurezza legge quell'account con `STRIPE_CHECKIN_SECRET_KEY`; senza le due variabili il codice funziona anche con un account solo, come prima. I pagamenti del check-in si riconoscono dai metadati `dataCheckin` e `numeroPrenotazione` (letti in `api/_checkin.js`). Il webhook di Checkin ignora i pagamenti di questo sito. Nomi e significato dei metadati non vanno cambiati da una parte sola.
 - **Foglio Prenotazioni.** Checkin lo legge (verifica del numero, abbinamento per data e appartamento): colonne e formato dei numeri vanno mantenuti.
 - **Alloggiati Web.** Il modulo del tracciato in Checkin è un porting di `api/_alloggiati.js`; il test di Checkin lo confronta con questo file se si imposta `LACOLUMBERA_DIR`.
+- **Informativa.** `privacy.html` descrive anche il check-in: che cosa riceve il gestore e in che forma (immagine del documento e riepilogo nel testo dell'email), i fornitori coinvolti (dal 14/11/2026 nessun servizio esterno per il riepilogo) e la regola dell'imposta di soggiorno (dai 14 anni, al massimo 10 notti). Se Checkin cambia uno di questi fatti va aggiornata qui; la prova I6 di `tests/sim/informativa.js` ne fissa i punti principali.
 
 ## Come verificare (nessuna rete, nessun servizio reale)
 
@@ -82,7 +83,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 /tmp/luavenv/bin/python tests/sim/lua51_check.py      # deve finire con «COMPATIBILE CON LUA 5.1»
 ```
 
-## Baseline (13/11/2026; partenza commit `6336695`, sicurezza +4 con S25, S26, S27 e S28, pagamenti +7 con P20, P21, P22, P23, C7, R6 e F3, ui +22 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40, U16b, U4o, U4s, U4p, U4q, U4r, W27b, W41, U4t, W42 e W43, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +9 con M16, M17, M18, M19, M20, M21, M22, M23 e M24, adempimenti +2 con L6b e W6b)
+## Baseline (14/11/2026; partenza commit `6336695`, sicurezza +4 con S25, S26, S27 e S28, pagamenti +7 con P20, P21, P22, P23, C7, R6 e F3, ui +22 con W15c, W15d, W30b, W1v, W39, W14b, U5e, W15e, W16b, W16c, W40, U16b, U4o, U4s, U4p, U4q, U4r, W27b, W41, U4t, W42 e W43, sito +2 con S10 e S11, scenarios +3 con X21, X22 e X23, messaggi +9 con M16, M17, M18, M19, M20, M21, M22, M23 e M24, adempimenti +2 con L6b e W6b, informativa +1 con I6)
 
 | Prova | Risultato |
 |---|---|
@@ -94,7 +95,7 @@ node -e "const A=require('./api/_avail.js');require('fs').writeFileSync('/tmp/lu
 | sito | 11 ok (9 fino a `930c8df`) |
 | istat | 30 ok |
 | adempimenti | 42 ok (40 fino a `69c7337`) |
-| informativa | 5 ok |
+| informativa | 6 ok (5 fino a `916de01`) |
 | ui | 123 ok (121 fino a `2adeacb`, 120 fino a `6e23208`, 119 fino a `72ae77a`, 114 fino a `df2bf66`, 113 fino a `1b9259a`, 112 fino a `69c7337`, 111 fino a `ab429ea`, 101 fino a `0761b7a`, 104 fino a `fa9b43f`, 105 fino a `8e09aa1`, 106 fino a `930c8df`, 107 fino a `0124e23`, 108 fino a `97368a3`, 109 fino a `7036859`, 110 fino a `d6ff156`) |
 | lua51_check | compatibile con Lua 5.1 |
 
