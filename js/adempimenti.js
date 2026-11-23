@@ -170,10 +170,12 @@ function render() {
   if (!root || !root.isConnected) return;
   // Il campo «Carica file TXT» resta lo stesso elemento da un disegno all'altro: se la pagina si ridisegna mentre la finestra di scelta del file
   // è aperta (es. arriva lo stato della configurazione), il file scelto arriva a un campo ancora nella pagina e non a uno già tolto (file perso)
-  const fi = root.querySelector('input[data-file]');
+  // Anche il pulsante che lo contiene resta lo stesso: un tocco iniziato mentre la pagina si ridisegna non va perso (da telefono serviva toccarlo più volte)
+  const fi = root.querySelector('input[data-file]'), fl = fi && fi.closest('label');
   root.innerHTML = vHead() + vRisultato() + vStatus() + vOrigine() + (ST.records.length ? vElenco() + vVerifica() + vInvio() : '');
-  const nu = fi && root.querySelector('input[data-file]');
+  const nu = fi && root.querySelector('input[data-file]'), nl = nu && nu.closest('label');
   if (nu) { fi.disabled = nu.disabled; nu.replaceWith(fi); }
+  if (fl && nl && fl !== nl) { const t = nl.querySelector('[data-ft]'), ot = fl.querySelector('[data-ft]'); if (t && ot) ot.textContent = t.textContent; fl.className = nl.className; nl.replaceWith(fl); fl.appendChild(fi); }
 }
 function steps() {
   const v = ST.view, r = ST.result, done = [ST.records.length > 0, !!(v && v.riepilogo.inviabile), !!(ST.check && ST.check.stato === 'test_ok') || !!(r && r.stato === 'inviato'), !!(r && r.stato === 'inviato')], cur = done.indexOf(false);
@@ -186,7 +188,8 @@ function vHead() {
     + '<ol class="adp-steps" aria-label="Avanzamento" data-testid="adp-steps">' + steps() + '</ol>' + m + '</div>';
 }
 function vStatus() {
-  const s = ST.status, open = ST.statusOpen == null ? !(s && s.stato === 'ok') : ST.statusOpen;
+  // chiusa finché il controllo automatico non segnala un problema: aprirla e richiuderla a controllo finito spostava i pulsanti sotto il dito (da telefono)
+  const s = ST.status, open = ST.statusOpen == null ? !!(s && s.stato !== 'ok') : ST.statusOpen;
   let badge = '<span class="stato in_attesa">Non ancora controllata</span>', body = '<p class="book-note">Premi «Controlla configurazione» per verificare le credenziali e scaricare le tabelle ufficiali.</p>';
   if (ST.stBusy) badge = '<span class="stato in_attesa">Controllo in corso…</span>';
   else if (s && s.stato === 'ok') badge = '<span class="stato confermata">Configurazione valida</span>';
@@ -201,14 +204,14 @@ function vStatus() {
       + (s.missing && s.missing.length ? '<small>Variabili mancanti: <code>' + s.missing.map(esc).join('</code>, <code>') + '</code></small>' : '') + '</div>')
       + (rows.length ? '<dl class="adp-dl">' + rows.map(r => '<dt>' + esc(r[0]) + '</dt> <dd>' + esc(r[1]) + '</dd> ').join('') + '</dl>' : '');
   }
-  return '<div class="admin-card" data-testid="adp-status"><details class="adp-det"' + (open ? ' open' : '') + '><summary class="adm-sum">Stato della configurazione ' + badge + '</summary>' + body
+  return '<div class="admin-card" data-testid="adp-status"><details class="adp-det" data-o="' + (open ? 1 : 0) + '"' + (open ? ' open' : '') + '><summary class="adm-sum">Stato della configurazione ' + badge + '</summary>' + body
     + '<div class="adm-quick"><button type="button" class="btn btn-line" data-a="status"' + (ST.stBusy ? ' disabled' : '') + ' data-testid="adp-status-btn">Controlla configurazione</button></div></details></div>';
 }
 function vOrigine() {
   const lk = locked(), off = lk || ST.busy ? ' disabled' : '';
   return '<div class="admin-card" data-testid="adp-origine"><h2>1 · Origine dei dati</h2>'
     + '<p class="book-note">Carica il file TXT generato dal foglio (una riga di 168 caratteri per ospite) oppure inserisci gli ospiti a mano. Prima dell\'invio puoi correggere qualsiasi dato.</p>'
-    + '<div class="adm-quick"><label class="btn btn-wine adp-file' + (lk || ST.busy ? ' off' : '') + '">' + (ST.busy === 'parse' ? 'Lettura in corso…' : 'Carica file TXT') + '<input type="file" accept=".txt,text/plain" data-file="1" data-testid="adp-file"' + off + '></label>'
+    + '<div class="adm-quick"><label class="btn btn-wine adp-file' + (lk || ST.busy ? ' off' : '') + '"><span data-ft>' + (ST.busy === 'parse' ? 'Lettura in corso…' : 'Carica file TXT') + '</span><input type="file" accept=".txt,text/plain" data-file="1" data-testid="adp-file"' + off + '></label>'
     + '<button type="button" class="btn btn-line" data-a="add"' + off + ' data-testid="adp-add">+ Aggiungi ospite a mano</button></div>'
     + (ST.nome ? '<p class="book-note">File caricato: <b>' + esc(ST.nome) + '</b></p>' : '')
     + '<p class="book-note adp-priv">Privacy: i dati degli ospiti restano solo in questa pagina (non vengono salvati né sul sito né nel browser) e vengono trasmessi al servizio della Polizia di Stato solo quando confermi l\'invio. Se chiudi o ricarichi la pagina vanno persi.</p></div>';
@@ -454,7 +457,8 @@ function onChange(e) {
   if (t.matches('input[data-file]')) { const f = t.files && t.files[0]; t.value = ''; if (f) loadFile(f); return; }
   if (t.matches('input[data-confirm]')) { ST.confirmed = !!t.checked; render(); }
 }
-function onToggle(e) { if (e.target.matches && e.target.matches('details.adp-det')) ST.statusOpen = e.target.open; }
+// conta solo l'apertura o chiusura fatta da chi usa la pagina, non quella del disegno (anche <details open> appena inserito manda «toggle»)
+function onToggle(e) { const d = e.target; if (d.matches && d.matches('details.adp-det') && d.open !== (d.dataset.o === '1')) { ST.statusOpen = d.open; d.dataset.o = d.open ? '1' : '0'; } }
 function mount(el, c) {
   root = el; ctx = Object.assign({ token: () => '', onUnauthorized: () => {} }, c || {});
   root.addEventListener('click', onClick); root.addEventListener('change', onChange); root.addEventListener('toggle', onToggle, true);

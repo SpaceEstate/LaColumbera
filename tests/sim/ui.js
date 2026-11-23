@@ -2631,6 +2631,24 @@ test('U14b Adempimenti: il TXT scelto mentre la pagina si aggiorna (stato della 
   r.w.confirm = () => true; Object.defineProperty(in2, 'files', { value: [new r.w.File([FX('famiglia.txt')], 'famiglia.txt', { type: 'text/plain' })], configurable: true }); fire(in2, 'change');
   await waitFor(() => /File letto: 4 schedine/.test(text(r.doc.querySelector('[data-testid=adp-msg]'))), 'riletto');
 });
+test('U14c Adempimenti: da telefono il pulsante «Carica file TXT» non si sposta né si rifà mentre arriva lo stato della configurazione (un tocco basta)', async () => {
+  const r = await openAdp({ soapOpts: { delay: 150 } }, false);
+  const lab = r.doc.querySelector('[data-testid=adp-origine] label.adp-file'), det = r.doc.querySelector('[data-testid=adp-status] details');
+  assert(lab && !det.open, 'stato della configurazione chiuso durante il controllo automatico (nessuno spostamento dei pulsanti)');
+  await waitFor(() => /Configurazione valida/.test(text(r.doc.querySelector('[data-testid=adp-status]'))), 'configurazione valida');
+  assert(!r.doc.querySelector('[data-testid=adp-status] details').open, 'a controllo riuscito resta chiuso');
+  const lab2 = r.doc.querySelector('[data-testid=adp-origine] label.adp-file');
+  assert(lab2 === lab && lab2.contains(r.doc.querySelector('input[data-file]')) && /Carica file TXT/.test(text(lab2)), 'lo stesso pulsante, con il campo del file dentro');
+  // lettura: il pulsante cambia scritta e torna com'era, sempre lo stesso elemento
+  pickFile(r, FX('famiglia.txt'), 'famiglia.txt');
+  await waitFor(() => r.doc.querySelectorAll('[data-testid^=adp-row-]').length === 4, 'file letto');
+  const lab3 = r.doc.querySelector('[data-testid=adp-origine] label.adp-file');
+  assert(lab3 === lab && /Carica file TXT/.test(text(lab3)) && !lab3.classList.contains('off'), 'pulsante di nuovo attivo');
+  // aprire la sezione a mano resta una scelta di chi usa la pagina
+  const d = r.doc.querySelector('[data-testid=adp-status] details'); d.open = true; fire(d, 'toggle');
+  r.doc.querySelector('[data-testid=adp-status-btn]').click(); await waitFor(() => !r.doc.querySelector('[data-testid=adp-status-btn]').disabled, 'controllo finito');
+  assert(r.doc.querySelector('[data-testid=adp-status] details').open, 'aperta a mano, resta aperta');
+});
 test('U14 Adempimenti: carico il TXT → anteprima per nucleo con nomi decodificati, controlli superati, nessuna chiamata di verifica o invio', async () => {
   const r = await openAdp(); pickFile(r, FX('famiglia.txt'), 'famiglia.txt');
   await waitFor(() => r.doc.querySelectorAll('[data-testid^=adp-row-]').length === 4, 'quattro schede'); await waitFor(() => r.doc.querySelector('[data-testid=adp-ready]'), 'controlli superati');
